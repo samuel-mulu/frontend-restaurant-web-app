@@ -1,8 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Restaurant Menu Management Frontend
+
+This is a [Next.js](https://nextjs.org) project for managing restaurant menus, categories, orders, and inventory.
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ and npm/yarn/pnpm
+- Backend API running on `http://localhost:5000` (or configure via environment variable)
+
+### Installation
+
+```bash
+npm install
+# or
+yarn install
+# or
+pnpm install
+```
+
+### Environment Setup
+
+Create a `.env.local` file in the `frontend/` directory:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
+```
+
+### Run Development Server
 
 ```bash
 npm run dev
@@ -10,27 +35,36 @@ npm run dev
 yarn dev
 # or
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `app/` - Next.js app router pages
+- `components/features/` - Feature-specific React components
+- `lib/api/` - API client functions for backend integration
+- `lib/types.ts` - TypeScript type definitions
+
+## Documentation
+
+- **[Frontend Guide for Backend Developers](./FRONTEND_GUIDE_FOR_BACKEND.md)** - Comprehensive guide for backend developers on API integration, data formats, and expected response structures
+- **[Cashier View Flow](./CASHIER_VIEW_FLOW.md)** - Detailed explanation of the CashierView component flow and relationships
+
+## Key Features
+
+- **Category Management** - Create, update, and delete menu categories
+- **Menu Management** - Manage menu items with images, pricing, and availability
+- **Cashier View** - Point-of-sale interface for creating orders
+- **Order History** - View and filter past orders
+- **Product Management** - Manage inventory products
+
+## API Integration
+
+All API calls go through centralized API clients in `lib/api/`. See [FRONTEND_GUIDE_FOR_BACKEND.md](./FRONTEND_GUIDE_FOR_BACKEND.md) for detailed API integration guidelines.
 
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Shadcn UI Components](https://ui.shadcn.com/)
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/)

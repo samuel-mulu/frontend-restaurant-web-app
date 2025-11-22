@@ -33,10 +33,23 @@ export interface Product {
 
 export interface Order {
   id: string;
-  customer: string;
-  totalPrice: number;
-  status: "Completed" | "Pending" | "Cancelled";
-  date: string;
+  orderNumber?: string; // Order number from backend
+  orderCode?: string; // Order code from backend
+  tableNumber?: string; // Table number
+  customer?: string; // Legacy field - can be derived from tableNumber
+  totalPrice: number; // Total amount
+  status: "Completed" | "Pending" | "Cancelled" | "placed" | "served" | "completed" | "cancelled"; // Support both formats
+  date: string; // Formatted date string
+  // Waiter and Cashier information
+  waiterId?: string;
+  waiterName?: string; // From populated waiterId
+  cashierId?: string;
+  cashierName?: string; // From populated cashierId
+  // Additional fields
+  items?: any[]; // Order items
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**

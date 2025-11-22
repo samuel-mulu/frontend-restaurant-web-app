@@ -5,11 +5,7 @@
  * It handles creating, fetching, and updating orders.
  */
 
-import { ApiError as ApiErrorClass } from "./config";
-
-// Get the API base URL from environment variables
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+import { api, ApiError as ApiErrorClass } from "./config";
 
 // Re-export ApiError for use in components
 export { ApiErrorClass as ApiError };
@@ -40,6 +36,7 @@ export interface CreateOrderInput {
 
 /**
  * Backend Order Response
+ * waiterId and cashierId are populated with User objects
  */
 interface BackendOrder {
   id: string;
@@ -49,9 +46,9 @@ interface BackendOrder {
   items: OrderItemInput[];
   note?: string;
   totalAmount: number;
-  status: "pending" | "preparing" | "ready" | "completed" | "cancelled";
-  waiterId?: string;
-  cashierId?: string;
+  status: "pending" | "preparing" | "ready" | "completed" | "cancelled" | "placed" | "served";
+  waiterId?: string | { _id: string; name: string; email?: string; phone?: string };
+  cashierId?: string | { _id: string; name: string; email?: string; phone?: string };
   createdAt: string;
   updatedAt: string;
 }
@@ -67,17 +64,67 @@ export interface Order {
   items: OrderItemInput[];
   note?: string;
   totalAmount: number;
-  status: "pending" | "preparing" | "ready" | "completed" | "cancelled";
+  status: "pending" | "preparing" | "ready" | "completed" | "cancelled" | "placed" | "served";
   waiterId?: string;
+  waiterName?: string;
   cashierId?: string;
+  cashierName?: string;
   createdAt: string;
   updatedAt: string;
+  // Display fields (computed)
+  customer?: string; // "Table X" format
+  totalPrice: number; // Alias for totalAmount
+  date: string; // Formatted date string
+}
+
+/**
+ * Map backend status to frontend display status
+ */
+function mapStatusToDisplay(status: string): "Pending" | "Completed" | "Cancelled" | string {
+  const statusMap: Record<string, string> = {
+    "placed": "Pending",
+    "pending": "Pending",
+    "served": "Served",
+    "preparing": "Preparing",
+    "ready": "Ready",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+  };
+  return statusMap[status.toLowerCase()] || status;
 }
 
 /**
  * Transform backend order to frontend format
  */
 function transformOrder(backendOrder: BackendOrder): Order {
+  // Extract waiter information
+  const waiterId = typeof backendOrder.waiterId === "string" 
+    ? backendOrder.waiterId 
+    : backendOrder.waiterId?._id || backendOrder.waiterId;
+  const waiterName = typeof backendOrder.waiterId === "object" && backendOrder.waiterId
+    ? backendOrder.waiterId.name
+    : undefined;
+
+  // Extract cashier information
+  const cashierId = typeof backendOrder.cashierId === "string"
+    ? backendOrder.cashierId
+    : backendOrder.cashierId?._id || backendOrder.cashierId;
+  const cashierName = typeof backendOrder.cashierId === "object" && backendOrder.cashierId
+    ? backendOrder.cashierId.name
+    : undefined;
+
+  // Format date for display
+  const date = new Date(backendOrder.createdAt).toLocaleString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  // Format customer string
+  const customer = `Table ${backendOrder.tableNumber}${waiterName ? ` - ${waiterName}` : ""}`;
+
   return {
     id: backendOrder.id,
     orderCode: backendOrder.orderCode,
@@ -86,11 +133,16 @@ function transformOrder(backendOrder: BackendOrder): Order {
     items: backendOrder.items,
     note: backendOrder.note,
     totalAmount: backendOrder.totalAmount,
+    totalPrice: backendOrder.totalAmount, // Alias for compatibility
     status: backendOrder.status,
-    waiterId: backendOrder.waiterId,
-    cashierId: backendOrder.cashierId,
+    waiterId: waiterId as string | undefined,
+    waiterName,
+    cashierId: cashierId as string | undefined,
+    cashierName,
     createdAt: backendOrder.createdAt,
     updatedAt: backendOrder.updatedAt,
+    customer,
+    date,
   };
 }
 
@@ -167,7 +219,30 @@ export async function getOrder(id: string): Promise<Order | null> {
     if (!id || !id.trim()) {
       throw new ApiErrorClass(400, "Order ID is required", "VALIDATION_ERROR");
     }
-    const backendOrder = await api.get<BackendOrder>(`/orders/${id}`);
+    // Backend returns order directly, not wrapped
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"}/orders/${id}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiErrorClass(
+        response.status,
+        errorData.error || errorData.message || `Request failed with status ${response.status}`,
+        errorData.code
+      );
+    }
+
+    const backendOrder: BackendOrder = await response.json();
     return transformOrder(backendOrder);
   } catch (error) {
     if (error instanceof ApiErrorClass) {
@@ -192,6 +267,7 @@ export async function listOrders(filters?: {
   cashierId?: string;
   startDate?: string;
   endDate?: string;
+  roleFilter?: "waiter" | "owner"; // For frontend filtering logic
 }): Promise<Order[]> {
   try {
     const queryParams = new URLSearchParams();
@@ -204,7 +280,28 @@ export async function listOrders(filters?: {
     const endpoint = `/orders${
       queryParams.toString() ? `?${queryParams.toString()}` : ""
     }`;
-    const backendOrders = await api.get<BackendOrder[]>(endpoint);
+    
+    // Backend returns orders directly, not wrapped
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"}${endpoint}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiErrorClass(
+        response.status,
+        errorData.error || errorData.message || `Request failed with status ${response.status}`,
+        errorData.code
+      );
+    }
+
+    const backendOrders: BackendOrder[] = await response.json();
     return backendOrders.map(transformOrder);
   } catch (error) {
     if (error instanceof ApiErrorClass) {
@@ -233,9 +330,28 @@ export async function updateOrderStatus(
       throw new ApiErrorClass(400, "Status is required", "VALIDATION_ERROR");
     }
 
-    const backendOrder = await api.patch<BackendOrder>(`/orders/${id}/status`, {
-      status,
-    });
+    // Backend returns order directly
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"}/orders/${id}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiErrorClass(
+        response.status,
+        errorData.error || errorData.message || `Request failed with status ${response.status}`,
+        errorData.code
+      );
+    }
+
+    const backendOrder: BackendOrder = await response.json();
     return transformOrder(backendOrder);
   } catch (error) {
     if (error instanceof ApiErrorClass) {

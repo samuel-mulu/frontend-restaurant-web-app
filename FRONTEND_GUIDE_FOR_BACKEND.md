@@ -87,6 +87,7 @@ The frontend expects **ALL** API responses to follow this format:
 **GET /api/v1/categories**
 
 Expected Response:
+
 ```json
 {
   "success": true,
@@ -101,7 +102,8 @@ Expected Response:
 }
 ```
 
-**Frontend Transformation**: 
+**Frontend Transformation**:
+
 - `id` field is required (MongoDB `_id` converted to string via virtual)
 - `updatedAt` is formatted to `YYYY-MM-DD` for display
 - `products` count is set to 0 (not provided by backend)
@@ -113,6 +115,7 @@ Expected Response:
 **GET /api/v1/items?categoryId=xxx&page=1&limit=10**
 
 Expected Response:
+
 ```json
 {
   "success": true,
@@ -145,6 +148,7 @@ Expected Response:
 ```
 
 **Critical Requirements**:
+
 - `id` field is **REQUIRED** - Must be a virtual field in your Mongoose model
 - `category` must be populated (object with `id` and `name`)
 - `price` should be in **dollars** (not cents) - Frontend displays as-is
@@ -152,6 +156,7 @@ Expected Response:
 - `image` is optional but should have `url` and `publicId` if present
 
 **Mongoose Model Setup** (Backend):
+
 ```typescript
 // Add this virtual to your Item schema
 ItemSchema.virtual("id").get(function () {
@@ -177,6 +182,7 @@ ItemSchema.virtual("id").get(function () {
 **POST /api/v1/orders**
 
 Expected Request:
+
 ```json
 {
   "tableNumber": "3",
@@ -195,6 +201,7 @@ Expected Request:
 ```
 
 Expected Response:
+
 ```json
 {
   "id": "507f1f77bcf86cd799439014",
@@ -244,6 +251,7 @@ image: [File object]
 ```
 
 **Backend should**:
+
 - Accept `multipart/form-data`
 - Parse FormData fields
 - Handle the image file upload
@@ -354,7 +362,8 @@ Create `.env.local` in the `frontend/` directory:
 NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
 ```
 
-**Important**: 
+**Important**:
+
 - `NEXT_PUBLIC_` prefix is required for Next.js to expose it to the browser
 - Default fallback is `http://localhost:5000/api/v1`
 - For production, set this to your production API URL
@@ -446,6 +455,7 @@ const fetchStaff = async () => {
 ### 1. Pagination
 
 **Backend should return**:
+
 ```json
 {
   "success": true,
@@ -460,6 +470,7 @@ const fetchStaff = async () => {
 ```
 
 **Frontend usage**:
+
 ```typescript
 const response = await getItems(categoryId, { page: 1, limit: 10 });
 // response.data = items array
@@ -469,6 +480,7 @@ const response = await getItems(categoryId, { page: 1, limit: 10 });
 ### 2. Filtering
 
 **Query Parameters**:
+
 - `categoryId`: Filter items by category
 - `status`: Filter orders by status
 - `page`, `limit`: Pagination
@@ -478,6 +490,7 @@ const response = await getItems(categoryId, { page: 1, limit: 10 });
 ### 3. File Uploads
 
 **Frontend sends FormData**:
+
 ```typescript
 const formData = new FormData();
 formData.append("name", "Item Name");
@@ -486,6 +499,7 @@ formData.append("image", file);
 ```
 
 **Backend should**:
+
 - Accept `multipart/form-data`
 - Parse all fields as strings (convert numbers)
 - Handle file upload to Cloudinary/storage
@@ -497,8 +511,9 @@ formData.append("image", file);
 **Frontend displays**: `YYYY-MM-DD` format (`2025-01-20`)
 
 **Transformation**:
+
 ```typescript
-new Date(backendDate).toISOString().split("T")[0]
+new Date(backendDate).toISOString().split("T")[0];
 ```
 
 ---
@@ -508,6 +523,7 @@ new Date(backendDate).toISOString().split("T")[0]
 ### 1. Check Response Format
 
 Ensure your endpoint returns:
+
 ```json
 {
   "success": true,
@@ -518,6 +534,7 @@ Ensure your endpoint returns:
 ### 2. Verify ID Field
 
 All models must have an `id` virtual field:
+
 ```typescript
 Schema.virtual("id").get(function () {
   return this._id.toHexString();
@@ -527,6 +544,7 @@ Schema.virtual("id").get(function () {
 ### 3. Test Error Responses
 
 Test with invalid data:
+
 - Missing required fields → Should return 400 with message
 - Duplicate entries → Should return 409 with message
 - Not found → Should return 404 with message
@@ -534,6 +552,7 @@ Test with invalid data:
 ### 4. Check Network Tab
 
 In browser DevTools → Network tab:
+
 - Verify request URL is correct
 - Check request payload format
 - Verify response format matches expected structure
@@ -584,7 +603,7 @@ router.get("/", async (req, res) => {
   const categories = await Category.find();
   res.json({
     success: true,
-    data: categories  // Mongoose automatically converts _id to id via virtual
+    data: categories, // Mongoose automatically converts _id to id via virtual
   });
 });
 ```
@@ -621,4 +640,3 @@ useEffect(() => {
 ---
 
 This guide should help you ensure your backend endpoints are compatible with the frontend. If you need to add new endpoints or modify existing ones, follow these patterns for seamless integration.
-

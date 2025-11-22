@@ -41,6 +41,8 @@ interface BackendItem {
   clientId?: string;
 }
 
+type LegacyBackendItem = BackendItem & { _id?: string };
+
 /**
  * Create Item Input
  * What we send to the backend when creating/updating
@@ -81,7 +83,8 @@ export interface PaginatedResponse<T> {
  */
 function transformItem(backendItem: BackendItem): Menu {
   // Ensure we have an ID - fallback to _id if id is missing
-  const itemId = backendItem.id || (backendItem as any)._id || "";
+  const legacyItem = backendItem as LegacyBackendItem;
+  const itemId = backendItem.id || legacyItem._id || "";
 
   if (!itemId) {
     console.error("Item missing ID:", backendItem);
@@ -96,6 +99,7 @@ function transformItem(backendItem: BackendItem): Menu {
     category: backendItem.category?.id || "",
     price: backendItem.price,
     description: backendItem.description || "",
+    imageUrl: backendItem.image?.url,
     // Map isAvailable to available
     available: backendItem.isAvailable,
     // Format the date for display (YYYY-MM-DD)
@@ -335,7 +339,7 @@ export async function updateItem(
       return transformItem(backendItem);
     } else {
       // No image, use regular JSON request
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       if (data.categoryId !== undefined) {
         updateData.categoryId = data.categoryId;
       }

@@ -64,7 +64,7 @@ export async function apiRequest<T>(
 
   // If body is FormData, let the browser set Content-Type
   if (options.body instanceof FormData) {
-    delete (headers as any)["Content-Type"];
+    delete (headers as Record<string, string>)["Content-Type"];
   }
 
   // Prepare request configuration
@@ -73,7 +73,9 @@ export async function apiRequest<T>(
     headers,
     // Convert body to JSON string if it's an object, unless it's FormData
     body:
-      options.body && typeof options.body === "object" && !(options.body instanceof FormData)
+      options.body &&
+      typeof options.body === "object" &&
+      !(options.body instanceof FormData)
         ? JSON.stringify(options.body)
         : options.body,
   };

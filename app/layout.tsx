@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Lato } from "next/font/google";
 import "./globals.css";
-import { SidebarProvider } from "@/components/layout/SidebarContext";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { MainContent } from "@/components/layout/MainContent";
+import { Providers } from "@/components/providers";
+import ProtectedRoute from "@/components/protected-route";
 import { Toaster } from "@/components/ui/toaster";
 
-const inter = Inter({
+const lato = Lato({
+  weight: ["300", "400", "700", "900"],
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-lato",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Restaurant Management System",
-  description: "Modern restaurant management system with POS, inventory, and order tracking",
+  description:
+    "Modern restaurant management system with POS, inventory, and order tracking",
 };
 
 export default function RootLayout({
@@ -22,15 +24,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} antialiased`}>
-        <SidebarProvider>
-          <div className="flex min-h-screen bg-gray-50">
-            <Sidebar />
-            <MainContent>{children}</MainContent>
-          </div>
-        </SidebarProvider>
-        <Toaster />
+    <html lang="en" className="bg-slate-50">
+      <body className={`${lato.variable} antialiased`}>
+        <Providers>
+          <ProtectedRoute>{children}</ProtectedRoute>
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );

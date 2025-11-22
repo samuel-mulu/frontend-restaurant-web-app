@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -93,16 +93,6 @@ export function MenuManagement() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // Fetch categories on component mount
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  // Fetch items on mount and when category filter or page changes
-  useEffect(() => {
-    fetchItems();
-  }, [selectedCategoryFilter, currentPage]);
-
   /**
    * Fetch categories from API for dropdown
    */
@@ -128,7 +118,7 @@ export function MenuManagement() {
    * Fetch items from API with pagination
    * Optionally filtered by category
    */
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     try {
       setIsLoadingItems(true);
       setError(null);
@@ -154,7 +144,17 @@ export function MenuManagement() {
     } finally {
       setIsLoadingItems(false);
     }
-  };
+  }, [selectedCategoryFilter, currentPage, itemsPerPage]);
+
+  // Fetch categories on component mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  // Fetch items on mount and when category filter or page changes
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
 
   /**
    * Helper function to get category name by ID
@@ -190,7 +190,7 @@ export function MenuManagement() {
     try {
       setIsSubmitting(true);
       // Call API to create item
-      const newMenu = await createItem({
+      await createItem({
         categoryId: formData.categoryId,
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
@@ -279,7 +279,7 @@ export function MenuManagement() {
     try {
       setIsSubmitting(true);
       // Call API to update item
-      const updatedMenu = await updateItem(editingMenuId, {
+      await updateItem(editingMenuId, {
         categoryId: formData.categoryId,
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
@@ -417,6 +417,36 @@ export function MenuManagement() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
 
+  const totalAvailableMenus = menus.filter((menu) => menu.available).length;
+  const totalUnavailableMenus = Math.max(menus.length - totalAvailableMenus, 0);
+  const averagePrice =
+    menus.length > 0
+      ? menus.reduce((sum, menu) => sum + menu.price, 0) / menus.length
+      : 0;
+
+  const headerStats = [
+    {
+      label: "Menus listed",
+      value: menus.length,
+      helper: "current view",
+    },
+    {
+      label: "Available now",
+      value: totalAvailableMenus,
+      helper: "visible on cashier",
+    },
+    {
+      label: "Unavailable",
+      value: totalUnavailableMenus,
+      helper: "temporarily hidden",
+    },
+    {
+      label: "Avg. price",
+      value: `${averagePrice.toFixed(2)} ብር`,
+      helper: "current selection",
+    },
+  ];
+
   // Reset to page 1 when filter changes
   const handleCategoryFilterChange = (categoryId: string): void => {
     setSelectedCategoryFilter(categoryId);
@@ -459,18 +489,48 @@ export function MenuManagement() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900 shrink-0">Menus</h1>
-        <Button
-          onClick={() => setIsCreateOpen(true)}
-          disabled={isLoadingCategories || isLoadingItems}
-          className="min-h-[44px] w-full sm:w-auto shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          Create Menu
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <header className="glass-panel p-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                Menu builder
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900">
+                Menus
+              </h1>
+              <p className="mt-2 text-sm text-slate-600">
+                Keep menu items organised, control availability, and publish
+                updates instantly across the cashier experience.
+              </p>
+            </div>
+            <Button
+              onClick={() => setIsCreateOpen(true)}
+              disabled={isLoadingCategories || isLoadingItems}
+              className="min-h-[44px] w-full rounded-full bg-slate-900 text-white shadow-lg sm:w-auto hover:bg-slate-800"
+            >
+              Create Menu
+            </Button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {headerStats.map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-inner shadow-slate-200/40"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {stat.label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {stat.value}
+                </p>
+                <p className="text-xs text-slate-500">{stat.helper}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </header>
 
       {/* Error State */}
       {error && !isLoadingItems && (
@@ -491,7 +551,7 @@ export function MenuManagement() {
       )}
 
       {/* Category Filter */}
-      <div className="mb-4 lg:mb-6 flex-shrink-0">
+      <div className="soft-card p-4 shrink-0">
         {isLoadingCategories ? (
           <div className="flex items-center gap-2 text-gray-600">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -501,10 +561,10 @@ export function MenuManagement() {
           <div className="flex gap-2 lg:gap-3 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide -mx-1 px-1">
             <button
               onClick={() => handleCategoryFilterChange("all")}
-              className={`flex-shrink-0 rounded-lg px-4 py-2.5 lg:px-6 lg:py-3 text-sm lg:text-base font-medium transition-colors min-h-[44px] ${
+              className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors min-h-[40px] ${
                 selectedCategoryFilter === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-white text-gray-700 shadow-sm hover:bg-gray-100"
+                  ? "bg-slate-900 text-white shadow-md"
+                  : "bg-white/80 text-slate-600 hover:text-slate-900"
               }`}
             >
               All
@@ -513,10 +573,10 @@ export function MenuManagement() {
               <button
                 key={category.id}
                 onClick={() => handleCategoryFilterChange(category.id)}
-                className={`flex-shrink-0 rounded-lg px-4 py-2.5 lg:px-6 lg:py-3 text-sm lg:text-base font-medium transition-colors min-h-[44px] ${
+                className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors min-h-[40px] ${
                   selectedCategoryFilter === category.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-white text-gray-700 shadow-sm hover:bg-gray-100"
+                    ? "bg-slate-900 text-white shadow-md"
+                    : "bg-white/80 text-slate-600 hover:text-slate-900"
                 }`}
               >
                 {category.name}
@@ -554,7 +614,7 @@ export function MenuManagement() {
           {paginatedMenus.map((menu) => (
             <div
               key={menu.id}
-              className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
@@ -590,7 +650,11 @@ export function MenuManagement() {
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
                           This action cannot be undone. This will permanently
-                          delete the menu "{menu.name}".
+                          delete the menu{" "}
+                          <span className="font-semibold text-slate-900">
+                            {menu.name}
+                          </span>
+                          .
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -669,7 +733,7 @@ export function MenuManagement() {
 
       {/* Desktop Table View */}
       {!isLoadingItems && !error && menus.length > 0 && (
-        <div className="hidden lg:flex flex-col flex-1 min-h-0 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="hidden lg:flex flex-col flex-1 min-h-0 soft-card overflow-hidden">
           <div className="flex-1 overflow-auto">
             <Table>
               <TableHeader className="sticky top-0 bg-white z-10">
@@ -745,7 +809,11 @@ export function MenuManagement() {
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
                                   This action cannot be undone. This will
-                                  permanently delete the menu "{menu.name}".
+                                  permanently delete the menu{" "}
+                                  <span className="font-semibold text-slate-900">
+                                    {menu.name}
+                                  </span>
+                                  .
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -947,6 +1015,7 @@ export function MenuManagement() {
               />
               {imagePreview && (
                 <div className="mt-2 relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imagePreview}
                     alt="Preview"

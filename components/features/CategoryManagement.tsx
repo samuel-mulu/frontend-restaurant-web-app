@@ -54,6 +54,41 @@ export function CategoryManagement() {
   const [categoryName, setCategoryName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const totalProducts = categories.reduce(
+    (sum, category) => sum + (category.products || 0),
+    0
+  );
+  const averageProducts =
+    categories.length > 0 ? totalProducts / categories.length : 0;
+  const latestUpdate = categories.reduce<string | null>((latest, category) => {
+    if (!category.updatedAt) return latest;
+    if (!latest) return category.updatedAt;
+    return category.updatedAt > latest ? category.updatedAt : latest;
+  }, null);
+
+  const summaryCards = [
+    {
+      label: "Categories",
+      value: categories.length,
+      helper: "active in system",
+    },
+    {
+      label: "Linked products",
+      value: totalProducts,
+      helper: "across menu",
+    },
+    {
+      label: "Avg. per category",
+      value: categories.length > 0 ? averageProducts.toFixed(1) : "—",
+      helper: "products each",
+    },
+    {
+      label: "Last update",
+      value: latestUpdate ?? "—",
+      helper: "sync status",
+    },
+  ];
+
   // Fetch categories on component mount
   useEffect(() => {
     fetchCategories();
@@ -224,20 +259,48 @@ export function CategoryManagement() {
   };
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900 shrink-0">
-          Categories
-        </h1>
-        <Button
-          onClick={() => setIsCreateOpen(true)}
-          className="min-h-[44px] w-full sm:w-auto shrink-0"
-          disabled={isLoading}
-        >
-          Create Category
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <header className="glass-panel p-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                Menu taxonomy
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900">
+                Categories
+              </h1>
+              <p className="mt-2 text-sm text-slate-600">
+                Structure the menu into meaningful groups and keep availability
+                aligned between kitchen and cashier workflows.
+              </p>
+            </div>
+            <Button
+              onClick={() => setIsCreateOpen(true)}
+              className="min-h-[44px] w-full rounded-full bg-slate-900 text-white shadow-lg sm:w-auto hover:bg-slate-800"
+              disabled={isLoading}
+            >
+              Create Category
+            </Button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {summaryCards.map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-inner shadow-slate-200/40"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {stat.label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {stat.value}
+                </p>
+                <p className="text-xs text-slate-500">{stat.helper}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </header>
 
       {/* Error State */}
       {error && !isLoading && (
@@ -278,7 +341,7 @@ export function CategoryManagement() {
           {categories.map((category) => (
             <div
               key={category.id}
-              className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
@@ -314,7 +377,11 @@ export function CategoryManagement() {
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
                           This action cannot be undone. This will permanently
-                          delete the category "{category.name}".
+                          delete the category{" "}
+                          <span className="font-semibold text-slate-900">
+                            {category.name}
+                          </span>
+                          .
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -340,7 +407,7 @@ export function CategoryManagement() {
 
       {/* Desktop Table View */}
       {!isLoading && !error && categories.length > 0 && (
-        <div className="hidden lg:block rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="hidden lg:block soft-card overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -381,7 +448,11 @@ export function CategoryManagement() {
                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                             <AlertDialogDescription>
                               This action cannot be undone. This will
-                              permanently delete the category "{category.name}".
+                              permanently delete the category{" "}
+                              <span className="font-semibold text-slate-900">
+                                {category.name}
+                              </span>
+                              .
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

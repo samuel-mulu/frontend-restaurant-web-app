@@ -20,12 +20,74 @@ import {
 } from "@/components/ui/select";
 import { Eye, Loader2, CheckSquare, Square } from "lucide-react";
 import { Order } from "@/lib/types";
-import {
-  listOrders,
-  ApiError,
-  OrderItemInput,
-  updateOrderStatus,
-} from "@/lib/api/orders";
+
+const formatDateForFilter = (dateString: string): string => {
+  if (dateString.includes(" ")) {
+    return dateString.split(" ")[0];
+  }
+  if (dateString.includes("T")) {
+    return dateString.split("T")[0];
+  }
+  return dateString;
+};
+
+const mapStatusForFilter = (status: string): string => {
+  const statusLower = status.toLowerCase();
+  if (statusLower === "placed" || statusLower === "pending") {
+    return "Pending";
+  }
+  if (statusLower === "completed") {
+    return "Completed";
+  }
+  return "Pending";
+};
+
+const getDisplayStatus = (status: string): string => {
+  return mapStatusForFilter(status);
+};
+
+const getAvailableDates = (orders: Order[], status: string): string[] => {
+  const statusToFilter = status === "all" ? null : status;
+  const filtered = statusToFilter
+    ? orders.filter((order) => {
+        const orderStatus = mapStatusForFilter(order.status);
+        return orderStatus === statusToFilter;
+      })
+    : orders;
+
+  const dates = new Set<string>();
+  filtered.forEach((order) => {
+    const date = formatDateForFilter(order.date);
+    if (date) dates.add(date);
+  });
+
+  return Array.from(dates).sort().reverse();
+};
+
+const getWaiterNames = (
+  orders: Order[]
+): { id: string; name: string; count: number }[] => {
+  const waitersMap = new Map<string, { name: string; count: number }>();
+  orders.forEach((order) => {
+    if (order.waiterId && order.waiterName) {
+      const existing = waitersMap.get(order.waiterId);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        waitersMap.set(order.waiterId, {
+          name: order.waiterName,
+          count: 1,
+        });
+      }
+    }
+  });
+  return Array.from(waitersMap.entries()).map(([id, data]) => ({
+    id,
+    name: data.name,
+    count: data.count,
+  }));
+};
+import { OrderItemInput, updateOrderStatus } from "@/lib/api/orders";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -140,7 +202,7 @@ const mockOrders: Order[] = [
 export function OrderHistory() {
   // State management
   const [orders, setOrders] = useState<Order[]>(mockOrders);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
   const [roleFilter, setRoleFilter] = useState<"waiter" | "owner">("waiter");
   const [statusFilter, setStatusFilter] = useState<string>("Pending");
   const [dateFilter, setDateFilter] = useState<string>("all");
@@ -174,91 +236,6 @@ export function OrderHistory() {
     // };
     // fetchOrders();
   }, []);
-
-  /**
-   * Format date string to YYYY-MM-DD
-   */
-  const formatDateForFilter = (dateString: string): string => {
-    // Handle different date formats
-    if (dateString.includes(" ")) {
-      return dateString.split(" ")[0];
-    }
-    if (dateString.includes("T")) {
-      return dateString.split("T")[0];
-    }
-    return dateString;
-  };
-
-  /**
-   * Get available dates from orders based on status
-   */
-  const getAvailableDates = (orders: Order[], status: string): string[] => {
-    const statusToFilter = status === "all" ? null : status;
-    const filtered = statusToFilter
-      ? orders.filter((order) => {
-          // Map status for comparison
-          const orderStatus = mapStatusForFilter(order.status);
-          return orderStatus === statusToFilter;
-        })
-      : orders;
-
-    const dates = new Set<string>();
-    filtered.forEach((order) => {
-      const date = formatDateForFilter(order.date);
-      if (date) dates.add(date);
-    });
-
-    return Array.from(dates).sort().reverse(); // Most recent first
-  };
-
-  /**
-   * Get unique waiter names from orders with order counts
-   */
-  const getWaiterNames = (
-    orders: Order[]
-  ): { id: string; name: string; count: number }[] => {
-    const waitersMap = new Map<string, { name: string; count: number }>();
-    orders.forEach((order) => {
-      if (order.waiterId && order.waiterName) {
-        const existing = waitersMap.get(order.waiterId);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          waitersMap.set(order.waiterId, {
-            name: order.waiterName,
-            count: 1,
-          });
-        }
-      }
-    });
-    return Array.from(waitersMap.entries()).map(([id, data]) => ({
-      id,
-      name: data.name,
-      count: data.count,
-    }));
-  };
-
-  /**
-   * Map order status to filter status
-   */
-  const mapStatusForFilter = (status: string): string => {
-    const statusLower = status.toLowerCase();
-    if (statusLower === "placed" || statusLower === "pending") {
-      return "Pending";
-    }
-    if (statusLower === "completed") {
-      return "Completed";
-    }
-    // Default to Pending for unknown statuses
-    return "Pending";
-  };
-
-  /**
-   * Get display status for UI
-   */
-  const getDisplayStatus = (status: string): string => {
-    return mapStatusForFilter(status);
-  };
 
   const getStatusColor = (status: string) => {
     const displayStatus = getDisplayStatus(status);
@@ -326,7 +303,7 @@ export function OrderHistory() {
         setDateFilter("all"); // Reset if current date not available
       }
     }
-  }, [statusFilter, roleFilter, orders]);
+  }, [statusFilter, roleFilter, orders, dateFilter]);
 
   // Reset filters when role changes
   useEffect(() => {
@@ -345,7 +322,7 @@ export function OrderHistory() {
     } else {
       setStatusFilter("Pending"); // Default to Pending for waiter view
     }
-  }, [roleFilter]);
+  }, [roleFilter, orders, dateFilter]);
 
   // Calculate total prices by status based on filtered orders (excluding status filter)
   const orderTotals = useMemo(() => {
@@ -433,6 +410,39 @@ export function OrderHistory() {
       return statusLower === "pending" || statusLower === "placed";
     });
   }, [filteredOrders]);
+
+  const filteredOrdersTotal = useMemo(
+    () =>
+      filteredOrders.reduce((sum, order) => sum + (order.totalPrice || 0), 0),
+    [filteredOrders]
+  );
+
+  const averageTicket =
+    filteredOrders.length > 0 ? filteredOrdersTotal / filteredOrders.length : 0;
+
+  const summaryCards = [
+    {
+      label: "Filtered orders",
+      value: filteredOrders.length,
+      helper: roleFilter === "owner" ? "owner snapshot" : "waiter overview",
+    },
+    {
+      label: "Completed volume",
+      value: `${orderTotals.completed.toFixed(2)} ብር`,
+      helper: "settled payments",
+    },
+    {
+      label: "Pending volume",
+      value:
+        roleFilter === "waiter" ? `${orderTotals.pending.toFixed(2)} ብር` : "—",
+      helper: "awaiting closure",
+    },
+    {
+      label: "Avg. ticket",
+      value: averageTicket > 0 ? `${averageTicket.toFixed(2)} ብር` : "—",
+      helper: "current filters",
+    },
+  ];
 
   // Check if all pending orders are selected
   const isAllPendingSelected = useMemo(() => {
@@ -545,7 +555,7 @@ export function OrderHistory() {
       } else {
         toast.warning(`Updated ${successCount} order(s), ${errorCount} failed`);
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to update order status");
     } finally {
       setIsUpdatingStatus(false);
@@ -553,166 +563,167 @@ export function OrderHistory() {
   };
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-4 lg:mb-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Order History</h1>
-
-          {/* Role Tab Selector */}
-          <div className="flex gap-2 border border-gray-200 rounded-lg p-1 bg-gray-50">
-            <button
-              onClick={() => setRoleFilter("waiter")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors min-h-[44px] ${
-                roleFilter === "waiter"
-                  ? "bg-white text-primary shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Waiter
-            </button>
-            <button
-              onClick={() => setRoleFilter("owner")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors min-h-[44px] ${
-                roleFilter === "owner"
-                  ? "bg-white text-primary shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Owner
-            </button>
-          </div>
-        </div>
-
-        {/* Status Summary */}
-        <div className="mb-4 flex gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg border border-green-200">
-            <span className="text-sm font-medium text-green-800">
-              Completed:
-            </span>
-            <span className="text-lg font-bold text-green-900">
-              {orderTotals.completed.toFixed(2)} ብር
-            </span>
-          </div>
-          {roleFilter === "waiter" && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-yellow-50 rounded-lg border border-yellow-200">
-              <span className="text-sm font-medium text-yellow-800">
-                Pending:
-              </span>
-              <span className="text-lg font-bold text-yellow-900">
-                {orderTotals.pending.toFixed(2)} ብር
-              </span>
+    <div className="flex flex-col gap-6">
+      <header className="glass-panel p-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                Operations
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900">
+                Order history
+              </h1>
+              <p className="mt-2 text-sm text-slate-600">
+                Review live and completed tickets, filter by role, and confirm
+                settlements with confidence.
+              </p>
             </div>
-          )}
+
+            <div className="flex gap-2 rounded-full border border-slate-200/80 bg-white/80 p-1">
+              <button
+                onClick={() => setRoleFilter("waiter")}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors min-h-[40px] ${
+                  roleFilter === "waiter"
+                    ? "bg-slate-900 text-white shadow"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Waiter
+              </button>
+              <button
+                onClick={() => setRoleFilter("owner")}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors min-h-[40px] ${
+                  roleFilter === "owner"
+                    ? "bg-slate-900 text-white shadow"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Owner
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {summaryCards.map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-inner shadow-slate-200/40"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {stat.label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">
+                  {stat.value}
+                </p>
+                <p className="text-xs text-slate-500">{stat.helper}</p>
+              </div>
+            ))}
+          </div>
         </div>
+      </header>
 
-        {/* Filters and Bulk Actions */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Status Filter - Only for Waiter view */}
-            {roleFilter === "waiter" && (
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="min-h-[44px] w-full sm:w-auto min-w-[140px]">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-
-            {/* Date Dropdown - Dynamic based on status */}
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="min-h-[44px] w-full sm:w-auto min-w-[160px]">
-                <SelectValue
-                  placeholder={
-                    roleFilter === "owner"
-                      ? "Select date (Completed orders)"
-                      : "Select date"
-                  }
-                />
+      <section className="soft-card p-4 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          {roleFilter === "waiter" && (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="min-h-[44px] w-full sm:w-auto min-w-[140px] rounded-2xl border-slate-200/80 bg-white/70">
+                <SelectValue placeholder="Select status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Dates</SelectItem>
-                {availableDates.length === 0 ? (
-                  <SelectItem value="no-dates" disabled>
-                    No dates available
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger className="min-h-[44px] w-full sm:w-auto min-w-[160px] rounded-2xl border-slate-200/80 bg-white/70">
+              <SelectValue
+                placeholder={
+                  roleFilter === "owner"
+                    ? "Select date (Completed orders)"
+                    : "Select date"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Dates</SelectItem>
+              {availableDates.length === 0 ? (
+                <SelectItem value="no-dates" disabled>
+                  No dates available
+                </SelectItem>
+              ) : (
+                availableDates.map((date) => (
+                  <SelectItem key={date} value={date}>
+                    {new Date(date).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+
+          {roleFilter === "waiter" && (
+            <Select value={waiterFilter} onValueChange={setWaiterFilter}>
+              <SelectTrigger className="min-h-[44px] w-full sm:w-auto min-w-[160px] rounded-2xl border-slate-200/80 bg-white/70">
+                <SelectValue placeholder="Select waiter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Waiters</SelectItem>
+                {waiterNames.length === 0 ? (
+                  <SelectItem value="no-waiters" disabled>
+                    No waiters available
                   </SelectItem>
                 ) : (
-                  availableDates.map((date) => (
-                    <SelectItem key={date} value={date}>
-                      {new Date(date).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
+                  waiterNames.map((waiter) => (
+                    <SelectItem key={waiter.id} value={waiter.id}>
+                      {waiter.name} ({waiter.count})
                     </SelectItem>
                   ))
                 )}
               </SelectContent>
             </Select>
-
-            {/* Waiter Filter - Only for Waiter view */}
-            {roleFilter === "waiter" && (
-              <Select value={waiterFilter} onValueChange={setWaiterFilter}>
-                <SelectTrigger className="min-h-[44px] w-full sm:w-auto min-w-[160px]">
-                  <SelectValue placeholder="Select waiter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Waiters</SelectItem>
-                  {waiterNames.length === 0 ? (
-                    <SelectItem value="no-waiters" disabled>
-                      No waiters available
-                    </SelectItem>
-                  ) : (
-                    waiterNames.map((waiter) => (
-                      <SelectItem key={waiter.id} value={waiter.id}>
-                        {waiter.name} ({waiter.count})
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {/* Bulk Actions - Only show for Pending orders in Waiter view */}
-          {roleFilter === "waiter" &&
-            statusFilter === "Pending" &&
-            pendingOrders.length > 0 && (
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <button
-                  type="button"
-                  onClick={(e) => handleSelectAllPending(e)}
-                  className="flex items-center gap-2 text-sm font-medium text-blue-900 hover:text-blue-700"
-                >
-                  {isAllPendingSelected ? (
-                    <CheckSquare className="h-5 w-5" />
-                  ) : (
-                    <Square className="h-5 w-5" />
-                  )}
-                  {isAllPendingSelected ? "Deselect All" : "Select All"}
-                </button>
-                {selectedOrderIds.size > 0 && (
-                  <>
-                    <span className="text-sm text-blue-700">
-                      {selectedOrderIds.size} selected
-                    </span>
-                    <Button
-                      onClick={handleBulkStatusChange}
-                      size="sm"
-                      className="ml-auto min-h-[36px] bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      Mark as Completed
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
+          )}
         </div>
-      </div>
+
+        {roleFilter === "waiter" &&
+          statusFilter === "Pending" &&
+          pendingOrders.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/80 p-4">
+              <button
+                type="button"
+                onClick={(e) => handleSelectAllPending(e)}
+                className="flex items-center gap-2 text-sm font-medium text-blue-900 hover:text-blue-700"
+              >
+                {isAllPendingSelected ? (
+                  <CheckSquare className="h-5 w-5" />
+                ) : (
+                  <Square className="h-5 w-5" />
+                )}
+                {isAllPendingSelected ? "Deselect All" : "Select All"}
+              </button>
+              {selectedOrderIds.size > 0 && (
+                <>
+                  <span className="text-sm text-blue-700">
+                    {selectedOrderIds.size} selected
+                  </span>
+                  <Button
+                    onClick={handleBulkStatusChange}
+                    size="sm"
+                    className="ml-auto min-h-[40px] rounded-full bg-green-600 px-4 text-white hover:bg-green-700"
+                  >
+                    Mark as Completed
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+      </section>
 
       {/* Loading State */}
       {isLoading && (
@@ -738,7 +749,7 @@ export function OrderHistory() {
             return (
               <div
                 key={order.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-start gap-3 flex-1">
@@ -806,7 +817,7 @@ export function OrderHistory() {
 
       {/* Desktop Table View */}
       {!isLoading && (
-        <div className="hidden lg:block rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="hidden lg:block soft-card overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>

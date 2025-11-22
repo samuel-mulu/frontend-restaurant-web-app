@@ -226,11 +226,13 @@ export function CategoryManagement() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
+      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
+        <h1 className="text-2xl font-bold text-gray-900 shrink-0">
+          Categories
+        </h1>
         <Button
           onClick={() => setIsCreateOpen(true)}
-          className="min-h-[44px] w-full sm:w-auto"
+          className="min-h-[44px] w-full sm:w-auto shrink-0"
           disabled={isLoading}
         >
           Create Category

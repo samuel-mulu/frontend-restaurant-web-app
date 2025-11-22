@@ -1,4 +1,4 @@
-import { CashierView } from "@/components/features/CashierView";
+import { CashierView } from "@/components/features/cashireview/CashierView";
 
 export default function CashierPage() {
   return <CashierView />;

@@ -461,12 +461,12 @@ export function MenuManagement() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Menus</h1>
+      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
+        <h1 className="text-2xl font-bold text-gray-900 shrink-0">Menus</h1>
         <Button
           onClick={() => setIsCreateOpen(true)}
           disabled={isLoadingCategories || isLoadingItems}
-          className="min-h-[44px] w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+          className="min-h-[44px] w-full sm:w-auto shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
         >
           Create Menu
         </Button>
@@ -609,7 +609,7 @@ export function MenuManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-lg font-bold text-gray-900">
-                    ${menu.price.toFixed(2)}
+                    {menu.price.toFixed(2)} ብር
                   </span>
                   <span
                     className={`ml-2 text-xs px-2 py-1 rounded ${
@@ -705,7 +705,7 @@ export function MenuManagement() {
                         {menu.name}
                       </TableCell>
                       <TableCell className="py-1.5 pl-1 pr-2">
-                        ${menu.price.toFixed(2)}
+                        {menu.price.toFixed(2)} ብር
                       </TableCell>
                       <TableCell className="py-1.5 pl-1 pr-1">
                         <span

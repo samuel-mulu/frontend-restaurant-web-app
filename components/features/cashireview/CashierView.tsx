@@ -243,7 +243,7 @@ export function CashierView() {
       toast.success(
         `Order created successfully! Order #${
           order.orderNumber
-        }. Total: $${calculateTotal().toFixed(2)}`
+        }. Total: ${calculateTotal().toFixed(2)} ብር`
       );
       setCart([]);
       setOrderType("home");
@@ -384,7 +384,7 @@ export function CashierView() {
                           {item.name}
                         </h3>
                         <p className="text-primary font-semibold text-sm lg:text-base">
-                          ${item.price.toFixed(2)}
+                          {item.price.toFixed(2)} ብር
                         </p>
                       </div>
                       <Button

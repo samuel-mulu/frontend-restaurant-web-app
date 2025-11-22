@@ -151,7 +151,7 @@ export function OrderHistory() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-lg font-bold text-gray-900">
-                  ${order.totalPrice.toFixed(2)}
+                  {order.totalPrice.toFixed(2)} ብር
                 </p>
                 <p className="text-xs text-gray-500 mt-1">{order.date}</p>
               </div>
@@ -194,7 +194,7 @@ export function OrderHistory() {
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.id}</TableCell>
                   <TableCell>{order.customer}</TableCell>
-                  <TableCell>${order.totalPrice.toFixed(2)}</TableCell>
+                  <TableCell>{order.totalPrice.toFixed(2)} ብር</TableCell>
                   <TableCell>
                     <Badge
                       className={getStatusColor(order.status)}

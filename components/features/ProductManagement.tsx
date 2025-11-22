@@ -134,11 +134,11 @@ export function ProductManagement() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+      <div className="mb-4 lg:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
+        <h1 className="text-2xl font-bold text-gray-900 shrink-0">Products</h1>
         <Button
           onClick={() => setIsCreateOpen(true)}
-          className="min-h-[44px] w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+          className="min-h-[44px] w-full sm:w-auto shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
         >
           Create Product
         </Button>
@@ -201,7 +201,7 @@ export function ProductManagement() {
               <div>
                 <span className="text-gray-600">Price:</span>
                 <span className="ml-2 font-medium">
-                  ${product.price.toFixed(2)}
+                  {product.price.toFixed(2)} ብር
                 </span>
               </div>
               <div className="col-span-2">
@@ -234,7 +234,7 @@ export function ProductManagement() {
                 <TableCell>{product.category}</TableCell>
                 <TableCell>{product.quantity}</TableCell>
                 <TableCell>{product.unit}</TableCell>
-                <TableCell>${product.price.toFixed(2)}</TableCell>
+                <TableCell>{product.price.toFixed(2)} ብር</TableCell>
                 <TableCell>{product.updatedAt}</TableCell>
                 <TableCell>
                   <div className="flex gap-2">

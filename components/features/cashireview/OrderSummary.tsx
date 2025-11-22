@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Minus, Plus, Trash2, Loader2 } from "lucide-react";
+import { Minus, Plus, Trash2, Loader2 } from "lucide-react";
 import { CartItem } from "@/lib/types";
 
 interface OrderSummaryProps {
@@ -55,10 +55,10 @@ export function OrderSummary({
     <div className="w-full lg:w-96 lg:shrink-0">
       <Card className="border-2 border-gray-200 shadow-xl">
         {/* Cart Header */}
-        <div className="border-b border-gray-200 bg-primary p-4 text-primary-foreground">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" />
+        <div className="border-b border-gray-200 bg-primary p-2 text-primary-foreground">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-primary-foreground/90">
+              Total Items: {totalItems}
             </div>
             {cart.length > 0 && (
               <Button
@@ -72,13 +72,10 @@ export function OrderSummary({
               </Button>
             )}
           </div>
-          <div className="text-sm text-primary-foreground/90">
-            Total Items: {totalItems}
-          </div>
         </div>
 
         {/* Order Type, Waiter and Table Assignment */}
-        <div className="border-b border-gray-200 bg-gray-50 p-3 flex flex-col sm:flex-row gap-3">
+        <div className="border-b border-gray-200 bg-gray-50 p-1 flex flex-col sm:flex-row gap-3">
           <Select value={orderType} onValueChange={onOrderTypeChange}>
             <SelectTrigger className="w-full sm:flex-1 min-h-[44px]">
               <SelectValue placeholder="Order type" />
@@ -135,7 +132,7 @@ export function OrderSummary({
                       {item.name}
                     </p>
                     <p className="text-xs lg:text-sm text-gray-600">
-                      ${item.price.toFixed(2)} each
+                      {item.price.toFixed(2)} ብር each
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -181,7 +178,7 @@ export function OrderSummary({
           <div className="mb-4 flex items-center justify-between">
             <span className="text-base font-medium text-gray-700">Total:</span>
             <span className="text-lg font-bold text-gray-900">
-              ${total.toFixed(2)}
+              {total.toFixed(2)} ብር
             </span>
           </div>
           <Button
@@ -210,4 +207,3 @@ export function OrderSummary({
     </div>
   );
 }
-

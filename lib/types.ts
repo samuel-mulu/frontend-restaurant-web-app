@@ -14,8 +14,11 @@ export interface MenuItem {
 export interface Category {
   id: string;
   name: string;
-  products: number;
-  updatedAt: string;
+  products: number; // Note: Backend doesn't provide this, set to 0 by default
+  updatedAt: string; // Formatted as YYYY-MM-DD for display
+  // Optional fields from backend (not always needed in UI)
+  createdAt?: string;
+  clientId?: string;
 }
 
 export interface Product {

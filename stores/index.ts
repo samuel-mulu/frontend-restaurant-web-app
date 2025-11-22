@@ -2,7 +2,11 @@ import { configureStore } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 import { apiSlice } from "@/stores/baseApi";
 import authReducer from "@/stores/features/auth/authSlice";
-// Import preferencesApi to ensure endpoints are injected
+// Import API endpoints to ensure they are injected
+import "@/stores/features/staff/staffApi";
+import "@/stores/features/tables/tablesApi";
+import "@/stores/features/categories/categoriesApi";
+import "@/stores/features/items/itemsApi";
 
 export const store = configureStore({
   reducer: {

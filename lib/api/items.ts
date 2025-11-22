@@ -80,12 +80,20 @@ export interface PaginatedResponse<T> {
  * Maps backend structure to Menu interface used in the component
  */
 function transformItem(backendItem: BackendItem): Menu {
+  // Ensure we have an ID - fallback to _id if id is missing
+  const itemId = backendItem.id || (backendItem as any)._id || "";
+
+  if (!itemId) {
+    console.error("Item missing ID:", backendItem);
+    throw new Error("Item is missing an ID");
+  }
+
   return {
-    id: backendItem.id,
+    id: itemId,
     name: backendItem.name,
     // Use category.id as the category string for compatibility
     // The UI will display category.name but store category.id
-    category: backendItem.category.id,
+    category: backendItem.category?.id || "",
     price: backendItem.price,
     description: backendItem.description || "",
     // Map isAvailable to available
@@ -122,10 +130,14 @@ export async function getItems(
       queryParams.append("limit", pagination.limit.toString());
     }
 
-    const endpoint = `/items${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-    
+    const endpoint = `/items${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
+
     // Check if backend returns paginated response or array
-    const response = await api.get<PaginatedResponse<BackendItem> | BackendItem[]>(endpoint);
+    const response = await api.get<
+      PaginatedResponse<BackendItem> | BackendItem[]
+    >(endpoint);
 
     // Handle both paginated and non-paginated responses
     if (Array.isArray(response)) {
@@ -223,10 +235,16 @@ export async function createItem(data: CreateItemInput): Promise<Menu> {
         formData.append("description", data.description.trim());
       }
       formData.append("price", data.price.toString());
-      formData.append("isAvailable", (data.isAvailable !== undefined ? data.isAvailable : true).toString());
+      formData.append(
+        "isAvailable",
+        (data.isAvailable !== undefined ? data.isAvailable : true).toString()
+      );
       formData.append("image", data.image);
 
-      const backendItem = await api.postFormData<BackendItem>("/items", formData);
+      const backendItem = await api.postFormData<BackendItem>(
+        "/items",
+        formData
+      );
       return transformItem(backendItem);
     } else {
       // No image, use regular JSON request
@@ -273,13 +291,17 @@ export async function updateItem(
     // If image is provided, use FormData; otherwise use JSON
     if (data.image) {
       const formData = new FormData();
-      
+
       if (data.categoryId !== undefined) {
         formData.append("categoryId", data.categoryId);
       }
       if (data.name !== undefined) {
         if (!data.name.trim()) {
-          throw new ApiErrorClass(400, "Item name cannot be empty", "VALIDATION_ERROR");
+          throw new ApiErrorClass(
+            400,
+            "Item name cannot be empty",
+            "VALIDATION_ERROR"
+          );
         }
         formData.append("name", data.name.trim());
       }
@@ -288,7 +310,11 @@ export async function updateItem(
       }
       if (data.price !== undefined) {
         if (data.price < 0) {
-          throw new ApiErrorClass(400, "Price cannot be negative", "VALIDATION_ERROR");
+          throw new ApiErrorClass(
+            400,
+            "Price cannot be negative",
+            "VALIDATION_ERROR"
+          );
         }
         formData.append("price", data.price.toString());
       }
@@ -297,7 +323,10 @@ export async function updateItem(
       }
       formData.append("image", data.image);
 
-      const backendItem = await api.patchFormData<BackendItem>(`/items/${id}`, formData);
+      const backendItem = await api.patchFormData<BackendItem>(
+        `/items/${id}`,
+        formData
+      );
       return transformItem(backendItem);
     } else {
       // No image, use regular JSON request
@@ -307,7 +336,11 @@ export async function updateItem(
       }
       if (data.name !== undefined) {
         if (!data.name.trim()) {
-          throw new ApiErrorClass(400, "Item name cannot be empty", "VALIDATION_ERROR");
+          throw new ApiErrorClass(
+            400,
+            "Item name cannot be empty",
+            "VALIDATION_ERROR"
+          );
         }
         updateData.name = data.name.trim();
       }
@@ -316,7 +349,11 @@ export async function updateItem(
       }
       if (data.price !== undefined) {
         if (data.price < 0) {
-          throw new ApiErrorClass(400, "Price cannot be negative", "VALIDATION_ERROR");
+          throw new ApiErrorClass(
+            400,
+            "Price cannot be negative",
+            "VALIDATION_ERROR"
+          );
         }
         updateData.price = data.price;
       }
@@ -324,7 +361,10 @@ export async function updateItem(
         updateData.isAvailable = data.isAvailable;
       }
 
-      const backendItem = await api.patch<BackendItem>(`/items/${id}`, updateData);
+      const backendItem = await api.patch<BackendItem>(
+        `/items/${id}`,
+        updateData
+      );
       return transformItem(backendItem);
     }
   } catch (error) {
@@ -401,4 +441,3 @@ export async function updateItemAvailability(
     );
   }
 }
-

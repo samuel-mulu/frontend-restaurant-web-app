@@ -62,13 +62,18 @@ export async function apiRequest<T>(
     ...options.headers,
   };
 
+  // If body is FormData, let the browser set Content-Type
+  if (options.body instanceof FormData) {
+    delete (headers as any)["Content-Type"];
+  }
+
   // Prepare request configuration
   const config: RequestInit = {
     ...options,
     headers,
-    // Convert body to JSON string if it's an object
+    // Convert body to JSON string if it's an object, unless it's FormData
     body:
-      options.body && typeof options.body === "object"
+      options.body && typeof options.body === "object" && !(options.body instanceof FormData)
         ? JSON.stringify(options.body)
         : options.body,
   };
@@ -129,4 +134,11 @@ export const api = {
 
   delete: <T>(endpoint: string) =>
     apiRequest<T>(endpoint, { method: "DELETE" }),
+
+  // FormData helpers
+  postFormData: <T>(endpoint: string, body: FormData) =>
+    apiRequest<T>(endpoint, { method: "POST", body }),
+
+  patchFormData: <T>(endpoint: string, body: FormData) =>
+    apiRequest<T>(endpoint, { method: "PATCH", body }),
 };

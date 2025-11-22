@@ -690,7 +690,7 @@ export function MenuManagement() {
               </TableHeader>
               <TableBody>
                 {paginatedMenus.length === 0 ? (
-                  <TableRow>
+                  <TableRow key="empty-state">
                     <TableCell
                       colSpan={4}
                       className="text-center py-8 text-gray-500"

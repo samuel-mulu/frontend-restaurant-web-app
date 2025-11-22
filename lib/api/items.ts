@@ -115,7 +115,8 @@ function transformItem(backendItem: BackendItem): Menu {
  */
 export async function getItems(
   categoryId?: string,
-  pagination?: PaginationParams
+  pagination?: PaginationParams,
+  includeUnavailable: boolean = true // Default to true for management view
 ): Promise<PaginatedResponse<Menu>> {
   try {
     // Build query string
@@ -128,6 +129,10 @@ export async function getItems(
     }
     if (pagination?.limit) {
       queryParams.append("limit", pagination.limit.toString());
+    }
+    // Include unavailable items for management view
+    if (includeUnavailable) {
+      queryParams.append("includeUnavailable", "true");
     }
 
     const endpoint = `/items${

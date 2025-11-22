@@ -7,8 +7,8 @@ To connect the frontend to the backend API, you need to create a `.env.local` fi
 ```env
 # API Configuration
 # This file contains environment variables for local development
-#
-# IMPORTANT:
+# 
+# IMPORTANT: 
 # - Variables prefixed with NEXT_PUBLIC_ are exposed to the browser
 # - Never commit sensitive data (API keys, secrets) to version control
 # - For production, set these in your hosting platform's environment variables
@@ -33,3 +33,4 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
 - The `.env.local` file is automatically ignored by git (should be in `.gitignore`)
 - If the backend is running on a different port, update the URL accordingly
 - For production deployments, set the environment variable in your hosting platform's settings
+

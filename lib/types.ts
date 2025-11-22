@@ -38,3 +38,26 @@ export interface Order {
   status: "Completed" | "Pending" | "Cancelled";
   date: string;
 }
+
+/**
+ * Backend Item interface
+ * Matches the response from /api/v1/items
+ */
+export interface Item {
+  id: string;
+  name: string;
+  category: {
+    id: string;
+    name: string;
+  };
+  description?: string;
+  price: number; // In dollars (backend stores as cents but returns as dollars)
+  image?: {
+    url?: string;
+    publicId?: string;
+  };
+  isAvailable: boolean;
+  createdAt: string;
+  updatedAt: string;
+  clientId?: string;
+}

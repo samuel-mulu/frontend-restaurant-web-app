@@ -11,22 +11,13 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Plus, Minus, Trash2 } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { CartItem, MenuItem } from "@/lib/types";
-import { getMenusByCategory, initialMenus, type Menu } from "@/lib/menu-store";
-
-interface Category {
-  id: string;
-  name: string;
-}
-
-const categories: Category[] = [
-  { id: "appetizers", name: "Appetizers" },
-  { id: "main-courses", name: "Main Courses" },
-  { id: "drinks", name: "Drinks" },
-  { id: "desserts", name: "Desserts" },
-];
+import { type Menu } from "@/lib/menu-store";
+import { Category } from "@/lib/types";
+import { getCategories, ApiError as CategoryApiError } from "@/lib/api/categories";
+import { getItems, ApiError as ItemApiError } from "@/lib/api/items";
 
 const waiters: string[] = [
   "John Smith",
@@ -48,59 +39,78 @@ const tables: string[] = [
 ];
 
 export function CashierView() {
-  const [selectedCategory, setSelectedCategory] =
-    useState<string>("appetizers");
+  // State management
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [items, setItems] = useState<Menu[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orderType, setOrderType] = useState<string>("home");
   const [selectedWaiter, setSelectedWaiter] = useState<string>("");
   const [selectedTable, setSelectedTable] = useState<string>("");
-  const [menus, setMenus] = useState<Menu[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load menus from shared store
+  // Fetch categories on component mount
   useEffect(() => {
-    // Initialize from localStorage if available, otherwise use seed data
-    if (typeof window !== "undefined") {
-      const storedMenus = localStorage.getItem("restaurant-menus");
-      if (storedMenus) {
-        try {
-          const parsedMenus = JSON.parse(storedMenus);
-          setMenus(parsedMenus);
-        } catch (error) {
-          // If parse fails, use initial menus
-          setMenus(initialMenus);
-          localStorage.setItem(
-            "restaurant-menus",
-            JSON.stringify(initialMenus)
-          );
-        }
-      } else {
-        // First time - initialize with seed data
-        setMenus(initialMenus);
-        localStorage.setItem("restaurant-menus", JSON.stringify(initialMenus));
-      }
-
-      // Listen for menu updates from MenuManagement
-      const handleStorageChange = () => {
-        const updatedMenus = localStorage.getItem("restaurant-menus");
-        if (updatedMenus) {
-          try {
-            setMenus(JSON.parse(updatedMenus));
-          } catch (error) {
-            console.error("Error parsing menus from storage:", error);
-          }
-        }
-      };
-
-      window.addEventListener("storage", handleStorageChange);
-      // Also listen for custom event for same-window updates
-      window.addEventListener("menus-updated", handleStorageChange);
-
-      return () => {
-        window.removeEventListener("storage", handleStorageChange);
-        window.removeEventListener("menus-updated", handleStorageChange);
-      };
-    }
+    fetchCategories();
   }, []);
+
+  // Fetch items when category changes
+  useEffect(() => {
+    if (selectedCategory) {
+      fetchItems(selectedCategory);
+    }
+  }, [selectedCategory]);
+
+  /**
+   * Fetch categories from API
+   */
+  const fetchCategories = async () => {
+    try {
+      setIsLoadingCategories(true);
+      setError(null);
+      const data = await getCategories();
+      setCategories(data);
+      // Auto-select first category if available
+      if (data.length > 0 && !selectedCategory) {
+        setSelectedCategory(data[0].id);
+      }
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof CategoryApiError
+          ? err.message
+          : "Failed to load categories. Please try again later.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  };
+
+  /**
+   * Fetch items from API filtered by category
+   */
+  const fetchItems = async (categoryId: string) => {
+    try {
+      setIsLoadingItems(true);
+      setError(null);
+      // Fetch all items for the category (no pagination for cashier view)
+      const response = await getItems(categoryId, { page: 1, limit: 1000 });
+      // Filter only available items
+      const availableItems = response.data.filter((item) => item.available);
+      setItems(availableItems);
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof ItemApiError
+          ? err.message
+          : "Failed to load menu items. Please try again later.";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoadingItems(false);
+    }
+  };
 
   const addToCart = (item: MenuItem): void => {
     setCart((prevCart) => {
@@ -155,28 +165,66 @@ export function CashierView() {
     setSelectedTable("");
   };
 
-  // Get available menu items for selected category
-  const currentItems = getMenusByCategory(menus, selectedCategory);
+  /**
+   * Convert Menu items to MenuItem format for cart
+   */
+  const menuToMenuItem = (menu: Menu): MenuItem => {
+    return {
+      id: menu.id,
+      name: menu.name,
+      price: menu.price,
+    };
+  };
+
+  // Get current items for selected category (already filtered by API)
+  const currentItems = items.map(menuToMenuItem);
 
   return (
     <div className="space-y-4 lg:space-y-6 flex flex-col h-full min-h-0">
+      {/* Error State */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800 text-sm">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              fetchCategories();
+              if (selectedCategory) {
+                fetchItems(selectedCategory);
+              }
+            }}
+            className="mt-2"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* Categories - Mobile: Horizontal Scroll, Desktop: Grid */}
       <div className="mb-4 lg:mb-6">
-        <div className="flex gap-2 lg:gap-3 overflow-x-auto pb-2 lg:pb-0 lg:flex-wrap scrollbar-hide">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id)}
-              className={`flex-shrink-0 rounded-lg px-4 py-2.5 lg:px-6 lg:py-3 text-sm lg:text-base font-medium transition-colors min-h-[44px] ${
-                selectedCategory === category.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-white text-gray-700 shadow-sm hover:bg-gray-100"
-              }`}
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
+        {isLoadingCategories ? (
+          <div className="flex items-center gap-2 text-gray-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading categories...</span>
+          </div>
+        ) : (
+          <div className="flex gap-2 lg:gap-3 overflow-x-auto pb-2 lg:pb-0 lg:flex-wrap scrollbar-hide -mx-1 px-1">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`shrink-0 rounded-lg px-4 py-2.5 lg:px-6 lg:py-3 text-sm lg:text-base font-medium transition-colors min-h-[44px] ${
+                  selectedCategory === category.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-white text-gray-700 shadow-sm hover:bg-gray-100"
+                }`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Main Content - Mobile: Stack, Desktop: Split */}
@@ -184,11 +232,25 @@ export function CashierView() {
         {/* Items Display - Left Side */}
         <div className="flex-1 flex flex-col min-h-0">
           <Card className="p-4 lg:p-6 shadow-md flex flex-col flex-1 min-h-0">
-            <h2 className="mb-4 text-lg lg:text-xl font-semibold text-gray-900 flex-shrink-0">
-              {categories.find((c) => c.id === selectedCategory)?.name}
+            <h2 className="mb-4 text-lg lg:text-xl font-semibold text-gray-900 shrink-0">
+              {categories.find((c) => c.id === selectedCategory)?.name || "Select Category"}
             </h2>
-            <div className="space-y-2 flex-1 overflow-y-auto pr-2 min-h-0">
-              {currentItems.map((item) => {
+            {isLoadingItems ? (
+              <div className="flex items-center justify-center py-12 flex-1">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-600">Loading menu items...</span>
+              </div>
+            ) : currentItems.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <p className="text-gray-500 text-center">
+                  {selectedCategory
+                    ? "No available items in this category"
+                    : "Please select a category"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 flex-1 overflow-y-auto pr-2 min-h-0">
+                {currentItems.map((item) => {
                 const cartItem = cart.find((ci) => ci.id === item.id);
                 const quantity = cartItem?.quantity || 0;
                 return (
@@ -224,7 +286,8 @@ export function CashierView() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            )}
           </Card>
         </div>
 

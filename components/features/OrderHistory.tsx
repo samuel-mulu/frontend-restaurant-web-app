@@ -20,8 +20,15 @@ import {
 } from "@/components/ui/select";
 import { Eye, Loader2 } from "lucide-react";
 import { Order } from "@/lib/types";
-import { listOrders, ApiError } from "@/lib/api/orders";
+import { listOrders, ApiError, OrderItemInput } from "@/lib/api/orders";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Mock orders for development (will be replaced with API call)
 const mockOrders: Order[] = [
@@ -37,6 +44,29 @@ const mockOrders: Order[] = [
     waiterName: "John Smith",
     cashierId: "cashier1",
     cashierName: "Alice Cashier",
+    items: [
+      {
+        itemId: "item1",
+        typeSnapshot: "food",
+        qty: 2,
+        nameSnapshot: "Burger",
+        priceSnapshot: 25.5,
+      },
+      {
+        itemId: "item2",
+        typeSnapshot: "beverage",
+        qty: 1,
+        nameSnapshot: "Coca Cola",
+        priceSnapshot: 15.0,
+      },
+      {
+        itemId: "item3",
+        typeSnapshot: "food",
+        qty: 1,
+        nameSnapshot: "Fries",
+        priceSnapshot: 10.0,
+      },
+    ],
   },
   {
     id: "ORD002",
@@ -100,6 +130,8 @@ export function OrderHistory() {
   const [statusFilter, setStatusFilter] = useState<string>("Pending");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   // Fetch orders from API (commented out for now, using mock data)
   useEffect(() => {
@@ -178,16 +210,15 @@ export function OrderHistory() {
    * Map order status to filter status
    */
   const mapStatusForFilter = (status: string): string => {
-    const statusMap: Record<string, string> = {
-      placed: "Pending",
-      pending: "Pending",
-      served: "Served",
-      preparing: "Preparing",
-      ready: "Ready",
-      completed: "Completed",
-      cancelled: "Cancelled",
-    };
-    return statusMap[status.toLowerCase()] || status;
+    const statusLower = status.toLowerCase();
+    if (statusLower === "placed" || statusLower === "pending") {
+      return "Pending";
+    }
+    if (statusLower === "completed") {
+      return "Completed";
+    }
+    // Default to Pending for unknown statuses
+    return "Pending";
   };
 
   /**
@@ -204,12 +235,6 @@ export function OrderHistory() {
         return "bg-green-100 text-green-800";
       case "Pending":
         return "bg-yellow-100 text-yellow-800";
-      case "Cancelled":
-        return "bg-red-100 text-red-800";
-      case "Served":
-      case "Preparing":
-      case "Ready":
-        return "bg-blue-100 text-blue-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -238,7 +263,11 @@ export function OrderHistory() {
   useEffect(() => {
     if (roleFilter === "waiter" && statusFilter) {
       const dates = getAvailableDates(orders, statusFilter);
-      if (dates.length > 0 && dateFilter !== "all" && !dates.includes(dateFilter)) {
+      if (
+        dates.length > 0 &&
+        dateFilter !== "all" &&
+        !dates.includes(dateFilter)
+      ) {
         setDateFilter("all"); // Reset if current date not available
       }
     }
@@ -251,7 +280,11 @@ export function OrderHistory() {
       setWaiterFilter("all"); // Reset waiter filter
       // Reset date filter if no completed orders available
       const completedDates = getAvailableDates(orders, "Completed");
-      if (completedDates.length > 0 && dateFilter !== "all" && !completedDates.includes(dateFilter)) {
+      if (
+        completedDates.length > 0 &&
+        dateFilter !== "all" &&
+        !completedDates.includes(dateFilter)
+      ) {
         setDateFilter("all");
       }
     } else {
@@ -259,22 +292,52 @@ export function OrderHistory() {
     }
   }, [roleFilter]);
 
-  // Calculate order counts by status
-  const orderCounts = useMemo(() => {
-    const completed = orders.filter(
-      (order) =>
-        (order.status === "completed" || order.status === "Completed") &&
-        (roleFilter === "owner" ? order.waiterId : true)
-    ).length;
-    const pending = orders.filter(
-      (order) =>
-        (order.status === "pending" ||
-          order.status === "Pending" ||
-          order.status === "placed") &&
-        (roleFilter === "owner" ? false : true) // Owner doesn't see pending
-    ).length;
+  // Calculate total prices by status based on filtered orders (excluding status filter)
+  const orderTotals = useMemo(() => {
+    // Filter orders based on role, date, and waiter (but not status)
+    const filteredForTotals = orders.filter((order) => {
+      // Role-based filtering
+      if (roleFilter === "owner") {
+        // Owner: Only completed orders from waiters
+        const isCompleted =
+          order.status === "completed" || order.status === "Completed";
+        if (!isCompleted || !order.waiterId) return false;
+      }
+
+      // Waiter filter
+      if (
+        roleFilter === "waiter" &&
+        waiterFilter !== "all" &&
+        order.waiterId !== waiterFilter
+      ) {
+        return false;
+      }
+
+      // Date filtering
+      if (dateFilter && dateFilter !== "all") {
+        const orderDate = formatDateForFilter(order.date);
+        if (orderDate !== dateFilter) return false;
+      }
+
+      return true;
+    });
+
+    // Calculate totals for each status from filtered orders
+    const completed = filteredForTotals
+      .filter(
+        (order) => order.status === "completed" || order.status === "Completed"
+      )
+      .reduce((sum, order) => sum + (order.totalPrice || 0), 0);
+
+    const pending = filteredForTotals
+      .filter((order) => {
+        const statusLower = (order.status || "").toLowerCase();
+        return statusLower === "pending" || statusLower === "placed";
+      })
+      .reduce((sum, order) => sum + (order.totalPrice || 0), 0);
+
     return { completed, pending };
-  }, [orders, roleFilter]);
+  }, [orders, roleFilter, dateFilter, waiterFilter]);
 
   // Filter orders based on role and filters
   const filteredOrders = useMemo(() => {
@@ -314,7 +377,7 @@ export function OrderHistory() {
       <div className="mb-4 lg:mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
           <h1 className="text-2xl font-bold text-gray-900">Order History</h1>
-          
+
           {/* Role Tab Selector */}
           <div className="flex gap-2 border border-gray-200 rounded-lg p-1 bg-gray-50">
             <button
@@ -343,13 +406,21 @@ export function OrderHistory() {
         {/* Status Summary */}
         <div className="mb-4 flex gap-4">
           <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg border border-green-200">
-            <span className="text-sm font-medium text-green-800">Completed:</span>
-            <span className="text-lg font-bold text-green-900">{orderCounts.completed}</span>
+            <span className="text-sm font-medium text-green-800">
+              Completed:
+            </span>
+            <span className="text-lg font-bold text-green-900">
+              {orderTotals.completed.toFixed(2)} ብር
+            </span>
           </div>
           {roleFilter === "waiter" && (
             <div className="flex items-center gap-2 px-4 py-2 bg-yellow-50 rounded-lg border border-yellow-200">
-              <span className="text-sm font-medium text-yellow-800">Pending:</span>
-              <span className="text-lg font-bold text-yellow-900">{orderCounts.pending}</span>
+              <span className="text-sm font-medium text-yellow-800">
+                Pending:
+              </span>
+              <span className="text-lg font-bold text-yellow-900">
+                {orderTotals.pending.toFixed(2)} ብር
+              </span>
             </div>
           )}
         </div>
@@ -447,17 +518,9 @@ export function OrderHistory() {
                   <h3 className="font-semibold text-gray-900">
                     {order.orderNumber || order.id}
                   </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {order.customer || `Table ${order.tableNumber || "N/A"}`}
-                  </p>
                   {roleFilter === "waiter" && order.waiterName && (
                     <p className="text-xs text-gray-500 mt-1">
                       Waiter: {order.waiterName}
-                    </p>
-                  )}
-                  {order.cashierName && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Cashier: {order.cashierName}
                     </p>
                   )}
                 </div>
@@ -475,7 +538,15 @@ export function OrderHistory() {
                   </p>
                   <p className="text-xs text-gray-500 mt-1">{order.date}</p>
                 </div>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => {
+                    setSelectedOrder(order);
+                    setIsDetailDialogOpen(true);
+                  }}
+                >
                   <Eye className="h-4 w-4" />
                 </Button>
               </div>
@@ -494,9 +565,7 @@ export function OrderHistory() {
             <TableHeader>
               <TableRow>
                 <TableHead>Order Number</TableHead>
-                <TableHead>Table</TableHead>
                 {roleFilter === "waiter" && <TableHead>Waiter</TableHead>}
-                <TableHead>Cashier</TableHead>
                 <TableHead>Total Price</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
@@ -507,7 +576,7 @@ export function OrderHistory() {
               {filteredOrders.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={roleFilter === "waiter" ? 7 : 6}
+                    colSpan={roleFilter === "waiter" ? 5 : 4}
                     className="text-center py-8 text-gray-500"
                   >
                     No orders found
@@ -519,17 +588,9 @@ export function OrderHistory() {
                     <TableCell className="font-medium">
                       {order.orderNumber || order.id}
                     </TableCell>
-                    <TableCell>
-                      {order.tableNumber ? `Table ${order.tableNumber}` : "N/A"}
-                    </TableCell>
                     {roleFilter === "waiter" && (
-                      <TableCell>
-                        {order.waiterName || "N/A"}
-                      </TableCell>
+                      <TableCell>{order.waiterName || "N/A"}</TableCell>
                     )}
-                    <TableCell>
-                      {order.cashierName || "N/A"}
-                    </TableCell>
                     <TableCell>{order.totalPrice.toFixed(2)} ብር</TableCell>
                     <TableCell>
                       <Badge
@@ -541,7 +602,15 @@ export function OrderHistory() {
                     </TableCell>
                     <TableCell>{order.date}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setIsDetailDialogOpen(true);
+                        }}
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -552,6 +621,140 @@ export function OrderHistory() {
           </Table>
         </div>
       )}
+
+      {/* Order Detail Dialog */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Order Details: {selectedOrder?.orderNumber || selectedOrder?.id}
+            </DialogTitle>
+            <DialogDescription>
+              View order items and information
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-4">
+              {/* Order Information */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-600">Order Number</p>
+                  <p className="font-semibold text-gray-900">
+                    {selectedOrder.orderNumber || selectedOrder.id}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Status</p>
+                  <Badge
+                    className={getStatusColor(selectedOrder.status)}
+                    variant="secondary"
+                  >
+                    {getDisplayStatus(selectedOrder.status)}
+                  </Badge>
+                </div>
+                {selectedOrder.waiterName && (
+                  <div>
+                    <p className="text-sm text-gray-600">Waiter</p>
+                    <p className="font-medium text-gray-900">
+                      {selectedOrder.waiterName}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-gray-600">Date</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedOrder.date}
+                  </p>
+                </div>
+                {selectedOrder.note && (
+                  <div className="col-span-2">
+                    <p className="text-sm text-gray-600">Note</p>
+                    <p className="font-medium text-gray-900">
+                      {selectedOrder.note}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Order Items */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  Order Items
+                </h3>
+                {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Quantity</TableHead>
+                          <TableHead className="text-right">
+                            Unit Price
+                          </TableHead>
+                          <TableHead className="text-right">Subtotal</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedOrder.items.map(
+                          (item: OrderItemInput, index: number) => {
+                            const subtotal = item.priceSnapshot * item.qty;
+                            return (
+                              <TableRow key={`${item.itemId}-${index}`}>
+                                <TableCell className="font-medium">
+                                  {item.nameSnapshot}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      item.typeSnapshot === "beverage"
+                                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                                        : "bg-orange-50 text-orange-700 border-orange-200"
+                                    }
+                                  >
+                                    {item.typeSnapshot === "beverage"
+                                      ? "Beverage"
+                                      : "Food"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {item.qty}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {item.priceSnapshot.toFixed(2)} ብር
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  {subtotal.toFixed(2)} ብር
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500 py-8">
+                    No items found for this order
+                  </p>
+                )}
+              </div>
+
+              {/* Total */}
+              <div className="flex justify-end pt-4 border-t border-gray-200">
+                <div className="text-right">
+                  <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {selectedOrder.totalPrice.toFixed(2)} ብር
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -113,6 +113,8 @@ export interface ListOrdersQuery {
   cashierId?: string;
   startDate?: string;
   endDate?: string;
+  search?: string; // Search by orderNumber, tableNumber, waiter name, cashier name
+  tableNumber?: string;
 }
 
 export interface UpdateOrderStatusInput {
@@ -131,6 +133,9 @@ export const ordersApi = createApiEndpoints({
         if (params?.startDate)
           queryParams.append("startDate", params.startDate);
         if (params?.endDate) queryParams.append("endDate", params.endDate);
+        if (params?.search) queryParams.append("search", params.search);
+        if (params?.tableNumber)
+          queryParams.append("tableNumber", params.tableNumber);
 
         const qs = queryParams.toString();
         return {
@@ -139,9 +144,16 @@ export const ordersApi = createApiEndpoints({
         };
       },
       transformResponse: (response: unknown): Order[] => {
-        // Backend returns orders directly as array
-        const orders = response as Order[];
-        return orders;
+        // Backend returns orders directly as array (not wrapped)
+        if (Array.isArray(response)) {
+          return response;
+        }
+        // Handle case where backend might wrap in { success: true, data: [...] }
+        const wrapped = response as { success?: boolean; data?: Order[] };
+        if (wrapped?.data && Array.isArray(wrapped.data)) {
+          return wrapped.data;
+        }
+        return [];
       },
       providesTags: (result) =>
         result

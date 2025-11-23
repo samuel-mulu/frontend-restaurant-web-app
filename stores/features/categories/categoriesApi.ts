@@ -1,7 +1,7 @@
 import { createApiEndpoints } from "@/stores/baseApi";
 import { Category } from "@/lib/types";
 
-export interface BackendCategory {
+export interface CategoryResponse {
   _id?: string;
   id: string;
   name: string;
@@ -19,22 +19,22 @@ export interface UpdateCategoryInput {
   name?: string;
 }
 
-interface BackendResponse<T> {
+interface ApiResponse<T> {
   success: boolean;
   data: T;
   message?: string;
 }
 
 /**
- * Transform backend category to frontend format
+ * Transform API category response to frontend format
  */
-function transformCategory(backendCategory: BackendCategory): Category {
+function transformCategory(category: CategoryResponse): Category {
   return {
-    id: backendCategory.id || backendCategory._id || "",
-    name: backendCategory.name,
-    products: 0, // Backend doesn't provide this
-    updatedAt: backendCategory.updatedAt
-      ? new Date(backendCategory.updatedAt).toISOString().split("T")[0]
+    id: category.id || category._id || "",
+    name: category.name,
+    products: 0, // API doesn't provide this
+    updatedAt: category.updatedAt
+      ? new Date(category.updatedAt).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
   };
 }
@@ -46,7 +46,7 @@ export const categoriesApi = createApiEndpoints({
         url: "/categories",
         method: "GET",
       }),
-      transformResponse: (response: BackendResponse<BackendCategory[]>) => {
+      transformResponse: (response: ApiResponse<CategoryResponse[]>) => {
         return response.data.map(transformCategory);
       },
       providesTags: (result) =>
@@ -66,7 +66,7 @@ export const categoriesApi = createApiEndpoints({
         url: `/categories/${id}`,
         method: "GET",
       }),
-      transformResponse: (response: BackendResponse<BackendCategory>) => {
+      transformResponse: (response: ApiResponse<CategoryResponse>) => {
         return transformCategory(response.data);
       },
       providesTags: (result, _error, id) => [{ type: "Category" as const, id }],
@@ -78,7 +78,7 @@ export const categoriesApi = createApiEndpoints({
         method: "POST",
         body,
       }),
-      transformResponse: (response: BackendResponse<BackendCategory>) => {
+      transformResponse: (response: ApiResponse<CategoryResponse>) => {
         return transformCategory(response.data);
       },
       invalidatesTags: [{ type: "Category", id: "LIST" }],
@@ -93,7 +93,7 @@ export const categoriesApi = createApiEndpoints({
         method: "PATCH",
         body: data,
       }),
-      transformResponse: (response: BackendResponse<BackendCategory>) => {
+      transformResponse: (response: ApiResponse<CategoryResponse>) => {
         return transformCategory(response.data);
       },
       invalidatesTags: (result, _error, { id }) => [

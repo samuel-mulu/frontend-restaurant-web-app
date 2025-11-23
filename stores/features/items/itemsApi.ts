@@ -6,18 +6,18 @@ export interface ImageInfo {
   publicId?: string;
 }
 
-export interface BackendCategory {
+export interface ItemCategory {
   _id?: string;
   id: string;
   name: string;
 }
 
-export interface BackendItem {
+export interface ItemResponse {
   _id?: string;
   id: string;
   name: string;
   categoryId?: string;
-  category?: BackendCategory;
+  category?: ItemCategory;
   description?: string;
   price: number;
   image?: ImageInfo;
@@ -26,7 +26,7 @@ export interface BackendItem {
   updatedAt?: string;
 }
 
-interface BackendResponse<T> {
+interface ApiResponse<T> {
   success: boolean;
   data: T;
   message?: string;
@@ -35,8 +35,6 @@ interface BackendResponse<T> {
 export interface ItemsListQuery {
   categoryId?: string;
   includeUnavailable?: boolean;
-  page?: number;
-  limit?: number;
 }
 
 export interface CreateItemInput {
@@ -62,24 +60,24 @@ export interface UpdateAvailabilityInput {
 }
 
 /**
- * Transform backend item to frontend Menu format
+ * Transform API item response to frontend Menu format
  */
-function transformItem(backendItem: BackendItem): Menu {
-  const itemId = backendItem.id || backendItem._id || "";
+function transformItem(item: ItemResponse): Menu {
+  const itemId = item.id || item._id || "";
   if (!itemId) {
     throw new Error("Item is missing an ID");
   }
 
   return {
     id: itemId,
-    name: backendItem.name,
-    category: backendItem.category?.id || backendItem.categoryId || "",
-    price: backendItem.price,
-    description: backendItem.description || "",
-    imageUrl: backendItem.image?.url,
-    available: backendItem.isAvailable,
-    updatedAt: backendItem.updatedAt
-      ? new Date(backendItem.updatedAt).toISOString().split("T")[0]
+    name: item.name,
+    category: item.category?.id || item.categoryId || "",
+    price: item.price,
+    description: item.description || "",
+    imageUrl: item.image?.url,
+    available: item.isAvailable,
+    updatedAt: item.updatedAt
+      ? new Date(item.updatedAt).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
   };
 }
@@ -93,8 +91,6 @@ export const itemsApi = createApiEndpoints({
           queryParams.append("categoryId", params.categoryId);
         if (params?.includeUnavailable)
           queryParams.append("includeUnavailable", "true");
-        if (params?.page) queryParams.append("page", params.page.toString());
-        if (params?.limit) queryParams.append("limit", params.limit.toString());
 
         const qs = queryParams.toString();
         return {
@@ -102,7 +98,7 @@ export const itemsApi = createApiEndpoints({
           method: "GET",
         };
       },
-      transformResponse: (response: BackendResponse<BackendItem[]>) => {
+      transformResponse: (response: ApiResponse<ItemResponse[]>) => {
         // Handle both array and wrapped response
         const items = Array.isArray(response) ? response : response.data;
         return items.map(transformItem);
@@ -121,7 +117,7 @@ export const itemsApi = createApiEndpoints({
         url: `/items/${id}`,
         method: "GET",
       }),
-      transformResponse: (response: BackendResponse<BackendItem>) => {
+      transformResponse: (response: ApiResponse<ItemResponse>) => {
         return transformItem(response.data);
       },
       providesTags: (result, _error, id) => [{ type: "Item" as const, id }],
@@ -132,7 +128,7 @@ export const itemsApi = createApiEndpoints({
         url: "/items/deleted",
         method: "GET",
       }),
-      transformResponse: (response: BackendResponse<BackendItem[]>) => {
+      transformResponse: (response: ApiResponse<ItemResponse[]>) => {
         return response.data.map(transformItem);
       },
       providesTags: [{ type: "Item", id: "DELETED" }],
@@ -143,7 +139,7 @@ export const itemsApi = createApiEndpoints({
         url: "/items/unavailable",
         method: "GET",
       }),
-      transformResponse: (response: BackendResponse<BackendItem[]>) => {
+      transformResponse: (response: ApiResponse<ItemResponse[]>) => {
         return response.data.map(transformItem);
       },
       providesTags: [{ type: "Item", id: "UNAVAILABLE" }],
@@ -190,7 +186,7 @@ export const itemsApi = createApiEndpoints({
           },
         };
       },
-      transformResponse: (response: BackendResponse<BackendItem>) => {
+      transformResponse: (response: ApiResponse<ItemResponse>) => {
         return transformItem(response.data);
       },
       invalidatesTags: [{ type: "Item", id: "LIST" }],
@@ -242,7 +238,7 @@ export const itemsApi = createApiEndpoints({
           body: updateData,
         };
       },
-      transformResponse: (response: BackendResponse<BackendItem>) => {
+      transformResponse: (response: ApiResponse<ItemResponse>) => {
         return transformItem(response.data);
       },
       invalidatesTags: (result, _error, { id }) => [
@@ -268,7 +264,7 @@ export const itemsApi = createApiEndpoints({
         url: `/items/${id}/restore`,
         method: "PATCH",
       }),
-      transformResponse: (response: BackendResponse<BackendItem>) => {
+      transformResponse: (response: ApiResponse<ItemResponse>) => {
         return transformItem(response.data);
       },
       invalidatesTags: (result, _error, id) => [
@@ -299,7 +295,7 @@ export const itemsApi = createApiEndpoints({
         method: "PATCH",
         body: data,
       }),
-      transformResponse: (response: BackendResponse<BackendItem>) => {
+      transformResponse: (response: ApiResponse<ItemResponse>) => {
         return transformItem(response.data);
       },
       invalidatesTags: (result, _error, { id }) => [

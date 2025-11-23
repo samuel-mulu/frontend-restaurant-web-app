@@ -41,7 +41,7 @@ export const tablesApi = createApiEndpoints({
       transformResponse: (
         response: unknown
       ): { success: boolean; data: Table[] } => {
-        // Backend returns { success: true, data: Table[] }
+        // API returns { success: true, data: Table[] }
         const apiResponse = response as {
           success: boolean;
           data: Table[];

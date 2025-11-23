@@ -67,7 +67,7 @@ export const staffApi = createApiEndpoints({
         };
       },
       transformResponse: (response: unknown): StaffListResponse => {
-        // Backend returns { success: true, data: { staff: [], pagination: {...} } }
+        // API returns { success: true, data: { staff: [], pagination: {...} } }
         const apiResponse = response as {
           success: boolean;
           data: StaffListResponse;

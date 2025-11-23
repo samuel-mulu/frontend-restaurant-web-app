@@ -8,8 +8,8 @@ import {
 import { createApiEndpoints } from "@/stores/baseApi";
 
 export const authApi = createApiEndpoints({
-  endpoints: (b) => ({
-    createStaff: b.mutation<
+  endpoints: (build) => ({
+    createStaff: build.mutation<
       { success: boolean; message: string; data?: User },
       {
         name: string;
@@ -27,7 +27,7 @@ export const authApi = createApiEndpoints({
       invalidatesTags: ["Auth"],
     }),
 
-    login: b.mutation<ApiLoginResponse, LoginRequest>({
+    login: build.mutation<ApiLoginResponse, LoginRequest>({
       query: (body) => ({
         url: "auth/login",
         method: "POST",
@@ -45,7 +45,7 @@ export const authApi = createApiEndpoints({
               dispatch(setToken(data.data.accessToken));
             }
 
-            // Set user data (matching backend structure exactly)
+            // Set user data (matching API structure exactly)
             dispatch(
               setUser({
                 id: String(user.id),
@@ -66,7 +66,7 @@ export const authApi = createApiEndpoints({
       invalidatesTags: ["Auth"],
     }),
 
-    refresh: b.mutation<
+    refresh: build.mutation<
       { success: boolean; message: string; data?: { accessToken: string } },
       void
     >({
@@ -87,7 +87,7 @@ export const authApi = createApiEndpoints({
       },
     }),
 
-    logout: b.mutation<void, void>({
+    logout: build.mutation<void, void>({
       query: () => ({ url: "auth/logout", method: "POST" }),
       async onQueryStarted(_, { dispatch, queryFulfilled }) {
         try {
@@ -101,14 +101,14 @@ export const authApi = createApiEndpoints({
       invalidatesTags: ["Auth"],
     }),
 
-    getProfile: b.query<ApiProfileResponse, void>({
+    getProfile: build.query<ApiProfileResponse, void>({
       query: () => ({
         url: "auth/profile",
         method: "GET",
       }),
 
       transformResponse: (response: unknown): ApiProfileResponse => {
-        // Backend profile endpoint returns user directly (not wrapped)
+        // API profile endpoint returns user directly (not wrapped)
         const userResponse = response as {
           id?: string;
           _id?: string;
@@ -168,7 +168,7 @@ export const authApi = createApiEndpoints({
       },
     }),
 
-    updateProfile: b.mutation<
+    updateProfile: build.mutation<
       { success: boolean; message: string; data?: User },
       { name?: string; email?: string; phone?: string }
     >({
@@ -186,7 +186,7 @@ export const authApi = createApiEndpoints({
       invalidatesTags: ["Auth"],
     }),
 
-    changePassword: b.mutation<
+    changePassword: build.mutation<
       { success: boolean; message: string },
       {
         currentPassword: string;
@@ -204,7 +204,7 @@ export const authApi = createApiEndpoints({
       invalidatesTags: ["Auth"],
     }),
 
-    resetStaffPassword: b.mutation<
+    resetStaffPassword: build.mutation<
       { success: boolean; message: string },
       { id: string; newPassword: string }
     >({
@@ -216,7 +216,7 @@ export const authApi = createApiEndpoints({
       invalidatesTags: ["Auth"],
     }),
 
-    getUsers: b.query<
+    getUsers: build.query<
       {
         success: boolean;
         message: string;
@@ -231,7 +231,7 @@ export const authApi = createApiEndpoints({
       providesTags: ["Auth"],
     }),
 
-    disableUser: b.mutation<
+    disableUser: build.mutation<
       { success: boolean; message: string },
       { id: string }
     >({

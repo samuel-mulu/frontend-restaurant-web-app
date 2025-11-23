@@ -144,11 +144,11 @@ export const ordersApi = createApiEndpoints({
         };
       },
       transformResponse: (response: unknown): Order[] => {
-        // Backend returns orders directly as array (not wrapped)
+        // API returns orders directly as array (not wrapped)
         if (Array.isArray(response)) {
           return response;
         }
-        // Handle case where backend might wrap in { success: true, data: [...] }
+        // Handle case where API might wrap in { success: true, data: [...] }
         const wrapped = response as { success?: boolean; data?: Order[] };
         if (wrapped?.data && Array.isArray(wrapped.data)) {
           return wrapped.data;
@@ -173,7 +173,7 @@ export const ordersApi = createApiEndpoints({
         method: "GET",
       }),
       transformResponse: (response: unknown): Order => {
-        // Backend returns order directly
+        // API returns order directly
         return response as Order;
       },
       providesTags: (result, _error, id) => [{ type: "Order" as const, id }],
@@ -186,7 +186,7 @@ export const ordersApi = createApiEndpoints({
         body,
       }),
       transformResponse: (response: unknown): Order => {
-        // Backend returns order directly
+        // API returns order directly
         return response as Order;
       },
       invalidatesTags: [{ type: "Order", id: "LIST" }],
@@ -202,11 +202,39 @@ export const ordersApi = createApiEndpoints({
         body: { status },
       }),
       transformResponse: (response: unknown): Order => {
-        // Backend returns order directly
+        // API returns order directly
         return response as Order;
       },
       invalidatesTags: (result, _error, { id }) => [
         { type: "Order", id },
+        { type: "Order", id: "LIST" },
+      ],
+    }),
+
+    bulkUpdateOrderStatus: build.mutation<
+      {
+        success: boolean;
+        updated: Order[];
+        failed: Array<{ id: string; reason: string }>;
+        message: string;
+      },
+      { orderIds: string[]; status: OrderStatus }
+    >({
+      query: ({ orderIds, status }) => ({
+        url: "/orders/bulk/status",
+        method: "PATCH",
+        body: { orderIds, status },
+      }),
+      transformResponse: (response: unknown) => {
+        return response as {
+          success: boolean;
+          updated: Order[];
+          failed: Array<{ id: string; reason: string }>;
+          message: string;
+        };
+      },
+      invalidatesTags: (result, _error, { orderIds }) => [
+        ...orderIds.map((id) => ({ type: "Order" as const, id })),
         { type: "Order", id: "LIST" },
       ],
     }),
@@ -218,4 +246,5 @@ export const {
   useGetOrderQuery,
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
+  useBulkUpdateOrderStatusMutation,
 } = ordersApi;

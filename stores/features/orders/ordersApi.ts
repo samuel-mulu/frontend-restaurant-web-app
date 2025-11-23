@@ -115,6 +115,22 @@ export interface ListOrdersQuery {
   endDate?: string;
   search?: string; // Search by orderNumber, tableNumber, waiter name, cashier name
   tableNumber?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface PaginatedOrdersResponse {
+  orders: Order[];
+  pagination: PaginationMeta;
 }
 
 export interface UpdateOrderStatusInput {
@@ -123,7 +139,10 @@ export interface UpdateOrderStatusInput {
 
 export const ordersApi = createApiEndpoints({
   endpoints: (build) => ({
-    listOrders: build.query<Order[], ListOrdersQuery | void>({
+    listOrders: build.query<
+      PaginatedOrdersResponse | Order[],
+      ListOrdersQuery | void
+    >({
       query: (params) => {
         const queryParams = new URLSearchParams();
         if (params?.status) queryParams.append("status", params.status);
@@ -136,6 +155,8 @@ export const ordersApi = createApiEndpoints({
         if (params?.search) queryParams.append("search", params.search);
         if (params?.tableNumber)
           queryParams.append("tableNumber", params.tableNumber);
+        if (params?.page) queryParams.append("page", params.page.toString());
+        if (params?.limit) queryParams.append("limit", params.limit.toString());
 
         const qs = queryParams.toString();
         return {
@@ -143,8 +164,35 @@ export const ordersApi = createApiEndpoints({
           method: "GET",
         };
       },
-      transformResponse: (response: unknown): Order[] => {
-        // API returns orders directly as array (not wrapped)
+      transformResponse: (
+        response: unknown
+      ): PaginatedOrdersResponse | Order[] => {
+        // Check if response is paginated (has orders and pagination fields)
+        if (
+          typeof response === "object" &&
+          response !== null &&
+          "orders" in response &&
+          "pagination" in response
+        ) {
+          return response as PaginatedOrdersResponse;
+        }
+        // Check if response has data and pagination fields (alternative format)
+        if (
+          typeof response === "object" &&
+          response !== null &&
+          "data" in response &&
+          "pagination" in response
+        ) {
+          const wrapped = response as {
+            data: Order[];
+            pagination: PaginationMeta;
+          };
+          return {
+            orders: wrapped.data,
+            pagination: wrapped.pagination,
+          };
+        }
+        // API returns orders directly as array (not wrapped) - backward compatibility
         if (Array.isArray(response)) {
           return response;
         }
@@ -153,18 +201,36 @@ export const ordersApi = createApiEndpoints({
         if (wrapped?.data && Array.isArray(wrapped.data)) {
           return wrapped.data;
         }
-        return [];
+        // Return empty paginated response if no data
+        return {
+          orders: [],
+          pagination: {
+            page: 1,
+            limit: 10,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        };
       },
-      providesTags: (result) =>
-        result
+      providesTags: (result) => {
+        if (!result) return [{ type: "Order" as const, id: "LIST" }];
+        const orders = Array.isArray(result)
+          ? result
+          : "orders" in result
+          ? result.orders
+          : [];
+        return orders.length > 0
           ? [
-              ...result.map((order) => ({
+              ...orders.map((order) => ({
                 type: "Order" as const,
                 id: order._id || order.id,
               })),
               { type: "Order" as const, id: "LIST" },
             ]
-          : [{ type: "Order" as const, id: "LIST" }],
+          : [{ type: "Order" as const, id: "LIST" }];
+      },
     }),
 
     getOrder: build.query<Order, string>({

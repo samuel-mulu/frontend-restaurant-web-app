@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -32,6 +32,8 @@ import {
   ArrowRightLeft,
   ShieldCheck,
   Ban,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSelector } from "react-redux";
@@ -182,6 +184,21 @@ export function OrderHistory() {
   const [bulkStatusChange, setBulkStatusChange] = useState<OrderStatus | "">(
     ""
   );
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(10);
+
+  // Reset page to 1 when filters change
+  // This is necessary to ensure users start from page 1 when applying new filters
+  const filterKey = useMemo(
+    () => `${statusFilter}-${searchQuery}-${waiterFilter}-${roleView}`,
+    [statusFilter, searchQuery, waiterFilter, roleView]
+  );
+
+  // Note: Setting state in useEffect here is intentional - we need to reset pagination
+  // when filters change. This is a common pattern for paginated lists with filters.
+  useEffect(() => {
+    setPage(1);
+  }, [filterKey]);
 
   // Build query based on role
   const queryParams = useMemo(() => {
@@ -193,7 +210,12 @@ export function OrderHistory() {
       endDate?: string;
       search?: string;
       tableNumber?: string;
-    } = {};
+      page?: number;
+      limit?: number;
+    } = {
+      page,
+      limit,
+    };
 
     // Apply role-based filtering for cash flow tracking
     if (roleView === "all") {
@@ -235,10 +257,10 @@ export function OrderHistory() {
     }
 
     return params;
-  }, [statusFilter, searchQuery, waiterFilter, roleView]);
+  }, [statusFilter, searchQuery, waiterFilter, roleView, page, limit]);
 
   const {
-    data: ordersData = [],
+    data: ordersResponse,
     isLoading,
     error,
     refetch,
@@ -248,6 +270,28 @@ export function OrderHistory() {
     useUpdateOrderStatusMutation();
   const [bulkUpdateOrderStatus, { isLoading: isBulkUpdating }] =
     useBulkUpdateOrderStatusMutation();
+
+  // Handle paginated or non-paginated response
+  const ordersData = useMemo(() => {
+    if (!ordersResponse) return [];
+    if (Array.isArray(ordersResponse)) {
+      return ordersResponse;
+    }
+    if ("orders" in ordersResponse) {
+      return ordersResponse.orders;
+    }
+    return [];
+  }, [ordersResponse]);
+
+  const pagination = useMemo(() => {
+    if (!ordersResponse || Array.isArray(ordersResponse)) {
+      return null;
+    }
+    if ("pagination" in ordersResponse) {
+      return ordersResponse.pagination;
+    }
+    return null;
+  }, [ordersResponse]);
 
   // Transform orders to display format
   const orders = useMemo(() => ordersData.map(transformOrder), [ordersData]);
@@ -910,6 +954,87 @@ export function OrderHistory() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {pagination && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700">
+              {/* Limit Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  Show:
+                </span>
+                <Select
+                  value={limit.toString()}
+                  onValueChange={(value) => {
+                    setLimit(Number(value));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  per page
+                </span>
+              </div>
+
+              {/* Pagination Info */}
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  Showing{" "}
+                  {pagination.total > 0
+                    ? (pagination.page - 1) * pagination.limit + 1
+                    : 0}{" "}
+                  to{" "}
+                  {Math.min(
+                    pagination.page * pagination.limit,
+                    pagination.total
+                  )}{" "}
+                  of {pagination.total} orders
+                </span>
+
+                {/* Pagination Buttons */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={!pagination.hasPreviousPage || isLoading}
+                    className="dark:bg-slate-700 dark:border-slate-600"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-slate-600 dark:text-slate-400 px-2">
+                      Page {pagination.page} of {pagination.totalPages || 1}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setPage((p) =>
+                        Math.min(pagination.totalPages || 1, p + 1)
+                      )
+                    }
+                    disabled={!pagination.hasNextPage || isLoading}
+                    className="dark:bg-slate-700 dark:border-slate-600"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

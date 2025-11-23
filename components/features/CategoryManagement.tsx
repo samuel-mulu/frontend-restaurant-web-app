@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -19,144 +19,77 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit2, Trash2, Loader2 } from "lucide-react";
+import { Edit2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Category } from "@/lib/types";
-import {
-  getCategories,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  ApiError,
-} from "@/lib/api/categories";
+  useListCategoriesQuery,
+  useCreateCategoryMutation,
+  useUpdateCategoryMutation,
+  useDeleteCategoryMutation,
+} from "@/stores/features/categories/categoriesApi";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { ErrorState } from "@/components/shared/ErrorState";
 
 export function CategoryManagement() {
-  // State management
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
     null
   );
   const [categoryName, setCategoryName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const totalProducts = categories.reduce(
-    (sum, category) => sum + (category.products || 0),
-    0
-  );
-  const averageProducts =
-    categories.length > 0 ? totalProducts / categories.length : 0;
-  const latestUpdate = categories.reduce<string | null>((latest, category) => {
-    if (!category.updatedAt) return latest;
-    if (!latest) return category.updatedAt;
-    return category.updatedAt > latest ? category.updatedAt : latest;
-  }, null);
+  // Redux Toolkit hooks
+  const {
+    data: categories = [],
+    isLoading,
+    error,
+    refetch,
+  } = useListCategoriesQuery();
 
-  const summaryCards = [
-    {
-      label: "Categories",
-      value: categories.length,
-      helper: "active in system",
-    },
-    {
-      label: "Linked products",
-      value: totalProducts,
-      helper: "across menu",
-    },
-    {
-      label: "Avg. per category",
-      value: categories.length > 0 ? averageProducts.toFixed(1) : "—",
-      helper: "products each",
-    },
-    {
-      label: "Last update",
-      value: latestUpdate ?? "—",
-      helper: "sync status",
-    },
-  ];
+  const [createCategory, { isLoading: isCreating }] =
+    useCreateCategoryMutation();
+  const [updateCategory, { isLoading: isUpdating }] =
+    useUpdateCategoryMutation();
+  const [deleteCategory] = useDeleteCategoryMutation();
 
-  // Fetch categories on component mount
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  const isSubmitting = isCreating || isUpdating;
+  const errorMessage =
+    error && "data" in error
+      ? (error.data as { message?: string })?.message || "An error occurred"
+      : null;
 
-  /**
-   * Fetch all categories from the API
-   * This runs when the component first loads
-   */
-  const fetchCategories = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await getCategories();
-      setCategories(data);
-    } catch (err: unknown) {
-      const errorMessage =
-        err instanceof ApiError
-          ? err.message
-          : "Failed to load categories. Please try again later.";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /**
-   * Handle creating a new category
-   * Sends POST request to /api/v1/categories
-   */
   const handleCreate = async () => {
-    // Validate input
     if (!categoryName.trim()) {
       toast.error("Please enter a category name");
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      // Call API to create category
-      const newCategory = await createCategory(categoryName);
-
-      // Update local state with the new category
-      setCategories([...categories, newCategory]);
+      await createCategory({ name: categoryName.trim() }).unwrap();
       setCategoryName("");
       setIsCreateOpen(false);
       toast.success("Category created successfully");
     } catch (err: unknown) {
-      // Handle different error types
-      if (err instanceof ApiError) {
-        if (err.status === 409) {
-          toast.error(`Category "${categoryName}" already exists`);
-        } else if (err.status === 0) {
-          toast.error("Network error: Could not connect to the server");
-        } else {
-          toast.error(err.message || "Failed to create category");
-        }
+      const error = err as {
+        data?: { message?: string };
+        message?: string;
+        status?: number;
+      };
+      const message =
+        error?.data?.message || error?.message || "Failed to create category";
+      if (error?.status === 409) {
+        toast.error(`Category "${categoryName}" already exists`);
       } else {
-        toast.error("An unexpected error occurred");
+        toast.error(message);
       }
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleEdit = (id: string) => {
-    const category = categories.find((c) => c.id === id);
+    const category = categories.find((c: { id: string }) => c.id === id);
     if (category) {
       setEditingCategoryId(id);
       setCategoryName(category.name);
@@ -164,12 +97,7 @@ export function CategoryManagement() {
     }
   };
 
-  /**
-   * Handle updating an existing category
-   * Sends PATCH request to /api/v1/categories/:id
-   */
   const handleUpdate = async () => {
-    // Validate input
     if (!editingCategoryId) {
       toast.error("No category selected for editing");
       return;
@@ -180,42 +108,30 @@ export function CategoryManagement() {
     }
 
     try {
-      setIsSubmitting(true);
-      // Call API to update category
-      const updatedCategory = await updateCategory(
-        editingCategoryId,
-        categoryName
-      );
-
-      // Update local state with the updated category
-      setCategories(
-        categories.map((cat) =>
-          cat.id === editingCategoryId ? updatedCategory : cat
-        )
-      );
+      await updateCategory({
+        id: editingCategoryId,
+        data: { name: categoryName.trim() },
+      }).unwrap();
       setCategoryName("");
       setEditingCategoryId(null);
       setIsEditOpen(false);
       toast.success("Category updated successfully");
     } catch (err: unknown) {
-      // Handle different error types
-      if (err instanceof ApiError) {
-        if (err.status === 404) {
-          toast.error("Category not found. It may have been deleted.");
-          // Refresh the list to get current data
-          fetchCategories();
-        } else if (err.status === 409) {
-          toast.error(`Category "${categoryName}" already exists`);
-        } else if (err.status === 0) {
-          toast.error("Network error: Could not connect to the server");
-        } else {
-          toast.error(err.message || "Failed to update category");
-        }
+      const error = err as {
+        data?: { message?: string };
+        message?: string;
+        status?: number;
+      };
+      const message =
+        error?.data?.message || error?.message || "Failed to update category";
+      if (error?.status === 404) {
+        toast.error("Category not found. It may have been deleted.");
+        refetch();
+      } else if (error?.status === 409) {
+        toast.error(`Category "${categoryName}" already exists`);
       } else {
-        toast.error("An unexpected error occurred");
+        toast.error(message);
       }
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -225,188 +141,111 @@ export function CategoryManagement() {
     setIsEditOpen(false);
   };
 
-  /**
-   * Handle deleting a category
-   * Sends DELETE request to /api/v1/categories/:id
-   */
   const handleDelete = async (id: string) => {
-    const category = categories.find((c) => c.id === id);
+    const category = categories.find((c: { id: string }) => c.id === id);
     const categoryName = category?.name || "this category";
 
     try {
-      // Call API to delete category
-      await deleteCategory(id);
-
-      // Update local state by removing the deleted category
-      setCategories(categories.filter((cat) => cat.id !== id));
+      await deleteCategory(id).unwrap();
       toast.success(`Category "${categoryName}" deleted successfully`);
     } catch (err: unknown) {
-      // Handle different error types
-      if (err instanceof ApiError) {
-        if (err.status === 404) {
-          toast.error("Category not found. It may have already been deleted.");
-          // Refresh the list to get current data
-          fetchCategories();
-        } else if (err.status === 0) {
-          toast.error("Network error: Could not connect to the server");
-        } else {
-          toast.error(err.message || "Failed to delete category");
-        }
+      const error = err as {
+        data?: { message?: string };
+        message?: string;
+        status?: number;
+      };
+      const message =
+        error?.data?.message || error?.message || "Failed to delete category";
+      if (error?.status === 404) {
+        toast.error("Category not found. It may have already been deleted.");
+        refetch();
       } else {
-        toast.error("An unexpected error occurred");
+        toast.error(message);
       }
     }
   };
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="glass-panel p-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                Menu taxonomy
-              </p>
-              <h1 className="mt-2 text-3xl font-semibold text-slate-900">
-                Categories
-              </h1>
-              <p className="mt-2 text-sm text-slate-600">
-                Structure the menu into meaningful groups and keep availability
-                aligned between kitchen and cashier workflows.
-              </p>
-            </div>
-            <Button
-              onClick={() => setIsCreateOpen(true)}
-              className="min-h-[44px] w-full rounded-full bg-slate-900 text-white shadow-lg sm:w-auto hover:bg-slate-800"
-              disabled={isLoading}
-            >
-              Create Category
-            </Button>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {summaryCards.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-inner shadow-slate-200/40"
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  {stat.label}
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">
-                  {stat.value}
-                </p>
-                <p className="text-xs text-slate-500">{stat.helper}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <header className="flex justify-between items-center">
+        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+          Categories
+        </h1>
+        <Button
+          onClick={() => setIsCreateOpen(true)}
+          disabled={isLoading}
+          className={cn(isLoading ? "spin-in" : "")}
+        >
+          Create Category
+        </Button>
       </header>
 
-      {/* Error State */}
-      {error && !isLoading && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800 text-sm">{error}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchCategories}
-            className="mt-2"
-          >
-            Retry
-          </Button>
-        </div>
+      {errorMessage && !isLoading && (
+        <ErrorState message={errorMessage} onRetry={() => refetch()} />
       )}
 
-      {/* Loading State */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-2 text-gray-600">Loading categories...</span>
-        </div>
-      )}
+      {isLoading && <LoadingState message="Loading categories..." />}
 
-      {/* Empty State */}
-      {!isLoading && !error && categories.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-600 mb-4">No categories found.</p>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            Create Your First Category
-          </Button>
-        </div>
+      {!isLoading && !errorMessage && categories.length === 0 && (
+        <EmptyState
+          message="No categories found."
+          actionLabel="Create Your First Category"
+          onAction={() => setIsCreateOpen(true)}
+        />
       )}
 
       {/* Mobile Card View */}
-      {!isLoading && !error && categories.length > 0 && (
+      {!isLoading && !errorMessage && categories.length > 0 && (
         <div className="lg:hidden space-y-4">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">
-                    {category.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {category.products}{" "}
-                    {category.products === 1 ? "product" : "products"}
-                  </p>
+          {categories.map(
+            (category: {
+              id: string;
+              name: string;
+              products: number;
+              updatedAt: string;
+            }) => (
+              <div
+                key={category.id}
+                className="rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white/90 dark:bg-slate-800/90 p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                      {category.name}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      {category.products}{" "}
+                      {category.products === 1 ? "product" : "products"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => handleEdit(category.id)}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <DeleteConfirmDialog
+                      title="Are you sure?"
+                      description="This action cannot be undone. This will permanently delete the category"
+                      itemName={category.name}
+                      onConfirm={() => handleDelete(category.id)}
+                    />
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={() => handleEdit(category.id)}
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-white border border-gray-200 shadow-xl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently
-                          delete the category{" "}
-                          <span className="font-semibold text-slate-900">
-                            {category.name}
-                          </span>
-                          .
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(category.id)}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Updated: {category.updatedAt}
+                </p>
               </div>
-              <p className="text-xs text-gray-500">
-                Updated: {category.updatedAt}
-              </p>
-            </div>
-          ))}
+            )
+          )}
         </div>
       )}
 
       {/* Desktop Table View */}
-      {!isLoading && !error && categories.length > 0 && (
+      {!isLoading && !errorMessage && categories.length > 0 && (
         <div className="hidden lg:block soft-card overflow-hidden">
           <Table>
             <TableHeader>
@@ -418,58 +257,40 @@ export function CategoryManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">{category.name}</TableCell>
-                  <TableCell>{category.products}</TableCell>
-                  <TableCell>{category.updatedAt}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleEdit(category.id)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="bg-white border border-gray-200 shadow-xl">
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will
-                              permanently delete the category{" "}
-                              <span className="font-semibold text-slate-900">
-                                {category.name}
-                              </span>
-                              .
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(category.id)}
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {categories.map(
+                (category: {
+                  id: string;
+                  name: string;
+                  products: number;
+                  updatedAt: string;
+                }) => (
+                  <TableRow key={category.id}>
+                    <TableCell className="font-medium">
+                      {category.name}
+                    </TableCell>
+                    <TableCell>{category.products}</TableCell>
+                    <TableCell>{category.updatedAt}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleEdit(category.id)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <DeleteConfirmDialog
+                          title="Are you sure?"
+                          description="This action cannot be undone. This will permanently delete the category"
+                          itemName={category.name}
+                          onConfirm={() => handleDelete(category.id)}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              )}
             </TableBody>
           </Table>
         </div>
@@ -477,7 +298,7 @@ export function CategoryManagement() {
 
       {/* Create Category Modal */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white border border-gray-200 shadow-xl">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl">
           <DialogHeader>
             <DialogTitle>Create Category</DialogTitle>
           </DialogHeader>
@@ -522,7 +343,7 @@ export function CategoryManagement() {
 
       {/* Edit Category Modal */}
       <Dialog open={isEditOpen} onOpenChange={handleCloseEdit}>
-        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white border border-gray-200 shadow-xl">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl">
           <DialogHeader>
             <DialogTitle>Edit Category</DialogTitle>
           </DialogHeader>

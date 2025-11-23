@@ -10,21 +10,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { useListTablesQuery } from "@/stores/features/tables/tablesApi";
-import {
-  useListItemsQuery,
-  Item as ItemType,
-} from "@/stores/features/items/itemsApi";
+import { useListItemsQuery } from "@/stores/features/items/itemsApi";
 import { useListCategoriesQuery } from "@/stores/features/categories/categoriesApi";
+import { useCreateOrderMutation } from "@/stores/features/orders/ordersApi";
+import { Menu } from "@/lib/menu-store";
+import { Category } from "@/lib/types";
+import { toast } from "sonner";
 
-type CartItem = ItemType & { quantity: number };
+type CartItem = Menu & { quantity: number };
 
 export default function PixelPerfectMenu() {
   const [cart, setCart] = React.useState<CartItem[]>([]);
   const [selectedWaiter, setSelectedWaiter] = React.useState<string>("");
   const [selectedTable, setSelectedTable] = React.useState<string>("");
   const [selectedCategory, setSelectedCategory] = React.useState<string>("all");
+  const [orderNote, setOrderNote] = React.useState<string>("");
+
+  const [createOrder, { isLoading: isCreatingOrder }] =
+    useCreateOrderMutation();
 
   // Fetch data using Redux Toolkit Query
   const { data: waitersData, isLoading: waitersLoading } = useListStaffQuery({
@@ -51,8 +57,8 @@ export default function PixelPerfectMenu() {
 
   const waiters = waitersData?.staff || [];
   const tables = tablesData?.data || [];
-  const categories = categoriesData?.data || [];
-  const items = itemsData?.data || [];
+  const categories = categoriesData || [];
+  const items = itemsData || [];
 
   const loading =
     waitersLoading || tablesLoading || categoriesLoading || itemsLoading;
@@ -61,13 +67,13 @@ export default function PixelPerfectMenu() {
     console.log("waiter", waitersData);
   }, [waitersData]);
 
-  const addItem = (item: ItemType) => {
+  const addItem = (item: Menu) => {
     setCart((c) => {
-      const itemId = item._id || item.id;
-      const existingItem = c.find((i) => (i._id || i.id) === itemId);
+      const itemId = item.id;
+      const existingItem = c.find((i) => i.id === itemId);
       if (existingItem) {
         return c.map((i) =>
-          (i._id || i.id) === itemId ? { ...i, quantity: i.quantity + 1 } : i
+          i.id === itemId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
       return [...c, { ...item, quantity: 1 }];
@@ -76,21 +82,21 @@ export default function PixelPerfectMenu() {
 
   const updateQuantity = (itemId: string, delta: number) => {
     setCart((c) => {
-      const item = c.find((i) => (i._id || i.id) === itemId);
+      const item = c.find((i) => i.id === itemId);
       if (!item) return c;
 
       const newQuantity = item.quantity + delta;
       if (newQuantity <= 0) {
-        return c.filter((i) => (i._id || i.id) !== itemId);
+        return c.filter((i) => i.id !== itemId);
       }
       return c.map((i) =>
-        (i._id || i.id) === itemId ? { ...i, quantity: newQuantity } : i
+        i.id === itemId ? { ...i, quantity: newQuantity } : i
       );
     });
   };
 
   const removeItem = (itemId: string) => {
-    setCart((c) => c.filter((i) => (i._id || i.id) !== itemId));
+    setCart((c) => c.filter((i) => i.id !== itemId));
   };
 
   const totalItems = cart.reduce((acc, it) => acc + it.quantity, 0);
@@ -99,6 +105,81 @@ export default function PixelPerfectMenu() {
     (acc: number, it: CartItem) => acc + it.price * it.quantity,
     0
   );
+
+  const handleCreateOrder = async () => {
+    // Validation
+    if (cart.length === 0) {
+      toast.error(
+        "Your cart is empty. Please add items before creating an order."
+      );
+      return;
+    }
+
+    if (!selectedWaiter) {
+      toast.error("Please select a waiter");
+      return;
+    }
+
+    if (!selectedTable) {
+      toast.error("Please select a table");
+      return;
+    }
+
+    try {
+      // Transform cart items to order items format
+      const orderItems = cart.map((item) => ({
+        itemId: item.id,
+        qty: item.quantity,
+        nameSnapshot: item.name,
+        priceSnapshot: item.price,
+      }));
+
+      // Get table number from selected table ID
+      const selectedTableObj = tables.find(
+        (t: { _id?: string; id?: string; tableNumber: string }) =>
+          (t._id || t.id) === selectedTable
+      );
+      const tableNumber = selectedTableObj?.tableNumber || "";
+
+      if (!tableNumber) {
+        toast.error("Invalid table selection");
+        return;
+      }
+
+      // Create order
+      const result = await createOrder({
+        tableNumber,
+        items: orderItems,
+        waiterId: selectedWaiter,
+        note: orderNote.trim() || undefined,
+      }).unwrap();
+
+      // Success
+      toast.success("Order created successfully!", {
+        description: `Order #${result.orderNumber} has been created`,
+      });
+
+      // Clear cart and reset selections
+      setCart([]);
+      setSelectedWaiter("");
+      setSelectedTable("");
+      setOrderNote("");
+    } catch (error: unknown) {
+      console.error("Error creating order:", error);
+      const err = error as {
+        data?: { error?: string; message?: string };
+        message?: string;
+      };
+      const errorMessage =
+        err?.data?.error ||
+        err?.data?.message ||
+        err?.message ||
+        "Failed to create order. Please try again.";
+      toast.error("Failed to create order", {
+        description: errorMessage,
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f6f8fa] ">
@@ -122,31 +203,25 @@ export default function PixelPerfectMenu() {
                 </div>
               ) : (
                 categories
-                  .filter(
-                    (category: { _id?: string; id?: string; name: string }) =>
-                      category._id || category.id
-                  )
-                  .map(
-                    (category: { _id?: string; id?: string; name: string }) => {
-                      const categoryId = category._id || category.id || "";
-                      const isSelected = selectedCategory === categoryId;
-                      return (
-                        <button
-                          key={categoryId}
-                          onClick={() => {
-                            setSelectedCategory(categoryId);
-                          }}
-                          className={`capitalize shrink-0 px-4 py-2 rounded-md font-semibold transition-colors whitespace-nowrap ${
-                            isSelected
-                              ? "text-[#e11d2f] bg-[#fee2e2]"
-                              : "text-[#6b7b88] hover:text-[#163a5b]"
-                          }`}
-                        >
-                          {category.name}
-                        </button>
-                      );
-                    }
-                  )
+                  .filter((category: Category) => category.id)
+                  .map((category: Category) => {
+                    const isSelected = selectedCategory === category.id;
+                    return (
+                      <button
+                        key={category.id}
+                        onClick={() => {
+                          setSelectedCategory(category.id);
+                        }}
+                        className={`capitalize shrink-0 px-4 py-2 rounded-md font-semibold transition-colors whitespace-nowrap ${
+                          isSelected
+                            ? "text-[#e11d2f] bg-[#fee2e2]"
+                            : "text-[#6b7b88] hover:text-[#163a5b]"
+                        }`}
+                      >
+                        {category.name}
+                      </button>
+                    );
+                  })
               )}
             </div>
           </div>
@@ -166,39 +241,40 @@ export default function PixelPerfectMenu() {
                 No items available
               </div>
             ) : (
-              items.map((item: ItemType) => (
-                <div
-                  key={item._id || item.id}
-                  className="px-8 py-6 flex items-start gap-6"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-[#0b3b66] text-lg font-bold leading-tight">
-                          {item.name}
-                        </h4>
+              items
+                .filter((item: Menu) => item.available)
+                .map((item: Menu) => (
+                  <div
+                    key={item.id}
+                    className="px-8 py-6 flex items-start gap-6"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="text-[#0b3b66] text-lg font-bold leading-tight">
+                            {item.name}
+                          </h4>
 
-                        <div className="text-[#e11d2f] font-semibold text-sm mt-2">
-                          Br {item.price}
+                          <div className="text-[#e11d2f] font-semibold text-sm mt-2">
+                            Br {item.price.toFixed(2)}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex flex-col items-end gap-4">
-                        <Button
-                          onClick={() => addItem(item)}
-                          size={"sm"}
-                          className="px-6 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58]"
-                          aria-label={`Add ${item.name}`}
-                          disabled={!item.isAvailable}
-                        >
-                          <Plus size={16} />
-                          {item.isAvailable ? "Add Item" : "Unavailable"}
-                        </Button>
+                        <div className="flex flex-col items-end gap-4">
+                          <Button
+                            onClick={() => addItem(item)}
+                            size={"sm"}
+                            className="px-6 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58]"
+                            aria-label={`Add ${item.name}`}
+                          >
+                            <Plus size={16} />
+                            Add Item
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))
             )}
           </div>
         </div>
@@ -314,22 +390,21 @@ export default function PixelPerfectMenu() {
           {/* Cart Items List */}
           <div className="space-y-4">
             {cart.map((item) => {
-              const itemId = item._id || item.id;
               return (
                 <div
-                  key={itemId}
+                  key={item.id}
                   className="flex items-center justify-between gap-3"
                 >
                   <div className="flex flex-col">
                     <h4 className="text-[#0b3b66] font-semibold text-sm leading-tight">
                       {item.name}
                     </h4>
-                    <p>{item.price} ብር</p>
+                    <p>{item.price.toFixed(2)} ብር</p>
                   </div>
                   <div className="flex flex-col items-end">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => updateQuantity(itemId, -1)}
+                        onClick={() => updateQuantity(item.id, -1)}
                         className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
                         aria-label="Decrease quantity"
                       >
@@ -339,7 +414,7 @@ export default function PixelPerfectMenu() {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(itemId, 1)}
+                        onClick={() => updateQuantity(item.id, 1)}
                         className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
                         aria-label="Increase quantity"
                       >
@@ -347,7 +422,7 @@ export default function PixelPerfectMenu() {
                       </button>
                     </div>
                     <button
-                      onClick={() => removeItem(itemId)}
+                      onClick={() => removeItem(item.id)}
                       className="text-[#6b7b88] hover:text-[#e11d2f] transition p-1"
                       aria-label="Remove item"
                     >
@@ -367,15 +442,31 @@ export default function PixelPerfectMenu() {
 
           <hr className="my-4 border-t border-[#eef2f6]" />
 
-          <button className="mt-2 flex items-center gap-2 text-[#6b7b88] font-medium hover:text-[#0b3b66] transition">
-            <Plus size={16} /> Add Note
-          </button>
+          <div className="mt-2">
+            <label className="text-sm font-medium text-[#163a5b] mb-2 block">
+              Order Note (Optional)
+            </label>
+            <Input
+              type="text"
+              placeholder="Add a note to this order..."
+              value={orderNote}
+              onChange={(e) => setOrderNote(e.target.value)}
+              className="w-full rounded-md border border-[#eef2f6] bg-white text-[#163a5b] placeholder:text-[#6b7b88] focus:border-[#0b3b66]"
+            />
+          </div>
 
           <Button
             size={"sm"}
-            className="mt-4 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58]"
+            onClick={handleCreateOrder}
+            disabled={
+              cart.length === 0 ||
+              !selectedWaiter ||
+              !selectedTable ||
+              isCreatingOrder
+            }
+            className="mt-4 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Create Order
+            {isCreatingOrder ? "Creating Order..." : "Create Order"}
           </Button>
         </aside>
       </div>

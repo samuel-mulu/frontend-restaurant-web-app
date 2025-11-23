@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -26,63 +26,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Edit2,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-} from "lucide-react";
+import { Edit2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 import { type Menu } from "@/lib/menu-store";
 import { Category } from "@/lib/types";
-import { getCategories } from "@/lib/api/categories";
 import {
-  getItems,
-  createItem,
-  updateItem,
-  deleteItem,
-  updateItemAvailability,
-  ApiError,
-  PaginatedResponse,
-} from "@/lib/api/items";
+  useListItemsQuery,
+  useCreateItemMutation,
+  useUpdateItemMutation,
+  useDeleteItemMutation,
+  useUpdateItemAvailabilityMutation,
+} from "@/stores/features/items/itemsApi";
+import { useListCategoriesQuery } from "@/stores/features/categories/categoriesApi";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { ErrorState } from "@/components/shared/ErrorState";
 
 interface MenuFormData {
-  categoryId: string; // Changed from category to categoryId
+  categoryId: string;
   name: string;
   price: string;
   description: string;
   available: string;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export function MenuManagement() {
-  // State management
-  const [menus, setMenus] = useState<Menu[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoadingItems, setIsLoadingItems] = useState(true);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
-  const [isEditOpen, setIsEditOpen] = useState<boolean>(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
   const [selectedCategoryFilter, setSelectedCategoryFilter] =
     useState<string>("all");
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage] = useState<number>(10);
-  const [totalPages, setTotalPages] = useState<number>(1);
-  const [totalItems, setTotalItems] = useState<number>(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState<MenuFormData>({
     categoryId: "",
     name: "",
@@ -93,168 +71,111 @@ export function MenuManagement() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  /**
-   * Fetch categories from API for dropdown
-   */
-  const fetchCategories = async () => {
-    try {
-      setIsLoadingCategories(true);
-      setError(null);
-      const data = await getCategories();
-      setCategories(data);
-    } catch (err: unknown) {
-      const errorMessage =
-        err instanceof ApiError
-          ? err.message
-          : "Failed to load categories. Please try again later.";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoadingCategories(false);
-    }
-  };
+  // Redux Toolkit hooks
+  const {
+    data: categories = [],
+    isLoading: isLoadingCategories,
+    error: categoriesError,
+  } = useListCategoriesQuery();
 
-  /**
-   * Fetch items from API with pagination
-   * Optionally filtered by category
-   */
-  const fetchItems = useCallback(async () => {
-    try {
-      setIsLoadingItems(true);
-      setError(null);
-      // If "all" is selected, don't pass categoryId filter
-      const categoryId =
-        selectedCategoryFilter === "all" ? undefined : selectedCategoryFilter;
+  const {
+    data: items = [],
+    isLoading: isLoadingItems,
+    error: itemsError,
+    refetch: refetchItems,
+  } = useListItemsQuery({
+    categoryId:
+      selectedCategoryFilter === "all" ? undefined : selectedCategoryFilter,
+    includeUnavailable: true,
+    page: currentPage,
+    limit: ITEMS_PER_PAGE,
+  });
 
-      const response: PaginatedResponse<Menu> = await getItems(categoryId, {
-        page: currentPage,
-        limit: itemsPerPage,
-      });
+  const [createItem, { isLoading: isCreating }] = useCreateItemMutation();
+  const [updateItem, { isLoading: isUpdating }] = useUpdateItemMutation();
+  const [deleteItem] = useDeleteItemMutation();
+  const [updateAvailability] = useUpdateItemAvailabilityMutation();
 
-      setMenus(response.data);
-      setTotalPages(response.pagination.totalPages);
-      setTotalItems(response.pagination.total);
-    } catch (err: unknown) {
-      const errorMessage =
-        err instanceof ApiError
-          ? err.message
-          : "Failed to load items. Please try again later.";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoadingItems(false);
-    }
-  }, [selectedCategoryFilter, currentPage, itemsPerPage]);
+  const isSubmitting = isCreating || isUpdating;
+  const isLoading = isLoadingItems || isLoadingCategories;
+  const error =
+    itemsError && "data" in itemsError
+      ? (itemsError.data as { message?: string })?.message ||
+        "An error occurred"
+      : categoriesError && "data" in categoriesError
+      ? (categoriesError.data as { message?: string })?.message ||
+        "An error occurred"
+      : null;
 
-  // Fetch categories on component mount
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  // Calculate pagination (backend may not return pagination info, so we'll handle it client-side for now)
+  const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE) || 1;
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedItems = items.slice(startIndex, endIndex);
 
-  // Fetch items on mount and when category filter or page changes
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
-
-  /**
-   * Helper function to get category name by ID
-   */
   const getCategoryName = (categoryId: string): string => {
-    const category = categories.find((cat) => cat.id === categoryId);
+    const category = categories.find((cat: Category) => cat.id === categoryId);
     return category?.name || categoryId;
   };
 
-  /**
-   * Handle creating a new menu item
-   * Sends POST request to /api/v1/items
-   */
-  const handleCreate = async (): Promise<void> => {
-    // Validate input
+  const handleCategoryFilterChange = (categoryId: string) => {
+    setSelectedCategoryFilter(categoryId);
+    setCurrentPage(1);
+  };
+
+  const handleCreate = async () => {
     if (!formData.categoryId) {
       toast.error("Please select a category");
       return;
     }
-    if (!formData.name || !formData.name.trim()) {
+    if (!formData.name?.trim()) {
       toast.error("Please enter an item name");
       return;
     }
-    if (
-      !formData.price ||
-      isNaN(parseFloat(formData.price)) ||
-      parseFloat(formData.price) < 0
-    ) {
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price < 0) {
       toast.error("Please enter a valid price");
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      // Call API to create item
       await createItem({
         categoryId: formData.categoryId,
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
-        price: parseFloat(formData.price),
+        price,
         isAvailable: formData.available === "true",
         image: imageFile || undefined,
-      });
+      }).unwrap();
 
-      // Refresh items list to get updated data
-      await fetchItems();
-
-      setFormData({
-        categoryId: "",
-        name: "",
-        price: "",
-        description: "",
-        available: "true",
-      });
-      clearImage();
+      resetForm();
       setIsCreateOpen(false);
       toast.success("Menu item created successfully");
     } catch (err: unknown) {
-      // Handle different error types
-      if (err instanceof ApiError) {
-        if (err.status === 0) {
-          toast.error("Network error: Could not connect to the server");
-        } else {
-          toast.error(err.message || "Failed to create menu item");
-        }
-      } else {
-        toast.error("An unexpected error occurred");
-      }
-    } finally {
-      setIsSubmitting(false);
+      const error = err as { data?: { message?: string }; message?: string };
+      const message =
+        error?.data?.message || error?.message || "Failed to create menu item";
+      toast.error(message);
     }
   };
 
-  /**
-   * Handle opening edit dialog
-   * Populates form with existing menu item data
-   */
-  const handleEdit = (id: string): void => {
-    const menu = menus.find((m) => m.id === id);
+  const handleEdit = (id: string) => {
+    const menu = items.find((m: Menu) => m.id === id);
     if (menu) {
       setEditingMenuId(id);
       setFormData({
-        categoryId: menu.category, // menu.category is the categoryId string
+        categoryId: menu.category,
         name: menu.name,
         price: menu.price.toString(),
         description: menu.description,
         available: menu.available ? "true" : "false",
       });
-      // Clear image selection when opening edit
-      clearImage();
+      setImagePreview(menu.imageUrl || null);
       setIsEditOpen(true);
     }
   };
 
-  /**
-   * Handle updating an existing menu item
-   * Sends PATCH request to /api/v1/items/:id
-   */
-  const handleUpdate = async (): Promise<void> => {
-    // Validate input
+  const handleUpdate = async () => {
     if (!editingMenuId) {
       toast.error("No item selected for editing");
       return;
@@ -263,69 +184,116 @@ export function MenuManagement() {
       toast.error("Please select a category");
       return;
     }
-    if (!formData.name || !formData.name.trim()) {
+    if (!formData.name?.trim()) {
       toast.error("Please enter an item name");
       return;
     }
-    if (
-      !formData.price ||
-      isNaN(parseFloat(formData.price)) ||
-      parseFloat(formData.price) < 0
-    ) {
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price < 0) {
       toast.error("Please enter a valid price");
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      // Call API to update item
-      await updateItem(editingMenuId, {
-        categoryId: formData.categoryId,
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
-        price: parseFloat(formData.price),
-        isAvailable: formData.available === "true",
-        image: imageFile || undefined,
-      });
+      await updateItem({
+        id: editingMenuId,
+        data: {
+          categoryId: formData.categoryId,
+          name: formData.name.trim(),
+          description: formData.description.trim() || undefined,
+          price,
+          isAvailable: formData.available === "true",
+          image: imageFile || undefined,
+        },
+      }).unwrap();
 
-      // Refresh items list to get updated data
-      await fetchItems();
-
-      setFormData({
-        categoryId: "",
-        name: "",
-        price: "",
-        description: "",
-        available: "true",
-      });
-      clearImage();
+      resetForm();
       setEditingMenuId(null);
       setIsEditOpen(false);
       toast.success("Menu item updated successfully");
     } catch (err: unknown) {
-      // Handle different error types
-      if (err instanceof ApiError) {
-        if (err.status === 404) {
-          toast.error("Item not found. It may have been deleted.");
-          // Refresh the list to get current data
-          fetchItems();
-        } else if (err.status === 0) {
-          toast.error("Network error: Could not connect to the server");
-        } else {
-          toast.error(err.message || "Failed to update menu item");
-        }
+      const error = err as {
+        data?: { message?: string };
+        message?: string;
+        status?: number;
+      };
+      const message =
+        error?.data?.message || error?.message || "Failed to update menu item";
+      if (error?.status === 404) {
+        toast.error("Item not found. It may have been deleted.");
+        refetchItems();
       } else {
-        toast.error("An unexpected error occurred");
+        toast.error(message);
       }
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  /**
-   * Handle closing edit dialog
-   */
-  const handleCloseEdit = (): void => {
+  const handleCloseEdit = () => {
+    resetForm();
+    setEditingMenuId(null);
+    setIsEditOpen(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    const menu = items.find((m: Menu) => m.id === id);
+    const menuName = menu?.name || "this item";
+
+    try {
+      await deleteItem(id).unwrap();
+      toast.success(`Menu "${menuName}" deleted successfully`);
+    } catch (err: unknown) {
+      const error = err as {
+        data?: { message?: string };
+        message?: string;
+        status?: number;
+      };
+      const message =
+        error?.data?.message || error?.message || "Failed to delete menu item";
+      if (error?.status === 404) {
+        toast.error("Item not found. It may have already been deleted.");
+        refetchItems();
+      } else {
+        toast.error(message);
+      }
+    }
+  };
+
+  const toggleAvailability = async (id: string) => {
+    const menu = items.find((m: Menu) => m.id === id);
+    if (!menu) return;
+
+    const newAvailability = !menu.available;
+
+    try {
+      await updateAvailability({
+        id,
+        data: { isAvailable: newAvailability },
+      }).unwrap();
+      toast.success(
+        `Item "${menu.name}" marked as ${
+          newAvailability ? "available" : "unavailable"
+        }`
+      );
+    } catch (err: unknown) {
+      const error = err as {
+        data?: { message?: string };
+        message?: string;
+        status?: number;
+      };
+      const message =
+        error?.data?.message ||
+        error?.message ||
+        "Failed to update availability";
+      if (error?.status === 404) {
+        toast.error("Item not found. It may have been deleted.");
+        refetchItems();
+      } else {
+        toast.error(message);
+      }
+    }
+  };
+
+  const resetForm = () => {
     setFormData({
       categoryId: "",
       name: "",
@@ -334,144 +302,20 @@ export function MenuManagement() {
       available: "true",
     });
     clearImage();
-    setEditingMenuId(null);
-    setIsEditOpen(false);
   };
 
-  /**
-   * Handle deleting a menu item
-   * Sends DELETE request to /api/v1/items/:id
-   */
-  const handleDelete = async (id: string): Promise<void> => {
-    const menu = menus.find((m) => m.id === id);
-    const menuName = menu?.name || "this item";
-
-    try {
-      // Call API to delete item
-      await deleteItem(id);
-
-      // Update local state by removing the deleted item
-      setMenus(menus.filter((menu) => menu.id !== id));
-      toast.success(`Menu "${menuName}" deleted successfully`);
-    } catch (err: unknown) {
-      // Handle different error types
-      if (err instanceof ApiError) {
-        if (err.status === 404) {
-          toast.error("Item not found. It may have already been deleted.");
-          // Refresh the list to get current data
-          fetchItems();
-        } else if (err.status === 0) {
-          toast.error("Network error: Could not connect to the server");
-        } else {
-          toast.error(err.message || "Failed to delete menu item");
-        }
-      } else {
-        toast.error("An unexpected error occurred");
-      }
-    }
-  };
-
-  /**
-   * Handle toggling item availability
-   * Sends PATCH request to /api/v1/items/:id/availability
-   */
-  const toggleAvailability = async (id: string): Promise<void> => {
-    const menu = menus.find((m) => m.id === id);
-    if (!menu) return;
-
-    const newAvailability = !menu.available;
-
-    try {
-      // Call API to update availability
-      const updatedMenu = await updateItemAvailability(id, newAvailability);
-
-      // Update local state with the updated item
-      setMenus(menus.map((menu) => (menu.id === id ? updatedMenu : menu)));
-      toast.success(
-        `Item "${menu.name}" marked as ${
-          newAvailability ? "available" : "unavailable"
-        }`
-      );
-    } catch (err: unknown) {
-      // Handle different error types
-      if (err instanceof ApiError) {
-        if (err.status === 404) {
-          toast.error("Item not found. It may have been deleted.");
-          // Refresh the list to get current data
-          fetchItems();
-        } else if (err.status === 0) {
-          toast.error("Network error: Could not connect to the server");
-        } else {
-          toast.error(err.message || "Failed to update availability");
-        }
-      } else {
-        toast.error("An unexpected error occurred");
-      }
-    }
-  };
-
-  // Items are already paginated by backend
-  const paginatedMenus = menus;
-
-  // Pagination calculations for display
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-
-  const totalAvailableMenus = menus.filter((menu) => menu.available).length;
-  const totalUnavailableMenus = Math.max(menus.length - totalAvailableMenus, 0);
-  const averagePrice =
-    menus.length > 0
-      ? menus.reduce((sum, menu) => sum + menu.price, 0) / menus.length
-      : 0;
-
-  const headerStats = [
-    {
-      label: "Menus listed",
-      value: menus.length,
-      helper: "current view",
-    },
-    {
-      label: "Available now",
-      value: totalAvailableMenus,
-      helper: "visible on cashier",
-    },
-    {
-      label: "Unavailable",
-      value: totalUnavailableMenus,
-      helper: "temporarily hidden",
-    },
-    {
-      label: "Avg. price",
-      value: `${averagePrice.toFixed(2)} ብር`,
-      helper: "current selection",
-    },
-  ];
-
-  // Reset to page 1 when filter changes
-  const handleCategoryFilterChange = (categoryId: string): void => {
-    setSelectedCategoryFilter(categoryId);
-    setCurrentPage(1);
-    // fetchItems will be called automatically by useEffect
-  };
-
-  /**
-   * Handle image file selection
-   */
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith("image/")) {
         toast.error("Please select an image file");
         return;
       }
-      // Validate file size (5MB max)
       if (file.size > 5 * 1024 * 1024) {
         toast.error("Image size must be less than 5MB");
         return;
       }
       setImageFile(file);
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -480,9 +324,6 @@ export function MenuManagement() {
     }
   };
 
-  /**
-   * Clear image selection
-   */
   const clearImage = () => {
     setImageFile(null);
     setImagePreview(null);
@@ -490,70 +331,32 @@ export function MenuManagement() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="glass-panel p-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                Menu builder
-              </p>
-              <h1 className="mt-2 text-3xl font-semibold text-slate-900">
-                Menus
-              </h1>
-              <p className="mt-2 text-sm text-slate-600">
-                Keep menu items organised, control availability, and publish
-                updates instantly across the cashier experience.
-              </p>
-            </div>
-            <Button
-              onClick={() => setIsCreateOpen(true)}
-              disabled={isLoadingCategories || isLoadingItems}
-              className="min-h-[44px] w-full rounded-full bg-slate-900 text-white shadow-lg sm:w-auto hover:bg-slate-800"
-            >
-              Create Menu
-            </Button>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {headerStats.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-inner shadow-slate-200/40"
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  {stat.label}
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">
-                  {stat.value}
-                </p>
-                <p className="text-xs text-slate-500">{stat.helper}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <header className="flex justify-between items-center">
+        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+          Menu
+        </h1>
+        <Button
+          onClick={() => setIsCreateOpen(true)}
+          disabled={isLoading}
+          className={cn(isLoading ? "spin-in" : "")}
+        >
+          Create Menu
+        </Button>
       </header>
 
-      {/* Error State */}
-      {error && !isLoadingItems && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800 text-sm">{error}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              fetchItems();
-              fetchCategories();
-            }}
-            className="mt-2"
-          >
-            Retry
-          </Button>
-        </div>
+      {error && !isLoading && (
+        <ErrorState
+          message={error}
+          onRetry={() => {
+            refetchItems();
+          }}
+        />
       )}
 
       {/* Category Filter */}
       <div className="soft-card p-4 shrink-0">
         {isLoadingCategories ? (
-          <div className="flex items-center gap-2 text-gray-600">
+          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-sm">Loading categories...</span>
           </div>
@@ -561,23 +364,25 @@ export function MenuManagement() {
           <div className="flex gap-2 lg:gap-3 overflow-x-auto pb-2 lg:pb-0 scrollbar-hide -mx-1 px-1">
             <button
               onClick={() => handleCategoryFilterChange("all")}
-              className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors min-h-[40px] ${
+              className={cn(
+                "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors min-h-[40px]",
                 selectedCategoryFilter === "all"
-                  ? "bg-slate-900 text-white shadow-md"
-                  : "bg-white/80 text-slate-600 hover:text-slate-900"
-              }`}
+                  ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-md"
+                  : "bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+              )}
             >
               All
             </button>
-            {categories.map((category) => (
+            {categories.map((category: Category) => (
               <button
                 key={category.id}
                 onClick={() => handleCategoryFilterChange(category.id)}
-                className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors min-h-[40px] ${
+                className={cn(
+                  "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors min-h-[40px]",
                   selectedCategoryFilter === category.id
-                    ? "bg-slate-900 text-white shadow-md"
-                    : "bg-white/80 text-slate-600 hover:text-slate-900"
-                }`}
+                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-md"
+                    : "bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                )}
               >
                 {category.name}
               </button>
@@ -586,43 +391,37 @@ export function MenuManagement() {
         )}
       </div>
 
-      {/* Loading State */}
-      {isLoadingItems && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <span className="ml-2 text-gray-600">Loading menu items...</span>
-        </div>
-      )}
+      {isLoadingItems && <LoadingState message="Loading menu items..." />}
 
-      {/* Empty State */}
-      {!isLoadingItems && !error && menus.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-600 mb-4">
-            {selectedCategoryFilter === "all"
+      {!isLoadingItems && !error && items.length === 0 && (
+        <EmptyState
+          message={
+            selectedCategoryFilter === "all"
               ? "No menu items found."
-              : `No items found in this category.`}
-          </p>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            Create Your First Menu Item
-          </Button>
-        </div>
+              : "No items found in this category."
+          }
+          actionLabel="Create Your First Menu Item"
+          onAction={() => setIsCreateOpen(true)}
+        />
       )}
 
       {/* Mobile Card View */}
-      {!isLoadingItems && !error && menus.length > 0 && (
+      {!isLoadingItems && !error && paginatedItems.length > 0 && (
         <div className="lg:hidden space-y-4">
-          {paginatedMenus.map((menu) => (
+          {paginatedItems.map((menu: Menu) => (
             <div
               key={menu.id}
-              className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm"
+              className="rounded-2xl border border-slate-200/80 dark:border-slate-700/80 bg-white/90 dark:bg-slate-800/90 p-4 shadow-sm"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{menu.name}</h3>
-                  <p className="text-sm text-gray-600">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                    {menu.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     {getCategoryName(menu.category)}
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                     {menu.description}
                   </p>
                 </div>
@@ -635,52 +434,26 @@ export function MenuManagement() {
                   >
                     <Edit2 className="h-4 w-4" />
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently
-                          delete the menu{" "}
-                          <span className="font-semibold text-slate-900">
-                            {menu.name}
-                          </span>
-                          .
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(menu.id)}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <DeleteConfirmDialog
+                    title="Are you sure?"
+                    description="This action cannot be undone. This will permanently delete the menu"
+                    itemName={menu.name}
+                    onConfirm={() => handleDelete(menu.id)}
+                  />
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-lg font-bold text-gray-900">
+                  <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
                     {menu.price.toFixed(2)} ብር
                   </span>
                   <span
-                    className={`ml-2 text-xs px-2 py-1 rounded ${
+                    className={cn(
+                      "ml-2 text-xs px-2 py-1 rounded",
                       menu.available
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
+                        ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                    )}
                   >
                     {menu.available ? "Available" : "Unavailable"}
                   </span>
@@ -694,7 +467,7 @@ export function MenuManagement() {
                   {menu.available ? "Mark Unavailable" : "Mark Available"}
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                 Updated: {menu.updatedAt}
               </p>
             </div>
@@ -714,7 +487,7 @@ export function MenuManagement() {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-gray-700 min-w-[100px] text-center">
+          <span className="text-sm text-gray-700 dark:text-gray-300 min-w-[100px] text-center">
             Page {currentPage} of {totalPages}
           </span>
           <Button
@@ -732,11 +505,11 @@ export function MenuManagement() {
       )}
 
       {/* Desktop Table View */}
-      {!isLoadingItems && !error && menus.length > 0 && (
+      {!isLoadingItems && !error && paginatedItems.length > 0 && (
         <div className="hidden lg:flex flex-col flex-1 min-h-0 soft-card overflow-hidden">
           <div className="flex-1 overflow-auto">
             <Table>
-              <TableHeader className="sticky top-0 bg-white z-10">
+              <TableHeader className="sticky top-0 bg-white dark:bg-slate-800 z-10">
                 <TableRow>
                   <TableHead className="w-auto min-w-[200px] pr-1 py-2">
                     Item Name
@@ -753,85 +526,49 @@ export function MenuManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedMenus.length === 0 ? (
-                  <TableRow key="empty-state">
-                    <TableCell
-                      colSpan={4}
-                      className="text-center py-8 text-gray-500"
-                    >
-                      No menus found in this category
+                {paginatedItems.map((menu: Menu) => (
+                  <TableRow
+                    key={menu.id}
+                    className="hover:bg-gray-50 dark:hover:bg-slate-700"
+                  >
+                    <TableCell className="font-medium py-1.5 pl-3 pr-0">
+                      {menu.name}
+                    </TableCell>
+                    <TableCell className="py-1.5 pl-1 pr-2">
+                      {menu.price.toFixed(2)} ብር
+                    </TableCell>
+                    <TableCell className="py-1.5 pl-1 pr-1">
+                      <span
+                        className={cn(
+                          "text-xs px-2 py-0.5 rounded",
+                          menu.available
+                            ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                        )}
+                      >
+                        {menu.available ? "Available" : "Unavailable"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="py-1.5 pl-1">
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleEdit(menu.id)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <DeleteConfirmDialog
+                          title="Are you sure?"
+                          description="This action cannot be undone. This will permanently delete the menu"
+                          itemName={menu.name}
+                          onConfirm={() => handleDelete(menu.id)}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  paginatedMenus.map((menu) => (
-                    <TableRow key={menu.id} className="hover:bg-gray-50">
-                      <TableCell className="font-medium py-1.5 pl-3 pr-0">
-                        {menu.name}
-                      </TableCell>
-                      <TableCell className="py-1.5 pl-1 pr-2">
-                        {menu.price.toFixed(2)} ብር
-                      </TableCell>
-                      <TableCell className="py-1.5 pl-1 pr-1">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded ${
-                            menu.available
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {menu.available ? "Available" : "Unavailable"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-1.5 pl-1">
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleEdit(menu.id)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Are you sure?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action cannot be undone. This will
-                                  permanently delete the menu{" "}
-                                  <span className="font-semibold text-slate-900">
-                                    {menu.name}
-                                  </span>
-                                  .
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(menu.id)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -841,8 +578,9 @@ export function MenuManagement() {
       {/* Desktop Pagination */}
       {totalPages > 1 && (
         <div className="hidden lg:flex items-center justify-between mt-4 shrink-0">
-          <div className="text-sm text-gray-700">
-            Showing {startIndex + 1} to {endIndex} of {totalItems} menus
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            Showing {startIndex + 1} to {Math.min(endIndex, items.length)} of{" "}
+            {items.length} menus
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -858,7 +596,6 @@ export function MenuManagement() {
             <div className="flex items-center gap-1">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                 (page) => {
-                  // Show first page, last page, current page, and pages around current
                   if (
                     page === 1 ||
                     page === totalPages ||
@@ -870,11 +607,12 @@ export function MenuManagement() {
                         variant={currentPage === page ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(page)}
-                        className={`min-h-[44px] min-w-[44px] ${
+                        className={cn(
+                          "min-h-[44px] min-w-[44px]",
                           currentPage === page
                             ? "bg-primary text-primary-foreground"
                             : ""
-                        }`}
+                        )}
                       >
                         {page}
                       </Button>
@@ -911,145 +649,25 @@ export function MenuManagement() {
 
       {/* Create Menu Modal */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white border border-gray-200 shadow-xl">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl">
           <DialogHeader>
             <DialogTitle>Create Menu</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="menu-category">Select Category</Label>
-              <Select
-                value={formData.categoryId}
-                onValueChange={(val) =>
-                  setFormData({ ...formData, categoryId: val })
-                }
-                disabled={isLoadingCategories}
-              >
-                <SelectTrigger className="mt-2 min-h-[44px]">
-                  <SelectValue
-                    placeholder={
-                      isLoadingCategories
-                        ? "Loading categories..."
-                        : "Select category"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.length === 0 && !isLoadingCategories ? (
-                    <SelectItem value="no-categories" disabled>
-                      No categories available
-                    </SelectItem>
-                  ) : (
-                    categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="menu-name">Item Name</Label>
-              <Input
-                id="menu-name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                placeholder="Enter item name"
-                className="mt-2 min-h-[44px]"
-              />
-            </div>
-            <div>
-              <Label htmlFor="menu-price">Price</Label>
-              <Input
-                id="menu-price"
-                type="number"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) =>
-                  setFormData({ ...formData, price: e.target.value })
-                }
-                placeholder="Enter price"
-                className="mt-2 min-h-[44px]"
-              />
-            </div>
-            <div>
-              <Label htmlFor="menu-description">Description</Label>
-              <Input
-                id="menu-description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Enter description"
-                className="mt-2 min-h-[44px]"
-              />
-            </div>
-            <div>
-              <Label htmlFor="menu-available">Availability</Label>
-              <Select
-                value={formData.available}
-                onValueChange={(val) =>
-                  setFormData({ ...formData, available: val })
-                }
-              >
-                <SelectTrigger className="mt-2 min-h-[44px]">
-                  <SelectValue placeholder="Select availability" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Available</SelectItem>
-                  <SelectItem value="false">Unavailable</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="menu-image">Image (Optional)</Label>
-              <Input
-                id="menu-image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="mt-2 min-h-[44px]"
-              />
-              {imagePreview && (
-                <div className="mt-2 relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-full h-48 object-cover rounded-lg border border-gray-200"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={clearImage}
-                    className="absolute top-2 right-2"
-                  >
-                    Remove
-                  </Button>
-                </div>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                Maximum file size: 5MB. Supported formats: JPG, PNG, GIF
-              </p>
-            </div>
-          </div>
+          <MenuForm
+            formData={formData}
+            setFormData={setFormData}
+            categories={categories}
+            isLoadingCategories={isLoadingCategories}
+            imagePreview={imagePreview}
+            onImageChange={handleImageChange}
+            onClearImage={clearImage}
+          />
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => {
                 setIsCreateOpen(false);
-                setFormData({
-                  categoryId: "",
-                  name: "",
-                  price: "",
-                  description: "",
-                  available: "true",
-                });
-                clearImage();
+                resetForm();
               }}
               className="min-h-[44px] w-full sm:w-auto"
             >
@@ -1075,100 +693,19 @@ export function MenuManagement() {
 
       {/* Edit Menu Modal */}
       <Dialog open={isEditOpen} onOpenChange={handleCloseEdit}>
-        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white border border-gray-200 shadow-xl">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl">
           <DialogHeader>
             <DialogTitle>Edit Menu</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="edit-menu-category">Select Category</Label>
-              <Select
-                value={formData.categoryId}
-                onValueChange={(val) =>
-                  setFormData({ ...formData, categoryId: val })
-                }
-                disabled={isLoadingCategories}
-              >
-                <SelectTrigger className="mt-2 min-h-[44px]">
-                  <SelectValue
-                    placeholder={
-                      isLoadingCategories
-                        ? "Loading categories..."
-                        : "Select category"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.length === 0 && !isLoadingCategories ? (
-                    <SelectItem value="no-categories" disabled>
-                      No categories available
-                    </SelectItem>
-                  ) : (
-                    categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="edit-menu-name">Item Name</Label>
-              <Input
-                id="edit-menu-name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                placeholder="Enter item name"
-                className="mt-2 min-h-[44px]"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-menu-price">Price</Label>
-              <Input
-                id="edit-menu-price"
-                type="number"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) =>
-                  setFormData({ ...formData, price: e.target.value })
-                }
-                placeholder="Enter price"
-                className="mt-2 min-h-[44px]"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-menu-description">Description</Label>
-              <Input
-                id="edit-menu-description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Enter description"
-                className="mt-2 min-h-[44px]"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-menu-available">Availability</Label>
-              <Select
-                value={formData.available}
-                onValueChange={(val) =>
-                  setFormData({ ...formData, available: val })
-                }
-              >
-                <SelectTrigger className="mt-2 min-h-[44px]">
-                  <SelectValue placeholder="Select availability" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Available</SelectItem>
-                  <SelectItem value="false">Unavailable</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <MenuForm
+            formData={formData}
+            setFormData={setFormData}
+            categories={categories}
+            isLoadingCategories={isLoadingCategories}
+            imagePreview={imagePreview}
+            onImageChange={handleImageChange}
+            onClearImage={clearImage}
+          />
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
@@ -1194,6 +731,144 @@ export function MenuManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Extracted form component to reduce duplication
+interface MenuFormProps {
+  formData: MenuFormData;
+  setFormData: React.Dispatch<React.SetStateAction<MenuFormData>>;
+  categories: Array<{ id: string; name: string }>;
+  isLoadingCategories: boolean;
+  imagePreview: string | null;
+  onImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onClearImage: () => void;
+}
+
+function MenuForm({
+  formData,
+  setFormData,
+  categories,
+  isLoadingCategories,
+  imagePreview,
+  onImageChange,
+  onClearImage,
+}: MenuFormProps) {
+  return (
+    <div className="space-y-4 py-4">
+      <div>
+        <Label htmlFor="menu-category">Select Category</Label>
+        <Select
+          value={formData.categoryId}
+          onValueChange={(val) => setFormData({ ...formData, categoryId: val })}
+          disabled={isLoadingCategories}
+        >
+          <SelectTrigger className="mt-2 min-h-[44px]">
+            <SelectValue
+              placeholder={
+                isLoadingCategories
+                  ? "Loading categories..."
+                  : "Select category"
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.length === 0 && !isLoadingCategories ? (
+              <SelectItem value="no-categories" disabled>
+                No categories available
+              </SelectItem>
+            ) : (
+              categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="menu-name">Item Name</Label>
+        <Input
+          id="menu-name"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          placeholder="Enter item name"
+          className="mt-2 min-h-[44px]"
+        />
+      </div>
+      <div>
+        <Label htmlFor="menu-price">Price</Label>
+        <Input
+          id="menu-price"
+          type="number"
+          step="0.01"
+          value={formData.price}
+          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+          placeholder="Enter price"
+          className="mt-2 min-h-[44px]"
+        />
+      </div>
+      <div>
+        <Label htmlFor="menu-description">Description</Label>
+        <Input
+          id="menu-description"
+          value={formData.description}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
+          placeholder="Enter description"
+          className="mt-2 min-h-[44px]"
+        />
+      </div>
+      <div>
+        <Label htmlFor="menu-available">Availability</Label>
+        <Select
+          value={formData.available}
+          onValueChange={(val) => setFormData({ ...formData, available: val })}
+        >
+          <SelectTrigger className="mt-2 min-h-[44px]">
+            <SelectValue placeholder="Select availability" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">Available</SelectItem>
+            <SelectItem value="false">Unavailable</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label htmlFor="menu-image">Image (Optional)</Label>
+        <Input
+          id="menu-image"
+          type="file"
+          accept="image/*"
+          onChange={onImageChange}
+          className="mt-2 min-h-[44px]"
+        />
+        {imagePreview && (
+          <div className="mt-2 relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-slate-700"
+            />
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={onClearImage}
+              className="absolute top-2 right-2"
+            >
+              Remove
+            </Button>
+          </div>
+        )}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Maximum file size: 5MB. Supported formats: JPG, PNG, GIF
+        </p>
+      </div>
     </div>
   );
 }

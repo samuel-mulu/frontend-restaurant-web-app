@@ -131,81 +131,11 @@ export function ProductManagement() {
     toast.success(`Product "${product?.name}" deleted successfully`);
   };
 
-  const totalQuantity = products.reduce(
-    (sum, product) => sum + product.quantity,
-    0
-  );
-  const inventoryValue = products.reduce(
-    (sum, product) => sum + product.quantity * product.price,
-    0
-  );
-  const categoryCount = new Set(products.map((product) => product.category))
-    .size;
-
-  const summaryCards = [
-    {
-      label: "Products tracked",
-      value: products.length,
-      helper: "current catalog",
-    },
-    {
-      label: "Categories",
-      value: categoryCount,
-      helper: "inventory groups",
-    },
-    {
-      label: "Units on hand",
-      value: totalQuantity,
-      helper: "stocked quantity",
-    },
-    {
-      label: "Inventory value",
-      value: `${inventoryValue.toFixed(2)} ብር`,
-      helper: "retail estimate",
-    },
-  ];
-
   return (
     <div className="flex flex-col gap-6">
-      <header className="glass-panel p-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                Inventory
-              </p>
-              <h1 className="mt-2 text-3xl font-semibold text-slate-900">
-                Products
-              </h1>
-              <p className="mt-2 text-sm text-slate-600">
-                Monitor stock levels, keep pricing aligned, and capture the
-                essential data you need for procurement decisions.
-              </p>
-            </div>
-            <Button
-              onClick={() => setIsCreateOpen(true)}
-              className="min-h-[44px] w-full rounded-full bg-slate-900 text-white shadow-lg sm:w-auto hover:bg-slate-800"
-            >
-              Create Product
-            </Button>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {summaryCards.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-inner shadow-slate-200/40"
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  {stat.label}
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900">
-                  {stat.value}
-                </p>
-                <p className="text-xs text-slate-500">{stat.helper}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <header className="flex justify-between items-center">
+        <h1 className="text-3xl font-semibold text-slate-900">Products</h1>
+        <Button onClick={() => setIsCreateOpen(true)}>Create Product</Button>
       </header>
 
       {/* Mobile Card View */}

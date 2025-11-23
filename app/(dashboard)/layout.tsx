@@ -33,9 +33,7 @@ export default function DashboardLayout({
       <SidebarInset className="h-screen overflow-y-auto bg-slate-50/80">
         <main className="flex-1 min-h-screen">
           <div className="page-shell">
-            <div className="flex items-center justify-end">
-              <SidebarTrigger className="rounded-full border border-slate-200/70 bg-white/80 px-2 py-2 text-slate-500 shadow-sm backdrop-blur" />
-            </div>
+            <SidebarTrigger className="rosunded-full border border-slate-200/70 bg-white/80  text-slate-500 shadow-sm backdrop-blur" />
             {children}
           </div>
         </main>

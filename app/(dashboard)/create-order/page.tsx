@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Plus, Minus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +12,11 @@ import {
 } from "@/components/ui/select";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { useListTablesQuery } from "@/stores/features/tables/tablesApi";
-import { useListItemsQuery } from "@/stores/features/items/itemsApi";
+import {
+  useListItemsQuery,
+  Item as ItemType,
+} from "@/stores/features/items/itemsApi";
 import { useListCategoriesQuery } from "@/stores/features/categories/categoriesApi";
-import type { Item as ItemType } from "@/stores/features/items/itemsApi";
 
 type CartItem = ItemType & { quantity: number };
 
@@ -40,7 +42,9 @@ export default function PixelPerfectMenu() {
     isLoading: itemsLoading,
     error: itemsError,
   } = useListItemsQuery(
-    selectedCategory && selectedCategory !== "all"
+    selectedCategory &&
+      selectedCategory !== "all" &&
+      selectedCategory.trim() !== ""
       ? { categoryId: selectedCategory }
       : undefined
   );
@@ -52,6 +56,10 @@ export default function PixelPerfectMenu() {
 
   const loading =
     waitersLoading || tablesLoading || categoriesLoading || itemsLoading;
+
+  useEffect(() => {
+    console.log("waiter", waitersData);
+  }, [waitersData]);
 
   const addItem = (item: ItemType) => {
     setCart((c) => {
@@ -86,6 +94,7 @@ export default function PixelPerfectMenu() {
   };
 
   const totalItems = cart.reduce((acc, it) => acc + it.quantity, 0);
+
   const total = cart.reduce(
     (acc: number, it: CartItem) => acc + it.price * it.quantity,
     0
@@ -94,48 +103,53 @@ export default function PixelPerfectMenu() {
   return (
     <div className="min-h-screen bg-[#f6f8fa] ">
       <div className=" mx-auto grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* Left: menu */}
         <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border border-[#eef2f6]">
-          {/* Category Tabs */}
-          {categories.length > 0 && (
-            <div className="px-8 pt-6">
-              <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide pb-2">
-                <button
-                  onClick={() => setSelectedCategory("all")}
-                  className={`shrink-0 px-4 py-2 rounded-md font-semibold transition-colors ${
-                    selectedCategory === "all"
-                      ? "text-[#e11d2f] bg-[#fee2e2]"
-                      : "text-[#6b7b88] hover:text-[#163a5b]"
-                  }`}
-                >
-                  All Categories
-                </button>
-                {categories.map(
-                  (category: { _id: string; name: string }, index: number) => {
-                    const categoryId = String(category._id);
-                    const isSelected =
-                      selectedCategory === categoryId &&
-                      selectedCategory !== "all";
-                    return (
-                      <button
-                        key={category._id || `category-${index}`}
-                        onClick={() => {
-                          setSelectedCategory(categoryId);
-                        }}
-                        className={`shrink-0 px-4 py-2 rounded-md font-semibold transition-colors whitespace-nowrap ${
-                          isSelected
-                            ? "text-[#e11d2f] bg-[#fee2e2]"
-                            : "text-[#6b7b88] hover:text-[#163a5b]"
-                        }`}
-                      >
-                        {category.name}
-                      </button>
-                    );
-                  }
-                )}
-              </div>
+          <div className="px-8 pt-6">
+            <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide pb-2">
+              <button
+                onClick={() => setSelectedCategory("all")}
+                className={`shrink-0 px-4 py-2 rounded-md font-semibold transition-colors ${
+                  selectedCategory === "all"
+                    ? "text-[#e11d2f] bg-[#fee2e2]"
+                    : "text-[#6b7b88] hover:text-[#163a5b]"
+                }`}
+              >
+                All Categories
+              </button>
+              {categoriesLoading ? (
+                <div className="text-[#6b7b88] text-sm">
+                  Loading categories...
+                </div>
+              ) : (
+                categories
+                  .filter(
+                    (category: { _id?: string; id?: string; name: string }) =>
+                      category._id || category.id
+                  )
+                  .map(
+                    (category: { _id?: string; id?: string; name: string }) => {
+                      const categoryId = category._id || category.id || "";
+                      const isSelected = selectedCategory === categoryId;
+                      return (
+                        <button
+                          key={categoryId}
+                          onClick={() => {
+                            setSelectedCategory(categoryId);
+                          }}
+                          className={`capitalize shrink-0 px-4 py-2 rounded-md font-semibold transition-colors whitespace-nowrap ${
+                            isSelected
+                              ? "text-[#e11d2f] bg-[#fee2e2]"
+                              : "text-[#6b7b88] hover:text-[#163a5b]"
+                          }`}
+                        >
+                          {category.name}
+                        </button>
+                      );
+                    }
+                  )
+              )}
             </div>
-          )}
+          </div>
 
           {/* Items list */}
           <div className="divide-y divide-[#eef2f6]">
@@ -163,11 +177,7 @@ export default function PixelPerfectMenu() {
                         <h4 className="text-[#0b3b66] text-lg font-bold leading-tight">
                           {item.name}
                         </h4>
-                        {item.description && (
-                          <p className="text-[#6b7b88] text-sm mt-1">
-                            {item.description}
-                          </p>
-                        )}
+
                         <div className="text-[#e11d2f] font-semibold text-sm mt-2">
                           Br {item.price}
                         </div>
@@ -181,6 +191,7 @@ export default function PixelPerfectMenu() {
                           aria-label={`Add ${item.name}`}
                           disabled={!item.isAvailable}
                         >
+                          <Plus size={16} />
                           {item.isAvailable ? "Add Item" : "Unavailable"}
                         </Button>
                       </div>
@@ -222,11 +233,28 @@ export default function PixelPerfectMenu() {
                   <SelectValue placeholder="Select waiter" />
                 </SelectTrigger>
                 <SelectContent>
-                  {waiters.map((waiter: { _id: string; name: string }) => (
-                    <SelectItem key={waiter._id} value={waiter._id}>
-                      {waiter.name}
-                    </SelectItem>
-                  ))}
+                  {waiters
+                    .filter(
+                      (waiter: { _id?: string; id?: string; name: string }) =>
+                        waiter._id || waiter.id
+                    )
+                    .map(
+                      (
+                        waiter: { _id?: string; id?: string; name: string },
+                        index: number
+                      ) => {
+                        const waiterId = waiter._id || waiter.id || "";
+                        return (
+                          <SelectItem
+                            key={waiterId || `waiter-${index}`}
+                            value={waiterId}
+                            className="capitalize"
+                          >
+                            {waiter.name}
+                          </SelectItem>
+                        );
+                      }
+                    )}
                 </SelectContent>
               </Select>
             </div>
@@ -241,11 +269,34 @@ export default function PixelPerfectMenu() {
                   <SelectValue placeholder="Select table" />
                 </SelectTrigger>
                 <SelectContent>
-                  {tables.map((table: { _id: string; tableNumber: string }) => (
-                    <SelectItem key={table._id} value={table._id}>
-                      Table {table.tableNumber}
-                    </SelectItem>
-                  ))}
+                  {tables
+                    .filter(
+                      (table: {
+                        _id?: string;
+                        id?: string;
+                        tableNumber: string;
+                      }) => table._id || table.id
+                    )
+                    .map(
+                      (
+                        table: {
+                          _id?: string;
+                          id?: string;
+                          tableNumber: string;
+                        },
+                        index: number
+                      ) => {
+                        const tableId = table._id || table.id || "";
+                        return (
+                          <SelectItem
+                            key={tableId || `table-${index}`}
+                            value={tableId}
+                          >
+                            Table {table.tableNumber}
+                          </SelectItem>
+                        );
+                      }
+                    )}
                 </SelectContent>
               </Select>
             </div>
@@ -300,7 +351,7 @@ export default function PixelPerfectMenu() {
                       className="text-[#6b7b88] hover:text-[#e11d2f] transition p-1"
                       aria-label="Remove item"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={16} className="text-red-600" />
                     </button>
                   </div>
                 </div>

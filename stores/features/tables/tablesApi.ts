@@ -38,12 +38,22 @@ export const tablesApi = createApiEndpoints({
           method: "GET",
         };
       },
+      transformResponse: (
+        response: unknown
+      ): { success: boolean; data: Table[] } => {
+        // Backend returns { success: true, data: Table[] }
+        const apiResponse = response as {
+          success: boolean;
+          data: Table[];
+        };
+        return apiResponse;
+      },
       providesTags: (result) =>
         result?.data
           ? [
               ...result.data.map((t) => ({
                 type: "Table" as const,
-                id: t._id,
+                id: t._id || t.id,
               })),
               { type: "Table" as const, id: "LIST" },
             ]

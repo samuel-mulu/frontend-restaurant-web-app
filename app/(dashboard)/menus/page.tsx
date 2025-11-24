@@ -42,6 +42,8 @@ import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { useSelector } from "react-redux";
+import { selectUser } from "@/stores/features/auth/authSlice";
 
 interface MenuFormData {
   categoryId: string;
@@ -52,6 +54,9 @@ interface MenuFormData {
 }
 
 export default function MenuManagement() {
+  const user = useSelector(selectUser);
+  const isOwner = user?.role === "owner";
+  
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
@@ -372,16 +377,25 @@ export default function MenuManagement() {
   return (
     <div className="flex flex-col gap-3">
       <header className="flex justify-between items-center">
-        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-          Menu
-        </h1>
-        <Button
-          onClick={() => setIsCreateOpen(true)}
-          disabled={isLoading}
-          className={cn(isLoading ? "spin-in" : "")}
-        >
-          Create Menu
-        </Button>
+        <div>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+            Menu
+          </h1>
+          {isOwner && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              View-only mode
+            </p>
+          )}
+        </div>
+        {!isOwner && (
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            disabled={isLoading}
+            className={cn(isLoading ? "spin-in" : "")}
+          >
+            Create Menu
+          </Button>
+        )}
       </header>
 
       {error && !isLoading && (
@@ -465,8 +479,8 @@ export default function MenuManagement() {
               ? "No menu items match your filters."
               : "No menu items found."
           }
-          actionLabel="Create Your First Menu Item"
-          onAction={() => setIsCreateOpen(true)}
+          actionLabel={isOwner ? undefined : "Create Your First Menu Item"}
+          onAction={isOwner ? undefined : () => setIsCreateOpen(true)}
         />
       )}
 
@@ -500,22 +514,24 @@ export default function MenuManagement() {
                       {menu.description}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => handleEdit(menu.id)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <DeleteConfirmDialog
-                      title="Are you sure?"
-                      description="This action cannot be undone. This will permanently delete the menu"
-                      itemName={menu.name}
-                      onConfirm={() => handleDelete(menu.id)}
-                    />
-                  </div>
+                  {!isOwner && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => handleEdit(menu.id)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <DeleteConfirmDialog
+                        title="Are you sure?"
+                        description="This action cannot be undone. This will permanently delete the menu"
+                        itemName={menu.name}
+                        onConfirm={() => handleDelete(menu.id)}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
@@ -533,14 +549,16 @@ export default function MenuManagement() {
                       {menu.available ? "Available" : "Unavailable"}
                     </span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleAvailability(menu.id)}
-                    className="min-h-[44px]"
-                  >
-                    {menu.available ? "Mark Unavailable" : "Mark Available"}
-                  </Button>
+                  {!isOwner && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleAvailability(menu.id)}
+                      className="min-h-[44px]"
+                    >
+                      {menu.available ? "Mark Unavailable" : "Mark Available"}
+                    </Button>
+                  )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                   Updated: {menu.updatedAt}
@@ -613,22 +631,24 @@ export default function MenuManagement() {
                         </span>
                       </TableCell>
                       <TableCell className="py-1.5 pl-1">
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleEdit(menu.id)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <DeleteConfirmDialog
-                            title="Are you sure?"
-                            description="This action cannot be undone. This will permanently delete the menu"
-                            itemName={menu.name}
-                            onConfirm={() => handleDelete(menu.id)}
-                          />
-                        </div>
+                        {!isOwner && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleEdit(menu.id)}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <DeleteConfirmDialog
+                              title="Are you sure?"
+                              description="This action cannot be undone. This will permanently delete the menu"
+                              itemName={menu.name}
+                              onConfirm={() => handleDelete(menu.id)}
+                            />
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   )

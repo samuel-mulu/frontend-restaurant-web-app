@@ -95,7 +95,7 @@ export interface Order {
 }
 
 export interface CreateOrderInput {
-  tableNumber: string;
+  tableNumber?: string; // Optional table number
   items: {
     itemId: string;
     qty: number;
@@ -105,6 +105,7 @@ export interface CreateOrderInput {
   note?: string;
   waiterId: string;
   clientId?: string;
+  customerChannel: string; // Required: "web", "pos", "mobile", etc.
 }
 
 export interface ListOrdersQuery {
@@ -135,6 +136,45 @@ export interface PaginatedOrdersResponse {
 
 export interface UpdateOrderStatusInput {
   status: OrderStatus;
+}
+
+// Report Interfaces
+export interface CashierReport {
+  cashierId: string;
+  cashierName?: string;
+  totalOrders: number;
+  totalCollected: number;
+  totalTransferred: number;
+  ordersCreated: number;
+  ordersCollected: number;
+  ordersTransferred: number;
+}
+
+export interface WaiterReport {
+  waiterId: string;
+  waiterName?: string;
+  totalOrders: number;
+  totalSales: number;
+  averageOrderValue: number;
+}
+
+export interface DateRangeReport {
+  startDate: string;
+  endDate: string;
+  totalOrders: number;
+  totalRevenue: number;
+  totalCollected: number;
+  totalTransferred: number;
+  totalConfirmed: number;
+  totalVoided: number;
+  ordersByStatus: {
+    OPEN: number;
+    VOIDED: number;
+    PAID_TO_CASHIER: number;
+    TRANSFERRED_TO_OWNER: number;
+    OWNER_CONFIRMED: number;
+    DISPUTED: number;
+  };
 }
 
 export const ordersApi = createApiEndpoints({
@@ -304,6 +344,95 @@ export const ordersApi = createApiEndpoints({
         { type: "Order", id: "LIST" },
       ],
     }),
+
+    // Get orders by cashier
+    getOrdersByCashier: build.query<Order[], string>({
+      query: (cashierId) => ({
+        url: `/orders/cashier/${cashierId}`,
+        method: "GET",
+      }),
+      transformResponse: (response: unknown): Order[] => {
+        if (Array.isArray(response)) {
+          return response;
+        }
+        const wrapped = response as { success?: boolean; data?: Order[] };
+        if (wrapped?.data && Array.isArray(wrapped.data)) {
+          return wrapped.data;
+        }
+        return [];
+      },
+      providesTags: (result) => {
+        if (!result || result.length === 0) {
+          return [{ type: "Order" as const, id: "CASHIER_LIST" }];
+        }
+        return [
+          ...result.map((order) => ({
+            type: "Order" as const,
+            id: order._id || order.id,
+          })),
+          { type: "Order" as const, id: "CASHIER_LIST" },
+        ];
+      },
+    }),
+
+    // Get cashier report
+    getCashierReport: build.query<
+      CashierReport,
+      { cashierId: string; startDate?: string; endDate?: string }
+    >({
+      query: ({ cashierId, startDate, endDate }) => {
+        const queryParams = new URLSearchParams();
+        if (startDate) queryParams.append("startDate", startDate);
+        if (endDate) queryParams.append("endDate", endDate);
+        const qs = queryParams.toString();
+        return {
+          url: `/orders/reports/cashier/${cashierId}${qs ? `?${qs}` : ""}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: unknown): CashierReport => {
+        return response as CashierReport;
+      },
+    }),
+
+    // Get waiter report
+    getWaiterReport: build.query<
+      WaiterReport,
+      { waiterId: string; startDate?: string; endDate?: string }
+    >({
+      query: ({ waiterId, startDate, endDate }) => {
+        const queryParams = new URLSearchParams();
+        if (startDate) queryParams.append("startDate", startDate);
+        if (endDate) queryParams.append("endDate", endDate);
+        const qs = queryParams.toString();
+        return {
+          url: `/orders/reports/waiter/${waiterId}${qs ? `?${qs}` : ""}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: unknown): WaiterReport => {
+        return response as WaiterReport;
+      },
+    }),
+
+    // Get date range report
+    getDateRangeReport: build.query<
+      DateRangeReport,
+      { startDate: string; endDate: string }
+    >({
+      query: ({ startDate, endDate }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("startDate", startDate);
+        queryParams.append("endDate", endDate);
+        return {
+          url: `/orders/reports/date-range?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: unknown): DateRangeReport => {
+        return response as DateRangeReport;
+      },
+    }),
   }),
 });
 
@@ -313,4 +442,8 @@ export const {
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
   useBulkUpdateOrderStatusMutation,
+  useGetOrdersByCashierQuery,
+  useGetCashierReportQuery,
+  useGetWaiterReportQuery,
+  useGetDateRangeReportQuery,
 } = ordersApi;

@@ -34,12 +34,18 @@ import {
   Ban,
   ChevronLeft,
   ChevronRight,
+  TrendingUp,
+  DollarSign,
+  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSelector } from "react-redux";
 import { Input } from "@/components/ui/input";
 import {
-  useListOrdersQuery,
+  useGetOrdersByCashierQuery,
+  useGetCashierReportQuery,
+  useGetWaiterReportQuery,
+  useGetDateRangeReportQuery,
   useUpdateOrderStatusMutation,
   useBulkUpdateOrderStatusMutation,
   OrderStatus,
@@ -76,13 +82,36 @@ const formatDate = (date: string): string => {
   }
 };
 
+const formatDateForInput = (date: Date): string => {
+  return date.toISOString().split("T")[0];
+};
+
+const getDatePresets = () => {
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  return {
+    today: {
+      start: formatDateForInput(today),
+      end: formatDateForInput(today),
+    },
+    thisWeek: {
+      start: formatDateForInput(startOfWeek),
+      end: formatDateForInput(today),
+    },
+    thisMonth: {
+      start: formatDateForInput(startOfMonth),
+      end: formatDateForInput(today),
+    },
+  };
+};
+
 /**
  * Map backend status to frontend display status
- * Backend: OPEN, VOIDED, PAID_TO_CASHIER, TRANSFERRED_TO_OWNER, OWNER_CONFIRMED, DISPUTED
- * Frontend: Pending, Completed
  */
 const normalizeStatus = (status: OrderStatus): "Completed" | "Pending" => {
-  // Completed statuses
   if (
     status === "OWNER_CONFIRMED" ||
     status === "PAID_TO_CASHIER" ||
@@ -90,7 +119,6 @@ const normalizeStatus = (status: OrderStatus): "Completed" | "Pending" => {
   ) {
     return "Completed";
   }
-  // Pending statuses
   return "Pending";
 };
 
@@ -169,11 +197,11 @@ const extractDates = (orders: DisplayOrder[]): string[] =>
   [...new Set(orders.map((o) => formatDate(o.date)))].sort().reverse();
 
 // -------------------- Main Component -------------------- //
-export function OrderHistory() {
+export function CashierHistory() {
   const user = useSelector(selectUser);
-  const userRole = user?.role || "waiter";
+  const cashierId = user?.id || "";
 
-  const [roleView, setRoleView] = useState<"waiter" | "owner" | "all">("all");
+  const [roleView, setRoleView] = useState<"all" | "waiter" | "owner">("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
@@ -184,162 +212,136 @@ export function OrderHistory() {
   const [bulkStatusChange, setBulkStatusChange] = useState<OrderStatus | "">(
     ""
   );
-  const [page, setPage] = useState<number>(1);
-  const [limit, setLimit] = useState<number>(10);
 
-  // Reset page to 1 when filters change
-  // This is necessary to ensure users start from page 1 when applying new filters
-  const filterKey = useMemo(
-    () => `${statusFilter}-${searchQuery}-${waiterFilter}-${roleView}`,
-    [statusFilter, searchQuery, waiterFilter, roleView]
-  );
+  // Date range state
+  const [dateRangePreset, setDateRangePreset] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
-  // Note: Setting state in useEffect here is intentional - we need to reset pagination
-  // when filters change. This is a common pattern for paginated lists with filters.
-  useEffect(() => {
-    setPage(1);
-  }, [filterKey]);
-
-  // Build query based on role
-  const queryParams = useMemo(() => {
-    const params: {
-      status?: OrderStatus;
-      waiterId?: string;
-      cashierId?: string;
-      startDate?: string;
-      endDate?: string;
-      search?: string;
-      tableNumber?: string;
-      page?: number;
-      limit?: number;
-    } = {
-      page,
-      limit,
-    };
-
-    // Apply role-based filtering for cash flow tracking
-    if (roleView === "all") {
-      // Show all orders - no role filtering (unless waiterFilter is set)
-      // waiterFilter will be applied below if set
-    } else if (roleView === "waiter") {
-      // Show orders with OPEN status - cash to be accepted from waiters
-      params.status = "OPEN";
-      // waiterFilter will be applied below if set to filter by specific waiter
-    } else if (roleView === "owner") {
-      // Show orders with PAID_TO_CASHIER status - cash about to give to owner
-      params.status = "PAID_TO_CASHIER";
-    }
-
-    // Apply waiter filter if set
-    if (waiterFilter !== "all") {
-      params.waiterId = waiterFilter;
-    }
-
-    // Apply status filter (only if roleView is "all", otherwise status is set by roleView)
-    if (statusFilter !== "all" && roleView === "all") {
-      // Map frontend filter to backend status
-      const statusMap: Record<string, OrderStatus> = {
-        OPEN: "OPEN",
-        PAID_TO_CASHIER: "PAID_TO_CASHIER",
-        TRANSFERRED_TO_OWNER: "TRANSFERRED_TO_OWNER",
-        OWNER_CONFIRMED: "OWNER_CONFIRMED",
-        VOIDED: "VOIDED",
-        DISPUTED: "DISPUTED",
-      };
-      if (statusMap[statusFilter]) {
-        params.status = statusMap[statusFilter];
-      }
-    }
-
-    // Apply search
-    if (searchQuery.trim()) {
-      params.search = searchQuery.trim();
-    }
-
-    return params;
-  }, [statusFilter, searchQuery, waiterFilter, roleView, page, limit]);
-
+  // Fetch orders by cashier
   const {
-    data: ordersResponse,
+    data: ordersData,
     isLoading,
     error,
     refetch,
-  } = useListOrdersQuery(queryParams);
+  } = useGetOrdersByCashierQuery(cashierId, {
+    skip: !cashierId,
+  });
+
+  // Debug logging
+  useEffect(() => {
+    if (cashierId) {
+      console.log("CashierHistory Debug:", {
+        cashierId,
+        user: user?.name,
+        userRole: user?.role,
+        hasCashierId: !!cashierId,
+        ordersData: ordersData?.length || 0,
+        isLoading,
+        error: error
+          ? {
+              status: (error as any)?.status,
+              data: (error as any)?.data,
+              message: (error as any)?.message,
+            }
+          : null,
+      });
+    } else {
+      console.warn("CashierHistory: cashierId is empty", { user });
+    }
+  }, [cashierId, ordersData, isLoading, error, user]);
+
+  // Fetch cashier report
+  const { data: cashierReport } = useGetCashierReportQuery(
+    {
+      cashierId,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    },
+    {
+      skip: !cashierId,
+    }
+  );
+
+  // Fetch waiter report when waiter filter is applied
+  const { data: waiterReport } = useGetWaiterReportQuery(
+    {
+      waiterId: waiterFilter !== "all" ? waiterFilter : "",
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    },
+    {
+      skip: waiterFilter === "all" || !waiterFilter,
+    }
+  );
+
+  // Fetch date range report when dates are selected
+  const { data: dateRangeReport } = useGetDateRangeReportQuery(
+    {
+      startDate: startDate || "",
+      endDate: endDate || "",
+    },
+    {
+      skip: !startDate || !endDate,
+    }
+  );
 
   const [updateOrderStatus, { isLoading: isUpdating }] =
     useUpdateOrderStatusMutation();
   const [bulkUpdateOrderStatus, { isLoading: isBulkUpdating }] =
     useBulkUpdateOrderStatusMutation();
 
-  // Handle paginated or non-paginated response
-  const ordersData = useMemo(() => {
-    if (!ordersResponse) return [];
-    if (Array.isArray(ordersResponse)) {
-      return ordersResponse;
-    }
-    if ("orders" in ordersResponse) {
-      return ordersResponse.orders;
-    }
-    return [];
-  }, [ordersResponse]);
-
-  const pagination = useMemo(() => {
-    if (!ordersResponse || Array.isArray(ordersResponse)) {
-      return null;
-    }
-    if ("pagination" in ordersResponse) {
-      return ordersResponse.pagination;
-    }
-    return null;
-  }, [ordersResponse]);
-
   // Transform orders to display format
-  const orders = useMemo(() => ordersData.map(transformOrder), [ordersData]);
+  const orders = useMemo(
+    () => (ordersData || []).map(transformOrder),
+    [ordersData]
+  );
 
-  // Filter orders based on UI filters (client-side filtering for additional refinement)
+  // Filter orders based on UI filters
   const filtered = useMemo(() => {
     return orders.filter((o: DisplayOrder) => {
-      // Status filter - backend already filters by status, but we refine here for "Completed" which has multiple statuses
-      if (statusFilter !== "all") {
-        if (statusFilter === "OPEN" && o.backendStatus !== "OPEN") return false;
-        if (
-          statusFilter === "PAID_TO_CASHIER" &&
-          o.backendStatus !== "PAID_TO_CASHIER"
-        )
-          return false;
-        if (
-          statusFilter === "TRANSFERRED_TO_OWNER" &&
-          o.backendStatus !== "TRANSFERRED_TO_OWNER"
-        )
-          return false;
-        if (
-          statusFilter === "OWNER_CONFIRMED" &&
-          o.backendStatus !== "OWNER_CONFIRMED"
-        )
-          return false;
-        if (statusFilter === "VOIDED" && o.backendStatus !== "VOIDED")
-          return false;
-        if (statusFilter === "DISPUTED" && o.backendStatus !== "DISPUTED")
-          return false;
+      // Role-based filtering (cash flow tracking)
+      // Waiter view: show only OPEN orders (cash to be accepted from waiters)
+      if (roleView === "waiter" && o.backendStatus !== "OPEN") {
+        return false;
+      }
+      // Owner view: show only PAID_TO_CASHIER orders (cash to give to owner)
+      if (roleView === "owner" && o.backendStatus !== "PAID_TO_CASHIER") {
+        return false;
       }
 
-      // Waiter filter (if not already filtered by backend)
-      if (waiterFilter !== "all" && o.waiterId !== waiterFilter) return false;
+      // Status filter (only if roleView is "all", otherwise status is set by roleView)
+      if (
+        statusFilter !== "all" &&
+        roleView === "all" &&
+        o.backendStatus !== statusFilter
+      ) {
+        return false;
+      }
+
+      // Waiter filter
+      if (waiterFilter !== "all" && o.waiterId !== waiterFilter) {
+        return false;
+      }
 
       // Date filter
-      if (dateFilter !== "all" && formatDate(o.date) !== dateFilter)
+      if (dateFilter !== "all" && formatDate(o.date) !== dateFilter) {
         return false;
+      }
 
-      // Role-based filtering
-      // Waiter view: show only OPEN orders (cash to be accepted from waiters)
-      if (roleView === "waiter" && o.backendStatus !== "OPEN") return false;
-      // Owner view: show only PAID_TO_CASHIER orders (cash to give to owner)
-      if (roleView === "owner" && o.backendStatus !== "PAID_TO_CASHIER")
-        return false;
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        return (
+          (o.orderNumber?.toLowerCase() || "").includes(query) ||
+          (o.tableNumber?.toLowerCase() || "").includes(query) ||
+          (o.waiterName?.toLowerCase() || "").includes(query)
+        );
+      }
 
       return true;
     });
-  }, [orders, roleView, statusFilter, waiterFilter, dateFilter]);
+  }, [orders, roleView, statusFilter, waiterFilter, dateFilter, searchQuery]);
 
   const summary = useMemo(() => {
     const totals = filtered.reduce(
@@ -367,7 +369,6 @@ export function OrderHistory() {
     );
     if (selectedOrders.length === 0) return null;
     const firstStatus = selectedOrders[0].backendStatus;
-    // Check if all selected orders have the same status
     const allSameStatus = selectedOrders.every(
       (o: DisplayOrder) => o.backendStatus === firstStatus
     );
@@ -375,7 +376,6 @@ export function OrderHistory() {
   }, [selectedOrderIds, filtered]);
 
   const toggleSelect = (id: string, orderStatus: OrderStatus) => {
-    // Prevent selecting orders with terminal statuses (TRANSFERRED_TO_OWNER, VOIDED)
     if (
       orderStatus === "TRANSFERRED_TO_OWNER" ||
       orderStatus === "VOIDED" ||
@@ -393,12 +393,10 @@ export function OrderHistory() {
       const s = new Set(prev);
       if (s.has(id)) {
         s.delete(id);
-        // Clear bulk status change if no orders selected
         if (s.size === 0) {
           setBulkStatusChange("");
         }
       } else {
-        // If there are already selected orders, check if they have the same status
         if (s.size > 0) {
           const selectedOrders = filtered.filter((o: DisplayOrder) =>
             s.has(o.id)
@@ -420,12 +418,9 @@ export function OrderHistory() {
   };
 
   const selectAll = () => {
-    // Only select orders with the same status as the first order
-    // Exclude terminal statuses (TRANSFERRED_TO_OWNER, VOIDED, OWNER_CONFIRMED)
     if (filtered.length === 0) return;
     const firstStatus = filtered[0].backendStatus;
 
-    // Don't select if first order has terminal status
     if (
       firstStatus === "TRANSFERRED_TO_OWNER" ||
       firstStatus === "VOIDED" ||
@@ -518,17 +513,15 @@ export function OrderHistory() {
     currentStatus: OrderStatus,
     userRole: string
   ): OrderStatus[] => {
-    // Define valid status transitions based on role
-    // TRANSFERRED_TO_OWNER and VOIDED are terminal states - cannot be changed
     const transitions: Record<OrderStatus, OrderStatus[]> = {
       OPEN: ["VOIDED", "PAID_TO_CASHIER"],
-      VOIDED: [], // Terminal state - cannot be changed
+      VOIDED: [],
       PAID_TO_CASHIER:
         userRole === "cashier" || userRole === "owner"
           ? ["TRANSFERRED_TO_OWNER", "DISPUTED"]
           : [],
-      TRANSFERRED_TO_OWNER: [], // Terminal state - cannot be changed once transferred
-      OWNER_CONFIRMED: [], // Terminal state
+      TRANSFERRED_TO_OWNER: [],
+      OWNER_CONFIRMED: [],
       DISPUTED:
         userRole === "cashier" || userRole === "owner"
           ? ["PAID_TO_CASHIER", "TRANSFERRED_TO_OWNER"]
@@ -539,15 +532,35 @@ export function OrderHistory() {
   };
 
   const dates = extractDates(orders);
+  const datePresets = getDatePresets();
+
+  // Handle date range preset changes
+  useEffect(() => {
+    if (dateRangePreset === "today") {
+      setStartDate(datePresets.today.start);
+      setEndDate(datePresets.today.end);
+    } else if (dateRangePreset === "thisWeek") {
+      setStartDate(datePresets.thisWeek.start);
+      setEndDate(datePresets.thisWeek.end);
+    } else if (dateRangePreset === "thisMonth") {
+      setStartDate(datePresets.thisMonth.start);
+      setEndDate(datePresets.thisMonth.end);
+    } else if (dateRangePreset === "custom") {
+      // Keep current dates or clear if not set
+    } else {
+      // "all" - clear dates
+      setStartDate("");
+      setEndDate("");
+    }
+  }, [dateRangePreset]);
 
   // Fetch all waiters from the API
   const { data: waitersData } = useListStaffQuery({
     role: "waiter",
     status: "active",
-    limit: 100, // Get all active waiters
+    limit: 100,
   });
 
-  // Create waiter list from API
   const waiterList = useMemo(() => {
     if (!waitersData?.staff) return [];
     return waitersData.staff.map(
@@ -560,45 +573,93 @@ export function OrderHistory() {
 
   const errorMessage =
     error && "data" in error
-      ? (error.data as { message?: string })?.message || "An error occurred"
+      ? (error.data as { message?: string; error?: string })?.message ||
+        (error.data as { message?: string; error?: string })?.error ||
+        "An error occurred"
+      : error && "error" in error
+      ? (error.error as string) || "An error occurred"
       : null;
 
-  // This page is only for cashiers
-  if (userRole !== "cashier") {
+  // Debug: Log user and cashierId
+  useEffect(() => {
+    if (!cashierId) {
+      console.warn("CashierHistory: No cashierId found. User:", user);
+    }
+  }, [cashierId, user]);
+
+  if (!cashierId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <p className="text-lg text-slate-600 dark:text-slate-400">
-          This page is only available for cashiers.
+          Cashier ID not found. Please log in again.
+        </p>
+        <p className="text-sm text-slate-500 mt-2">
+          User: {user?.name || "Unknown"} | Role: {user?.role || "Unknown"}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-4">
       <header className="flex items-center justify-between">
         <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-          Order History
+          Cashier History
         </h1>
-        {/* Cash Flow Switcher - Track cash flow: Waiter (cash to accept) vs Owner (cash to give) */}
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
-          {(["all", "waiter", "owner"] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRoleView(r)}
-              className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
-                roleView === r
-                  ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-              }`}
-            >
-              {r === "all"
-                ? "All"
-                : r === "waiter"
-                ? "From Waiters"
-                : "To Owner"}
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          {/* Cash Flow Switcher - Track cash flow: Waiter (cash to accept) vs Owner (cash to give) */}
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
+            {(["all", "waiter", "owner"] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRoleView(r)}
+                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
+                  roleView === r
+                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                }`}
+              >
+                {r === "all"
+                  ? "All"
+                  : r === "waiter"
+                  ? "From Waiters"
+                  : "To Owner"}
+              </button>
+            ))}
+          </div>
+          {/* Date Range Preset Selector */}
+          <div className="flex items-center gap-2">
+            <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
+              <SelectTrigger className="w-[180px]">
+                <Calendar className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Date Range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="thisWeek">This Week</SelectItem>
+                <SelectItem value="thisMonth">This Month</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+            {dateRangePreset === "custom" && (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-[150px]"
+                />
+                <span className="text-slate-500">to</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -610,7 +671,71 @@ export function OrderHistory() {
 
       {!isLoading && !errorMessage && (
         <>
-          {/* Summary Cards - Only show when there are orders */}
+          {/* Waiter Report */}
+          {waiterReport && waiterFilter !== "all" && (
+            <div className="rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700 p-4">
+              <h3 className="text-lg font-semibold mb-3">
+                Waiter Report: {waiterReport.waiterName || "Unknown"}
+              </h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-slate-500">Total Orders</p>
+                  <p className="text-2xl font-bold">
+                    {waiterReport.totalOrders}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Total Sales</p>
+                  <p className="text-2xl font-bold">
+                    {waiterReport.totalSales.toFixed(2)} Br
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Avg Order Value</p>
+                  <p className="text-2xl font-bold">
+                    {waiterReport.averageOrderValue.toFixed(2)} Br
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Date Range Report */}
+          {dateRangeReport && startDate && endDate && (
+            <div className="rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700 p-4">
+              <h3 className="text-lg font-semibold mb-3">
+                Date Range Report: {startDate} to {endDate}
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-slate-500">Total Orders</p>
+                  <p className="text-xl font-bold">
+                    {dateRangeReport.totalOrders}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Total Revenue</p>
+                  <p className="text-xl font-bold">
+                    {dateRangeReport.totalRevenue.toFixed(2)} Br
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Total Collected</p>
+                  <p className="text-xl font-bold">
+                    {dateRangeReport.totalCollected.toFixed(2)} Br
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500">Total Transferred</p>
+                  <p className="text-xl font-bold">
+                    {dateRangeReport.totalTransferred.toFixed(2)} Br
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Summary Cards */}
           {orders.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Stat label="Orders" value={summary.count} />
@@ -629,14 +754,13 @@ export function OrderHistory() {
             </div>
           )}
 
-          {/* Search and Filters Container - Always visible when not loading/error */}
+          {/* Search and Filters */}
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 p-2 rounded-full border bg-white dark:bg-slate-800">
-            {/* Search Bar */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
-          <Input
+              <Input
                 type="text"
-                placeholder="Search by order number, table, waiter, or cashier..."
+                placeholder="Search by order number, table, or waiter..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-10 rounded-full"
@@ -651,7 +775,6 @@ export function OrderHistory() {
               )}
             </div>
 
-            {/* Filters */}
             <div className="flex items-center gap-2 shrink-0">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
@@ -714,27 +837,24 @@ export function OrderHistory() {
                 </SelectContent>
               </Select>
 
-              {/* Waiter filter - available in all views */}
               {waiterList.length > 0 && (
-                <>
-                  <Select value={waiterFilter} onValueChange={setWaiterFilter}>
-                    <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                      <Filter className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                      <SelectValue placeholder="Waiter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Waiters</SelectItem>
-                      {waiterList.map((w: { id: string; name: string }) => (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </>
+                <Select value={waiterFilter} onValueChange={setWaiterFilter}>
+                  <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
+                    <Filter className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                    <SelectValue placeholder="Waiter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Waiters</SelectItem>
+                    {waiterList.map((w: { id: string; name: string }) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
-        </div>
-      </div>
+            </div>
+          </div>
 
           {/* Bulk Actions */}
           {selectedOrderIds.size > 0 && (
@@ -775,16 +895,17 @@ export function OrderHistory() {
                       <SelectValue placeholder="Change status to..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {getAvailableStatuses(selectedOrdersStatus, userRole).map(
-                        (status) => (
-                          <SelectItem key={status} value={status}>
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(status)}
-                              {getStatusBadgeText(status)}
-            </div>
-                          </SelectItem>
-                        )
-                      )}
+                      {getAvailableStatuses(
+                        selectedOrdersStatus,
+                        user?.role || "cashier"
+                      ).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(status)}
+                            {getStatusBadgeText(status)}
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <Button
@@ -800,8 +921,8 @@ export function OrderHistory() {
                     ) : (
                       "Update Status"
                     )}
-              </Button>
-            </div>
+                  </Button>
+                </div>
               )}
               <Button
                 variant="ghost"
@@ -810,35 +931,35 @@ export function OrderHistory() {
               >
                 Clear
               </Button>
-          </div>
-        )}
+            </div>
+          )}
 
           {/* Table */}
           <div className="rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
+            <Table>
+              <TableHeader>
+                <TableRow>
                   <TableHead className="w-12"></TableHead>
                   <TableHead>Order #</TableHead>
                   <TableHead>Table</TableHead>
                   <TableHead>Waiter</TableHead>
                   <TableHead>Total</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead className="w-32">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell
+                  <TableRow>
+                    <TableCell
                       colSpan={8}
                       className="text-center py-8 text-gray-500 dark:text-gray-400"
-                >
-                  No orders found
-                </TableCell>
-              </TableRow>
-            ) : (
+                    >
+                      No orders found
+                    </TableCell>
+                  </TableRow>
+                ) : (
                   filtered.map((o: DisplayOrder) => {
                     const isTerminalStatus =
                       o.backendStatus === "TRANSFERRED_TO_OWNER" ||
@@ -850,7 +971,7 @@ export function OrderHistory() {
                         selectedOrdersStatus === o.backendStatus);
                     return (
                       <TableRow key={o.id}>
-                  <TableCell>
+                        <TableCell>
                           <button
                             onClick={() => {
                               if (canSelect) {
@@ -900,12 +1021,14 @@ export function OrderHistory() {
                         <TableCell>
                           <Badge className={getStatusColor(o.status)}>
                             {getStatusBadgeText(o.backendStatus)}
-                    </Badge>
-                  </TableCell>
+                          </Badge>
+                        </TableCell>
                         <TableCell>{formatDate(o.date)}</TableCell>
-                  <TableCell>
-                          {getAvailableStatuses(o.backendStatus, userRole)
-                            .length > 0 ? (
+                        <TableCell>
+                          {getAvailableStatuses(
+                            o.backendStatus,
+                            user?.role || "cashier"
+                          ).length > 0 ? (
                             <Select
                               value={o.backendStatus}
                               onValueChange={(value) => {
@@ -930,7 +1053,7 @@ export function OrderHistory() {
                                 </SelectItem>
                                 {getAvailableStatuses(
                                   o.backendStatus,
-                                  userRole
+                                  user?.role || "cashier"
                                 ).map((status) => (
                                   <SelectItem key={status} value={status}>
                                     <div className="flex items-center gap-2">
@@ -946,95 +1069,14 @@ export function OrderHistory() {
                               No actions
                             </span>
                           )}
-                  </TableCell>
-                </TableRow>
+                        </TableCell>
+                      </TableRow>
                     );
                   })
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-          {/* Pagination Controls */}
-          {pagination && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700">
-              {/* Limit Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  Show:
-                </span>
-                <Select
-                  value={limit.toString()}
-                  onValueChange={(value) => {
-                    setLimit(Number(value));
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="w-[80px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  per page
-                </span>
-              </div>
-
-              {/* Pagination Info */}
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  Showing{" "}
-                  {pagination.total > 0
-                    ? (pagination.page - 1) * pagination.limit + 1
-                    : 0}{" "}
-                  to{" "}
-                  {Math.min(
-                    pagination.page * pagination.limit,
-                    pagination.total
-                  )}{" "}
-                  of {pagination.total} orders
-                </span>
-
-                {/* Pagination Buttons */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={!pagination.hasPreviousPage || isLoading}
-                    className="dark:bg-slate-700 dark:border-slate-600"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                  </Button>
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm text-slate-600 dark:text-slate-400 px-2">
-                      Page {pagination.page} of {pagination.totalPages || 1}
-                    </span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setPage((p) =>
-                        Math.min(pagination.totalPages || 1, p + 1)
-                      )
-                    }
-                    disabled={!pagination.hasNextPage || isLoading}
-                    className="dark:bg-slate-700 dark:border-slate-600"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </>
       )}
     </div>
@@ -1046,6 +1088,28 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm">
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
+      <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ReportCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-2">
+        {icon}
+        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+      </div>
       <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
         {value}
       </p>

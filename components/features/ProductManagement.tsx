@@ -40,6 +40,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Product } from "@/lib/types";
+import { useSelector } from "react-redux";
+import { selectUser } from "@/stores/features/auth/authSlice";
 
 const mockProducts: Product[] = [
   {
@@ -83,6 +85,9 @@ const mockProducts: Product[] = [
 const categories = ["Appetizers", "Main Courses", "Drinks", "Desserts"];
 
 export function ProductManagement() {
+  const user = useSelector(selectUser);
+  const isOwner = user?.role === "owner";
+  
   const [products, setProducts] = useState<Product[]>(mockProducts);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -134,8 +139,17 @@ export function ProductManagement() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex justify-between items-center">
-        <h1 className="text-3xl font-semibold text-slate-900">Products</h1>
-        <Button onClick={() => setIsCreateOpen(true)}>Create Product</Button>
+        <div>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">Products</h1>
+          {isOwner && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              View-only mode
+            </p>
+          )}
+        </div>
+        {!isOwner && (
+          <Button onClick={() => setIsCreateOpen(true)}>Create Product</Button>
+        )}
       </header>
 
       {/* Mobile Card View */}
@@ -150,44 +164,46 @@ export function ProductManagement() {
                 <h3 className="font-semibold text-gray-900">{product.name}</h3>
                 <p className="text-sm text-gray-600">{product.category}</p>
               </div>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently
-                        delete the product{" "}
-                        <span className="font-semibold text-slate-900">
-                          {product.name}
-                        </span>
-                        .
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDelete(product.id)}
-                        className="bg-red-600 hover:bg-red-700"
+              {!isOwner && (
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-red-500 hover:text-red-700"
                       >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently
+                          delete the product{" "}
+                          <span className="font-semibold text-slate-900">
+                            {product.name}
+                          </span>
+                          .
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(product.id)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
@@ -235,44 +251,46 @@ export function ProductManagement() {
                 <TableCell>{product.price.toFixed(2)} ብር</TableCell>
                 <TableCell>{product.updatedAt}</TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. This will permanently
-                            delete the product{" "}
-                            <span className="font-semibold text-slate-900">
-                              {product.name}
-                            </span>
-                            .
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(product.id)}
-                            className="bg-red-600 hover:bg-red-700"
+                  {!isOwner && (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-700"
                           >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently
+                              delete the product{" "}
+                              <span className="font-semibold text-slate-900">
+                                {product.name}
+                              </span>
+                              .
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(product.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

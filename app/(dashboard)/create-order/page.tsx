@@ -120,12 +120,18 @@ export default function PixelPerfectMenu() {
       return;
     }
 
-    if (!selectedTable) {
-      toast.error("Please select a table");
-      return;
-    }
-
     try {
+      // Validate item IDs are present
+      const invalidItems = cart.filter(
+        (item) => !item.id || item.id.trim() === ""
+      );
+      if (invalidItems.length > 0) {
+        toast.error(
+          "Some items have invalid IDs. Please refresh the page and try again."
+        );
+        return;
+      }
+
       // Transform cart items to order items format
       const orderItems = cart.map((item) => ({
         itemId: item.id,
@@ -134,25 +140,33 @@ export default function PixelPerfectMenu() {
         priceSnapshot: item.price,
       }));
 
-      // Get table number from selected table ID
-      const selectedTableObj = tables.find(
-        (t: { _id?: string; id?: string; tableNumber: string }) =>
-          (t._id || t.id) === selectedTable
-      );
-      const tableNumber = selectedTableObj?.tableNumber || "";
-
-      if (!tableNumber) {
-        toast.error("Invalid table selection");
-        return;
+      // Get table number from selected table ID (optional)
+      let tableNumber: string | undefined = undefined;
+      if (selectedTable) {
+        const selectedTableObj = tables.find(
+          (t: { _id?: string; id?: string; tableNumber: string }) =>
+            (t._id || t.id) === selectedTable
+        );
+        tableNumber = selectedTableObj?.tableNumber || undefined;
       }
 
-      // Create order
-      const result = await createOrder({
-        tableNumber,
+      // Prepare order payload
+      const orderPayload = {
+        ...(tableNumber && { tableNumber }), // Only include if table is selected
         items: orderItems,
         waiterId: selectedWaiter,
         note: orderNote.trim() || undefined,
-      }).unwrap();
+        customerChannel: "pos", // POS system for cashier-created orders
+      };
+
+      // Log the payload for debugging
+      console.log(
+        "Creating order with payload:",
+        JSON.stringify(orderPayload, null, 2)
+      );
+
+      // Create order
+      const result = await createOrder(orderPayload).unwrap();
 
       // Success
       toast.success("Order created successfully!", {
@@ -166,15 +180,53 @@ export default function PixelPerfectMenu() {
       setOrderNote("");
     } catch (error: unknown) {
       console.error("Error creating order:", error);
+
+      // Handle RTK Query error format
+      // RTK Query errors have structure: { status: number, data: {...} }
       const err = error as {
-        data?: { error?: string; message?: string };
+        status?: number | string;
+        data?:
+          | string
+          | { error?: string; message?: string; details?: string }
+          | null
+          | undefined;
+        error?: string;
         message?: string;
       };
-      const errorMessage =
-        err?.data?.error ||
-        err?.data?.message ||
-        err?.message ||
-        "Failed to create order. Please try again.";
+
+      // Extract error message from various possible locations
+      let errorMessage = "Failed to create order. Please try again.";
+
+      // Check if data is a string (some APIs return error as string)
+      if (typeof err?.data === "string") {
+        errorMessage = err.data;
+      }
+      // Check if data is an object with error/message
+      else if (err?.data && typeof err.data === "object") {
+        errorMessage =
+          err.data.error ||
+          err.data.message ||
+          err.data.details ||
+          errorMessage;
+      }
+      // Check top-level message
+      else if (err?.message) {
+        errorMessage = err.message;
+      }
+      // Check top-level error
+      else if (err?.error) {
+        errorMessage = err.error;
+      }
+
+      // Log full error structure for debugging
+      console.error("Error structure:", {
+        status: err?.status,
+        data: err?.data,
+        message: err?.message,
+        error: err?.error,
+        fullError: error,
+      });
+
       toast.error("Failed to create order", {
         description: errorMessage,
       });
@@ -280,8 +332,8 @@ export default function PixelPerfectMenu() {
         </div>
 
         {/* Right: order summary */}
-        <aside className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-[#eef2f6] p-6 h-fit">
-          <div className="flex justify-between">
+        <aside className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-[#eef2f6] p-6 flex flex-col h-fit max-h-[90vh]">
+          <div className="flex justify-between shrink-0">
             <h3 className="text-[#163a5b] text-2xl font-bold">Your Order</h3>
             <Button
               size={"sm"}
@@ -298,7 +350,7 @@ export default function PixelPerfectMenu() {
           </div>
 
           {/* Waiter and Table Selection */}
-          <div className="mt-4 flex gap-3">
+          <div className="mt-4 flex gap-3 shrink-0">
             <div className="flex-1">
               <Select
                 value={selectedWaiter}
@@ -342,7 +394,7 @@ export default function PixelPerfectMenu() {
                 disabled={loading}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select table" />
+                  <SelectValue placeholder="Select table (optional)" />
                 </SelectTrigger>
                 <SelectContent>
                   {tables
@@ -378,71 +430,77 @@ export default function PixelPerfectMenu() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between">
+          <div className="mt-4 flex items-center justify-between shrink-0">
             <div className="text-[#163a5b] font-semibold">
               Total ({totalItems} items)
             </div>
-            <div className="text-[#0b3b66] font-semibold">Br {total}</div>
-          </div>
-
-          <hr className="my-4 border-t border-[#eef2f6]" />
-
-          {/* Cart Items List */}
-          <div className="space-y-4">
-            {cart.map((item) => {
-              return (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <div className="flex flex-col">
-                    <h4 className="text-[#0b3b66] font-semibold text-sm leading-tight">
-                      {item.name}
-                    </h4>
-                    <p>{item.price.toFixed(2)} ብር</p>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateQuantity(item.id, -1)}
-                        className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
-                        aria-label="Decrease quantity"
-                      >
-                        <Minus size={12} />
-                      </button>
-                      <span className="text-sm font-medium text-[#163a5b] min-w-6 text-center">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => updateQuantity(item.id, 1)}
-                        className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
-                        aria-label="Increase quantity"
-                      >
-                        <Plus size={12} />
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-[#6b7b88] hover:text-[#e11d2f] transition p-1"
-                      aria-label="Remove item"
-                    >
-                      <Trash2 size={16} className="text-red-600" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {cart.length === 0 && (
-            <div className="text-[#6b7b88] text-sm text-center py-8">
-              Your cart is empty
+            <div className="text-[#0b3b66] font-semibold">
+              Br {total.toFixed(2)}
             </div>
-          )}
+          </div>
 
-          <hr className="my-4 border-t border-[#eef2f6]" />
+          <hr className="my-4 border-t border-[#eef2f6] shrink-0" />
 
-          <div className="mt-2">
+          {/* Cart Items List - Scrollable, max 4 items visible */}
+          <div className="flex-1 min-h-0 overflow-y-auto max-h-[280px]">
+            <div className="space-y-4">
+              {cart.length === 0 ? (
+                <div className="text-[#6b7b88] text-sm text-center py-8">
+                  Your cart is empty
+                </div>
+              ) : (
+                cart.map((item) => {
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="flex flex-col">
+                        <h4 className="text-[#0b3b66] font-semibold text-sm leading-tight">
+                          {item.name}
+                        </h4>
+                        <p className="text-sm text-[#6b7b88]">
+                          {item.price.toFixed(2)} ብር
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateQuantity(item.id, -1)}
+                            className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus size={12} />
+                          </button>
+                          <span className="text-sm font-medium text-[#163a5b] min-w-6 text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateQuantity(item.id, 1)}
+                            className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
+                            aria-label="Increase quantity"
+                          >
+                            <Plus size={12} />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => removeItem(item.id)}
+                          className="text-[#6b7b88] hover:text-[#e11d2f] transition p-1 mt-1"
+                          aria-label="Remove item"
+                        >
+                          <Trash2 size={16} className="text-red-600" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <hr className="my-4 border-t border-[#eef2f6] shrink-0" />
+
+          <div className="mt-2 shrink-0">
             <label className="text-sm font-medium text-[#163a5b] mb-2 block">
               Order Note (Optional)
             </label>
@@ -458,13 +516,8 @@ export default function PixelPerfectMenu() {
           <Button
             size={"sm"}
             onClick={handleCreateOrder}
-            disabled={
-              cart.length === 0 ||
-              !selectedWaiter ||
-              !selectedTable ||
-              isCreatingOrder
-            }
-            className="mt-4 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58] disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={cart.length === 0 || !selectedWaiter || isCreatingOrder}
+            className="mt-4 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             {isCreatingOrder ? "Creating Order..." : "Create Order"}
           </Button>

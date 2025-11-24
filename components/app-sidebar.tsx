@@ -12,6 +12,7 @@ import {
   User,
   LogOut,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 
 import {
@@ -43,13 +44,29 @@ import {
 import { useLogoutMutation } from "@/stores/features/auth/authApi";
 import { toast } from "sonner";
 
-const navigation = [
-  { name: "Create Order", href: "/create-order", icon: ShoppingCart },
-  { name: "Menus", href: "/menus", icon: Utensils },
-  { name: "Products", href: "/products", icon: Package },
-  { name: "Categories", href: "/categories", icon: List },
-  { name: "History", href: "/history", icon: History },
-];
+// Navigation items based on role
+const getNavigationItems = (role?: string) => {
+  const baseItems = [
+    { name: "Menus", href: "/menus", icon: Utensils },
+    { name: "Products", href: "/products", icon: Package },
+    { name: "Categories", href: "/categories", icon: List },
+    { name: "History", href: "/history", icon: History },
+  ];
+
+  // Owner gets Staff Management instead of Create Order
+  if (role === "owner") {
+    return [
+      { name: "Staff Management", href: "/staff-management", icon: Users },
+      ...baseItems,
+    ];
+  }
+
+  // Cashier and other roles get Create Order
+  return [
+    { name: "Create Order", href: "/create-order", icon: ShoppingCart },
+    ...baseItems,
+  ];
+};
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -110,7 +127,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {navigation.map((item) => {
+              {getNavigationItems(user?.role).map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (

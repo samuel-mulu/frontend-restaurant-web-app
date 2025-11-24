@@ -32,8 +32,13 @@ import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { useSelector } from "react-redux";
+import { selectUser } from "@/stores/features/auth/authSlice";
 
 export default function CategoryManagement() {
+  const user = useSelector(selectUser);
+  const isOwner = user?.role === "owner";
+  
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
@@ -168,16 +173,25 @@ export default function CategoryManagement() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex justify-between items-center">
-        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-          Categories
-        </h1>
-        <Button
-          onClick={() => setIsCreateOpen(true)}
-          disabled={isLoading}
-          className={cn(isLoading ? "spin-in" : "")}
-        >
-          Create Category
-        </Button>
+        <div>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+            Categories
+          </h1>
+          {isOwner && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              View-only mode
+            </p>
+          )}
+        </div>
+        {!isOwner && (
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            disabled={isLoading}
+            className={cn(isLoading ? "spin-in" : "")}
+          >
+            Create Category
+          </Button>
+        )}
       </header>
 
       {errorMessage && !isLoading && (
@@ -189,8 +203,8 @@ export default function CategoryManagement() {
       {!isLoading && !errorMessage && categories.length === 0 && (
         <EmptyState
           message="No categories found."
-          actionLabel="Create Your First Category"
-          onAction={() => setIsCreateOpen(true)}
+          actionLabel={isOwner ? undefined : "Create Your First Category"}
+          onAction={isOwner ? undefined : () => setIsCreateOpen(true)}
         />
       )}
 
@@ -218,22 +232,24 @@ export default function CategoryManagement() {
                       {category.products === 1 ? "product" : "products"}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      onClick={() => handleEdit(category.id)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <DeleteConfirmDialog
-                      title="Are you sure?"
-                      description="This action cannot be undone. This will permanently delete the category"
-                      itemName={category.name}
-                      onConfirm={() => handleDelete(category.id)}
-                    />
-                  </div>
+                  {!isOwner && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => handleEdit(category.id)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <DeleteConfirmDialog
+                        title="Are you sure?"
+                        description="This action cannot be undone. This will permanently delete the category"
+                        itemName={category.name}
+                        onConfirm={() => handleDelete(category.id)}
+                      />
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Updated: {category.updatedAt}
@@ -271,22 +287,24 @@ export default function CategoryManagement() {
                     <TableCell>{category.products}</TableCell>
                     <TableCell>{category.updatedAt}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleEdit(category.id)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <DeleteConfirmDialog
-                          title="Are you sure?"
-                          description="This action cannot be undone. This will permanently delete the category"
-                          itemName={category.name}
-                          onConfirm={() => handleDelete(category.id)}
-                        />
-                      </div>
+                      {!isOwner && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(category.id)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <DeleteConfirmDialog
+                            title="Are you sure?"
+                            description="This action cannot be undone. This will permanently delete the category"
+                            itemName={category.name}
+                            onConfirm={() => handleDelete(category.id)}
+                          />
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 )

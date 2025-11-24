@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect } from "react";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { Loading } from "@/components/ui/loading";
 import { Plus, Minus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,11 +25,27 @@ import { toast } from "sonner";
 type CartItem = Menu & { quantity: number };
 
 export default function PixelPerfectMenu() {
+  // Route protection - Only cashiers and waiters can access this page
+  const auth = useRequireAuth({
+    allowedRoles: ["cashier", "waiter"],
+    redirectTo: "/",
+  });
+
   const [cart, setCart] = React.useState<CartItem[]>([]);
   const [selectedWaiter, setSelectedWaiter] = React.useState<string>("");
   const [selectedTable, setSelectedTable] = React.useState<string>("");
   const [selectedCategory, setSelectedCategory] = React.useState<string>("all");
   const [orderNote, setOrderNote] = React.useState<string>("");
+
+  // Show loading while checking authorization
+  if (auth.isChecking || !auth.hydrated) {
+    return <Loading fullScreen text="Checking authorization..." size="lg" />;
+  }
+
+  // Don't render if not authorized (redirect handled by useRequireAuth)
+  if (!auth.isAuthenticated || !auth.isAuthorized) {
+    return null;
+  }
 
   const [createOrder, { isLoading: isCreatingOrder }] =
     useCreateOrderMutation();

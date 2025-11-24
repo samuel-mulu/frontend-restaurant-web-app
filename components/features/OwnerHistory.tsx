@@ -32,20 +32,17 @@ import {
   ArrowRightLeft,
   ShieldCheck,
   Ban,
-  ChevronLeft,
-  ChevronRight,
+  Eye,
   TrendingUp,
   DollarSign,
   Package,
-  Eye,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSelector } from "react-redux";
 import { Input } from "@/components/ui/input";
 import {
-  useGetOrdersByCashierQuery,
-  useGetCashierReportQuery,
-  useGetWaiterReportQuery,
+  useListOrdersQuery,
   useGetDateRangeReportQuery,
   useUpdateOrderStatusMutation,
   useBulkUpdateOrderStatusMutation,
@@ -113,7 +110,11 @@ const getDatePresets = () => {
  * Map backend status to frontend display status
  */
 const normalizeStatus = (status: OrderStatus): "Completed" | "Pending" => {
-  if (status === "PAID_TO_CASHIER" || status === "TRANSFERRED_TO_OWNER") {
+  if (
+    status === "PAID_TO_CASHIER" ||
+    status === "TRANSFERRED_TO_OWNER" ||
+    status === "OWNER_CONFIRMED"
+  ) {
     return "Completed";
   }
   return "Pending";
@@ -132,8 +133,9 @@ const getStatusBadgeText = (status: OrderStatus): string => {
   const statusMap: Partial<Record<OrderStatus, string>> = {
     OPEN: "Open",
     VOIDED: "Voided",
-    PAID_TO_CASHIER: "Paid",
+    PAID_TO_CASHIER: "Received from Waiter",
     TRANSFERRED_TO_OWNER: "Transferred",
+    OWNER_CONFIRMED: "Confirmed",
     DISPUTED: "Disputed",
   };
   return statusMap[status] || status;
@@ -145,6 +147,7 @@ const getStatusIcon = (status: OrderStatus) => {
     VOIDED: <Ban className="h-4 w-4" />,
     PAID_TO_CASHIER: <CheckCircle2 className="h-4 w-4" />,
     TRANSFERRED_TO_OWNER: <ArrowRightLeft className="h-4 w-4" />,
+    OWNER_CONFIRMED: <ShieldCheck className="h-4 w-4" />,
     DISPUTED: <XCircle className="h-4 w-4" />,
   };
   return iconMap[status] || <AlertCircle className="h-4 w-4" />;
@@ -192,16 +195,12 @@ const extractDates = (orders: DisplayOrder[]): string[] =>
   [...new Set(orders.map((o) => formatDate(o.date)))].sort().reverse();
 
 // -------------------- Main Component -------------------- //
-export function CashierHistory() {
+export function OwnerHistory() {
   const user = useSelector(selectUser);
-  const cashierId = user?.id || "";
 
-  const [roleView, setRoleView] = useState<"all" | "waiter" | "owner">(
-    "waiter"
-  );
-  const [statusFilter, setStatusFilter] = useState<string>("OPEN");
+  const [statusFilter, setStatusFilter] = useState<string>("PAID_TO_CASHIER");
   const [dateFilter, setDateFilter] = useState<string>("all");
-  const [waiterFilter, setWaiterFilter] = useState<string>("all");
+  const [staffFilter, setStaffFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set()
@@ -215,62 +214,26 @@ export function CashierHistory() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  // Fetch orders by cashier
+  // Fetch all orders (owner can see all orders)
   const {
     data: ordersData,
     isLoading,
     error,
     refetch,
-  } = useGetOrdersByCashierQuery(cashierId, {
-    skip: !cashierId,
+  } = useListOrdersQuery({
+    status: statusFilter !== "all" ? (statusFilter as OrderStatus) : undefined,
+    waiterId:
+      statusFilter === "OPEN" && staffFilter !== "all"
+        ? staffFilter
+        : undefined,
+    cashierId:
+      statusFilter !== "OPEN" && staffFilter !== "all"
+        ? staffFilter
+        : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    search: searchQuery.trim() || undefined,
   });
-
-  // Debug logging
-  useEffect(() => {
-    if (cashierId) {
-      console.log("CashierHistory Debug:", {
-        cashierId,
-        user: user?.name,
-        userRole: user?.role,
-        hasCashierId: !!cashierId,
-        ordersData: ordersData?.length || 0,
-        isLoading,
-        error: error
-          ? {
-              status: (error as any)?.status,
-              data: (error as any)?.data,
-              message: (error as any)?.message,
-            }
-          : null,
-      });
-    } else {
-      console.warn("CashierHistory: cashierId is empty", { user });
-    }
-  }, [cashierId, ordersData, isLoading, error, user]);
-
-  // Fetch cashier report
-  const { data: cashierReport } = useGetCashierReportQuery(
-    {
-      cashierId,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-    },
-    {
-      skip: !cashierId,
-    }
-  );
-
-  // Fetch waiter report when waiter filter is applied
-  const { data: waiterReport } = useGetWaiterReportQuery(
-    {
-      waiterId: waiterFilter !== "all" ? waiterFilter : "",
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-    },
-    {
-      skip: waiterFilter === "all" || !waiterFilter,
-    }
-  );
 
   // Fetch date range report when dates are selected
   const { data: dateRangeReport } = useGetDateRangeReportQuery(
@@ -289,48 +252,36 @@ export function CashierHistory() {
     useBulkUpdateOrderStatusMutation();
 
   // Transform orders to display format
-  const orders = useMemo(
-    () => (ordersData || []).map(transformOrder),
-    [ordersData]
-  );
+  const orders = useMemo(() => {
+    if (!ordersData) return [];
+    if (Array.isArray(ordersData)) {
+      return ordersData.map(transformOrder);
+    }
+    if ("orders" in ordersData) {
+      return ordersData.orders.map(transformOrder);
+    }
+    return [];
+  }, [ordersData]);
 
-  // Filter orders based on UI filters
+  // Filter orders based on UI filters (client-side filtering for date and search)
   const filtered = useMemo(() => {
     return orders.filter((o: DisplayOrder) => {
-      // Role-based filtering (cash flow tracking)
-      // Waiter view: show only OPEN orders (cash to be accepted from waiters)
-      // If status filter is set to anything other than OPEN, show nothing
-      if (roleView === "waiter") {
-        if (statusFilter !== "all" && statusFilter !== "OPEN") {
-          return false;
-        }
-        if (o.backendStatus !== "OPEN") {
-          return false;
-        }
+      // Status filter is already applied via API query, but keep for consistency
+      if (statusFilter !== "all" && o.backendStatus !== statusFilter) {
+        return false;
       }
-      // Owner view: exclude OPEN orders, show only PAID_TO_CASHIER, TRANSFERRED_TO_OWNER, VOIDED, DISPUTED
-      if (roleView === "owner") {
-        if (o.backendStatus === "OPEN") {
-          return false;
-        }
-        // If status filter is set and not "all", apply it
-        if (statusFilter !== "all" && o.backendStatus !== statusFilter) {
+
+      // Staff filter (waiter or cashier based on status)
+      if (statusFilter === "OPEN") {
+        // When status is OPEN, filter by waiter
+        if (staffFilter !== "all" && o.waiterId !== staffFilter) {
           return false;
         }
       } else {
-        // Status filter (only if roleView is "all", otherwise status is set by roleView)
-        if (
-          statusFilter !== "all" &&
-          roleView === "all" &&
-          o.backendStatus !== statusFilter
-        ) {
+        // For other statuses, filter by cashier
+        if (staffFilter !== "all" && o.cashierId !== staffFilter) {
           return false;
         }
-      }
-
-      // Waiter filter
-      if (waiterFilter !== "all" && o.waiterId !== waiterFilter) {
-        return false;
       }
 
       // Date filter
@@ -344,65 +295,58 @@ export function CashierHistory() {
         return (
           (o.orderNumber?.toLowerCase() || "").includes(query) ||
           (o.tableNumber?.toLowerCase() || "").includes(query) ||
-          (o.waiterName?.toLowerCase() || "").includes(query)
+          (o.waiterName?.toLowerCase() || "").includes(query) ||
+          (o.cashierName?.toLowerCase() || "").includes(query)
         );
       }
 
       return true;
     });
-  }, [orders, roleView, statusFilter, waiterFilter, dateFilter, searchQuery]);
+  }, [orders, statusFilter, staffFilter, dateFilter, searchQuery]);
 
+  // Enhanced summary stats for owner
   const summary = useMemo(() => {
-    if (roleView === "owner") {
-      // Owner view: Calculate Transferred and Paid from Waiter
-      const transferredTotal = filtered
-        .filter((o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER")
-        .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
+    const totalOrders = filtered.length;
+    const totalRevenue = filtered.reduce(
+      (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+      0
+    );
 
-      const paidFromWaiterTotal = filtered
-        .filter((o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER")
-        .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
+    const receivedFromWaiters = filtered
+      .filter((o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER")
+      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
 
-      return {
-        count: filtered.length,
-        transferredTotal,
-        paidFromWaiterTotal,
-      };
-    } else if (roleView === "waiter") {
-      // Waiter view: Calculate Completed, Pending, and Total Birr
-      const totals = filtered.reduce(
-        (acc: { Completed: number; Pending: number }, o: DisplayOrder) => {
-          acc[o.status] += o.totalPrice || 0;
-          return acc;
-        },
-        { Completed: 0, Pending: 0 }
-      );
+    const transferred = filtered
+      .filter((o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER")
+      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
 
-      return {
-        count: filtered.length,
-        completedTotal: totals.Completed,
-        pendingTotal: totals.Pending,
-        totalBirr: totals.Completed + totals.Pending,
-      };
-    } else {
-      // All view: Keep current calculation
-      const totals = filtered.reduce(
-        (acc: { Completed: number; Pending: number }, o: DisplayOrder) => {
-          acc[o.status] += o.totalPrice || 0;
-          return acc;
-        },
-        { Completed: 0, Pending: 0 }
-      );
+    const confirmed = filtered
+      .filter((o: DisplayOrder) => o.backendStatus === "OWNER_CONFIRMED")
+      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
 
-      const avg = filtered.length > 0 ? totals.Completed / filtered.length : 0;
-      return {
-        count: filtered.length,
-        completedTotal: totals.Completed,
-        pendingTotal: totals.Pending,
-        avgTicket: avg,
-      };
-    }
-  }, [filtered, roleView]);
+    const pending = filtered
+      .filter((o: DisplayOrder) => o.backendStatus === "OPEN")
+      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
+
+    const voidedCount = filtered.filter(
+      (o: DisplayOrder) => o.backendStatus === "VOIDED"
+    ).length;
+
+    const disputedCount = filtered.filter(
+      (o: DisplayOrder) => o.backendStatus === "DISPUTED"
+    ).length;
+
+    return {
+      totalOrders,
+      totalRevenue,
+      receivedFromWaiters,
+      transferred,
+      confirmed,
+      pending,
+      voidedCount,
+      disputedCount,
+    };
+  }, [filtered]);
 
   // Get the common status of selected orders
   const selectedOrdersStatus = useMemo(() => {
@@ -419,7 +363,11 @@ export function CashierHistory() {
   }, [selectedOrderIds, filtered]);
 
   const toggleSelect = (id: string, orderStatus: OrderStatus) => {
-    if (orderStatus === "TRANSFERRED_TO_OWNER" || orderStatus === "VOIDED") {
+    // Owner can only select orders that can be confirmed
+    if (
+      orderStatus !== "TRANSFERRED_TO_OWNER" &&
+      orderStatus !== "PAID_TO_CASHIER"
+    ) {
       toast.error(
         `Orders with ${getStatusBadgeText(
           orderStatus
@@ -460,7 +408,11 @@ export function CashierHistory() {
     if (filtered.length === 0) return;
     const firstStatus = filtered[0].backendStatus;
 
-    if (firstStatus === "TRANSFERRED_TO_OWNER" || firstStatus === "VOIDED") {
+    // Only allow selecting TRANSFERRED_TO_OWNER or PAID_TO_CASHIER
+    if (
+      firstStatus !== "TRANSFERRED_TO_OWNER" &&
+      firstStatus !== "PAID_TO_CASHIER"
+    ) {
       toast.error(
         `Cannot select orders with ${getStatusBadgeText(firstStatus)} status`
       );
@@ -469,9 +421,9 @@ export function CashierHistory() {
 
     const sameStatusOrders = filtered.filter(
       (o: DisplayOrder) =>
-        o.backendStatus === firstStatus &&
-        o.backendStatus !== "TRANSFERRED_TO_OWNER" &&
-        o.backendStatus !== "VOIDED"
+        (o.backendStatus === "TRANSFERRED_TO_OWNER" ||
+          o.backendStatus === "PAID_TO_CASHIER") &&
+        o.backendStatus === firstStatus
     );
     setSelectedOrderIds(
       new Set(sameStatusOrders.map((o: DisplayOrder) => o.id))
@@ -543,25 +495,15 @@ export function CashierHistory() {
     }
   };
 
-  const getAvailableStatuses = (
-    currentStatus: OrderStatus,
-    userRole: string
-  ): OrderStatus[] => {
-    const transitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
-      OPEN: ["VOIDED", "PAID_TO_CASHIER"],
-      VOIDED: [],
-      PAID_TO_CASHIER:
-        userRole === "cashier" || userRole === "owner"
-          ? ["TRANSFERRED_TO_OWNER", "DISPUTED"]
-          : [],
-      TRANSFERRED_TO_OWNER: [],
-      DISPUTED:
-        userRole === "cashier" || userRole === "owner"
-          ? ["PAID_TO_CASHIER", "TRANSFERRED_TO_OWNER"]
-          : [],
-    };
-
-    return transitions[currentStatus] || [];
+  // Owner-specific status transitions: only TRANSFERRED_TO_OWNER and PAID_TO_CASHIER can go to OWNER_CONFIRMED
+  const getAvailableStatuses = (currentStatus: OrderStatus): OrderStatus[] => {
+    if (currentStatus === "TRANSFERRED_TO_OWNER") {
+      return ["OWNER_CONFIRMED"];
+    }
+    if (currentStatus === "PAID_TO_CASHIER") {
+      return ["OWNER_CONFIRMED"];
+    }
+    return [];
   };
 
   const dates = extractDates(orders);
@@ -587,21 +529,15 @@ export function CashierHistory() {
     }
   }, [dateRangePreset]);
 
-  // Update status filter based on roleView
-  useEffect(() => {
-    if (roleView === "waiter") {
-      setStatusFilter("OPEN");
-    } else if (roleView === "owner") {
-      setStatusFilter("PAID_TO_CASHIER");
-    } else {
-      // "all" view - reset to "all"
-      setStatusFilter("all");
-    }
-  }, [roleView]);
-
-  // Fetch all waiters from the API
+  // Fetch waiters and cashiers for filters
   const { data: waitersData } = useListStaffQuery({
     role: "waiter",
+    status: "active",
+    limit: 100,
+  });
+
+  const { data: cashiersData } = useListStaffQuery({
+    role: "cashier",
     status: "active",
     limit: 100,
   });
@@ -616,6 +552,21 @@ export function CashierHistory() {
     );
   }, [waitersData]);
 
+  const cashierList = useMemo(() => {
+    if (!cashiersData?.staff) return [];
+    return cashiersData.staff.map(
+      (cashier: { _id?: string; id?: string; name: string }) => ({
+        id: cashier._id || cashier.id || "",
+        name: cashier.name,
+      })
+    );
+  }, [cashiersData]);
+
+  // Reset staff filter when status changes
+  useEffect(() => {
+    setStaffFilter("all");
+  }, [statusFilter]);
+
   const errorMessage =
     error && "data" in error
       ? (error.data as { message?: string; error?: string })?.message ||
@@ -625,86 +576,44 @@ export function CashierHistory() {
       ? (error.error as string) || "An error occurred"
       : null;
 
-  // Debug: Log user and cashierId
-  useEffect(() => {
-    if (!cashierId) {
-      console.warn("CashierHistory: No cashierId found. User:", user);
-    }
-  }, [cashierId, user]);
-
-  if (!cashierId) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <p className="text-lg text-slate-600 dark:text-slate-400">
-          Cashier ID not found. Please log in again.
-        </p>
-        <p className="text-sm text-slate-500 mt-2">
-          User: {user?.name || "Unknown"} | Role: {user?.role || "Unknown"}
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <header className="flex items-center justify-between">
         <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-          Cashier History
+          Owner History
         </h1>
-        <div className="flex items-center gap-4">
-          {/* Cash Flow Switcher - Track cash flow: Waiter (cash to accept) vs Owner (cash to give) */}
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
-            {(["all", "waiter", "owner"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRoleView(r)}
-                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
-                  roleView === r
-                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-                }`}
-              >
-                {r === "all"
-                  ? "All"
-                  : r === "waiter"
-                  ? "From Waiters"
-                  : "To Owner"}
-              </button>
-            ))}
-          </div>
-          {/* Date Range Preset Selector */}
-          <div className="flex items-center gap-2">
-            <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
-              <SelectTrigger className="w-[180px]">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Date Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="thisWeek">This Week</SelectItem>
-                <SelectItem value="thisMonth">This Month</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
-            {dateRangePreset === "custom" && (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-[150px]"
-                />
-                <span className="text-slate-500">to</span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-[150px]"
-                />
-              </div>
-            )}
-          </div>
+        {/* Date Range Preset Selector */}
+        <div className="flex items-center gap-2">
+          <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
+            <SelectTrigger className="w-[180px]">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Date Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="thisWeek">This Week</SelectItem>
+              <SelectItem value="thisMonth">This Month</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+          {dateRangePreset === "custom" && (
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-[150px]"
+              />
+              <span className="text-slate-500">to</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-[150px]"
+              />
+            </div>
+          )}
         </div>
       </header>
 
@@ -716,35 +625,6 @@ export function CashierHistory() {
 
       {!isLoading && !errorMessage && (
         <>
-          {/* Waiter Report */}
-          {waiterReport && waiterFilter !== "all" && (
-            <div className="rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700 p-4">
-              <h3 className="text-lg font-semibold mb-3">
-                Waiter Report: {waiterReport.waiterName || "Unknown"}
-              </h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-slate-500">Total Orders</p>
-                  <p className="text-2xl font-bold">
-                    {waiterReport.totalOrders}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Sales</p>
-                  <p className="text-2xl font-bold">
-                    {waiterReport.totalSales.toFixed(2)} Br
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Avg Order Value</p>
-                  <p className="text-2xl font-bold">
-                    {waiterReport.averageOrderValue.toFixed(2)} Br
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Date Range Report */}
           {dateRangeReport && startDate && endDate && (
             <div className="rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700 p-4">
@@ -780,64 +660,57 @@ export function CashierHistory() {
             </div>
           )}
 
-          {/* Summary Cards */}
+          {/* Enhanced Summary Stats Cards */}
           {orders.length > 0 && (
-            <div
-              className={`grid gap-4 sm:grid-cols-2 ${
-                roleView === "owner" ? "lg:grid-cols-3" : "lg:grid-cols-4"
-              }`}
-            >
-              <Stat label="Orders" value={summary.count} />
-              {roleView === "owner" ? (
-                <>
-                  <Stat
-                    label="Transferred"
-                    value={`${
-                      (summary as any).transferredTotal?.toFixed(2) || "0.00"
-                    } Br`}
-                  />
-                  <Stat
-                    label="Received from Waiter"
-                    value={`${
-                      (summary as any).paidFromWaiterTotal?.toFixed(2) || "0.00"
-                    } Br`}
-                  />
-                </>
-              ) : roleView === "waiter" ? (
-                <>
-                  <Stat
-                    label="Received from Waiter"
-                    value={`${summary.completedTotal.toFixed(2)} Br`}
-                  />
-                  <Stat
-                    label="Pending"
-                    value={`${summary.pendingTotal.toFixed(2)} Br`}
-                  />
-                  <Stat
-                    label="Total Birr"
-                    value={`${
-                      (summary as any).totalBirr?.toFixed(2) || "0.00"
-                    } Br`}
-                  />
-                </>
-              ) : (
-                <>
-                  <Stat
-                    label="Completed"
-                    value={`${summary.completedTotal.toFixed(2)} Br`}
-                  />
-                  <Stat
-                    label="Pending"
-                    value={`${summary.pendingTotal.toFixed(2)} Br`}
-                  />
-                  <Stat
-                    label="Avg. Ticket"
-                    value={`${
-                      (summary as any).avgTicket?.toFixed(2) || "0.00"
-                    } Br`}
-                  />
-                </>
-              )}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+              <EnhancedStatCard
+                label="Total Orders"
+                value={summary.totalOrders}
+                icon={<Package className="h-5 w-5" />}
+                color="blue"
+              />
+              <EnhancedStatCard
+                label="Total Revenue"
+                value={`${summary.totalRevenue.toFixed(2)} Br`}
+                icon={<DollarSign className="h-5 w-5" />}
+                color="green"
+              />
+              <EnhancedStatCard
+                label="Received"
+                value={`${summary.receivedFromWaiters.toFixed(2)} Br`}
+                icon={<TrendingUp className="h-5 w-5" />}
+                color="emerald"
+              />
+              <EnhancedStatCard
+                label="Transferred"
+                value={`${summary.transferred.toFixed(2)} Br`}
+                icon={<ArrowRightLeft className="h-5 w-5" />}
+                color="purple"
+              />
+              <EnhancedStatCard
+                label="Confirmed"
+                value={`${summary.confirmed.toFixed(2)} Br`}
+                icon={<ShieldCheck className="h-5 w-5" />}
+                color="indigo"
+              />
+              <EnhancedStatCard
+                label="Pending"
+                value={`${summary.pending.toFixed(2)} Br`}
+                icon={<AlertCircle className="h-5 w-5" />}
+                color="amber"
+              />
+              <EnhancedStatCard
+                label="Voided"
+                value={summary.voidedCount}
+                icon={<Ban className="h-5 w-5" />}
+                color="red"
+              />
+              <EnhancedStatCard
+                label="Disputed"
+                value={summary.disputedCount}
+                icon={<XCircle className="h-5 w-5" />}
+                color="orange"
+              />
             </div>
           )}
 
@@ -847,7 +720,7 @@ export function CashierHistory() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
               <Input
                 type="text"
-                placeholder="Search by order number, table, or waiter..."
+                placeholder="Search by order number, table, waiter, or cashier..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-10 rounded-full"
@@ -870,94 +743,42 @@ export function CashierHistory() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  {roleView === "owner" ? (
-                    <>
-                      <SelectItem value="PAID_TO_CASHIER">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Paid
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="TRANSFERRED_TO_OWNER">
-                        <div className="flex items-center gap-2">
-                          <ArrowRightLeft className="h-4 w-4" />
-                          Transferred
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="VOIDED">
-                        <div className="flex items-center gap-2">
-                          <Ban className="h-4 w-4" />
-                          Voided
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="DISPUTED">
-                        <div className="flex items-center gap-2">
-                          <XCircle className="h-4 w-4" />
-                          Disputed
-                        </div>
-                      </SelectItem>
-                    </>
-                  ) : roleView === "waiter" ? (
-                    <>
-                      <SelectItem value="OPEN">
-                        <div className="flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4" />
-                          Open
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="PAID_TO_CASHIER">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Paid
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="VOIDED">
-                        <div className="flex items-center gap-2">
-                          <Ban className="h-4 w-4" />
-                          Voided
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="DISPUTED">
-                        <div className="flex items-center gap-2">
-                          <XCircle className="h-4 w-4" />
-                          Disputed
-                        </div>
-                      </SelectItem>
-                    </>
-                  ) : (
-                    <>
-                      <SelectItem value="OPEN">
-                        <div className="flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4" />
-                          Open
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="PAID_TO_CASHIER">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Paid
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="TRANSFERRED_TO_OWNER">
-                        <div className="flex items-center gap-2">
-                          <ArrowRightLeft className="h-4 w-4" />
-                          Transferred
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="VOIDED">
-                        <div className="flex items-center gap-2">
-                          <Ban className="h-4 w-4" />
-                          Voided
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="DISPUTED">
-                        <div className="flex items-center gap-2">
-                          <XCircle className="h-4 w-4" />
-                          Disputed
-                        </div>
-                      </SelectItem>
-                    </>
-                  )}
+                  <SelectItem value="PAID_TO_CASHIER">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Received from Waiter
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="TRANSFERRED_TO_OWNER">
+                    <div className="flex items-center gap-2">
+                      <ArrowRightLeft className="h-4 w-4" />
+                      Transferred
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="OWNER_CONFIRMED">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" />
+                      Confirmed
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="OPEN">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      Open
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="VOIDED">
+                    <div className="flex items-center gap-2">
+                      <Ban className="h-4 w-4" />
+                      Voided
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="DISPUTED">
+                    <div className="flex items-center gap-2">
+                      <XCircle className="h-4 w-4" />
+                      Disputed
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
@@ -976,10 +797,11 @@ export function CashierHistory() {
                 </SelectContent>
               </Select>
 
-              {waiterList.length > 0 && (
-                <Select value={waiterFilter} onValueChange={setWaiterFilter}>
+              {/* Conditional Staff Filter: Waiter when OPEN, Cashier for other statuses */}
+              {statusFilter === "OPEN" && waiterList.length > 0 ? (
+                <Select value={staffFilter} onValueChange={setStaffFilter}>
                   <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                    <Filter className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                    <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
                     <SelectValue placeholder="Waiter" />
                   </SelectTrigger>
                   <SelectContent>
@@ -991,7 +813,22 @@ export function CashierHistory() {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
+              ) : statusFilter !== "OPEN" && cashierList.length > 0 ? (
+                <Select value={staffFilter} onValueChange={setStaffFilter}>
+                  <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
+                    <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                    <SelectValue placeholder="Cashier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Cashiers</SelectItem>
+                    {cashierList.map((c: { id: string; name: string }) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
             </div>
           </div>
 
@@ -1034,17 +871,16 @@ export function CashierHistory() {
                       <SelectValue placeholder="Change status to..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {getAvailableStatuses(
-                        selectedOrdersStatus,
-                        user?.role || "cashier"
-                      ).map((status) => (
-                        <SelectItem key={status} value={status}>
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(status)}
-                            {getStatusBadgeText(status)}
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {getAvailableStatuses(selectedOrdersStatus).map(
+                        (status) => (
+                          <SelectItem key={status} value={status}>
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(status)}
+                              {getStatusBadgeText(status)}
+                            </div>
+                          </SelectItem>
+                        )
+                      )}
                     </SelectContent>
                   </Select>
                   <Button
@@ -1081,6 +917,7 @@ export function CashierHistory() {
                   <TableHead className="w-12"></TableHead>
                   <TableHead>Order #</TableHead>
                   <TableHead>Waiter</TableHead>
+                  <TableHead>Cashier</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
@@ -1091,7 +928,7 @@ export function CashierHistory() {
                 {filtered.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center py-8 text-gray-500 dark:text-gray-400"
                     >
                       No orders found
@@ -1099,11 +936,11 @@ export function CashierHistory() {
                   </TableRow>
                 ) : (
                   filtered.map((o: DisplayOrder) => {
-                    const isTerminalStatus =
+                    const canChangeStatus =
                       o.backendStatus === "TRANSFERRED_TO_OWNER" ||
-                      o.backendStatus === "VOIDED";
+                      o.backendStatus === "PAID_TO_CASHIER";
                     const canSelect =
-                      !isTerminalStatus &&
+                      canChangeStatus &&
                       (selectedOrderIds.size === 0 ||
                         selectedOrdersStatus === o.backendStatus);
                     return (
@@ -1113,7 +950,7 @@ export function CashierHistory() {
                             onClick={() => {
                               if (canSelect) {
                                 toggleSelect(o.id, o.backendStatus);
-                              } else if (isTerminalStatus) {
+                              } else if (!canChangeStatus) {
                                 toast.error(
                                   `Orders with ${getStatusBadgeText(
                                     o.backendStatus
@@ -1131,7 +968,7 @@ export function CashierHistory() {
                               !canSelect ? "opacity-30 cursor-not-allowed" : ""
                             }`}
                             title={
-                              isTerminalStatus
+                              !canChangeStatus
                                 ? `Orders with ${getStatusBadgeText(
                                     o.backendStatus
                                   )} status cannot be changed`
@@ -1153,6 +990,7 @@ export function CashierHistory() {
                           {o.orderNumber}
                         </TableCell>
                         <TableCell>{o.waiterName || "N/A"}</TableCell>
+                        <TableCell>{o.cashierName || "N/A"}</TableCell>
                         <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
                         <TableCell>
                           <Badge className={getStatusColor(o.status)}>
@@ -1174,10 +1012,8 @@ export function CashierHistory() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {getAvailableStatuses(
-                              o.backendStatus,
-                              user?.role || "cashier"
-                            ).length > 0 ? (
+                            {getAvailableStatuses(o.backendStatus).length >
+                            0 ? (
                               <Select
                                 value={o.backendStatus}
                                 onValueChange={(value) => {
@@ -1200,17 +1036,16 @@ export function CashierHistory() {
                                       {getStatusBadgeText(o.backendStatus)}
                                     </div>
                                   </SelectItem>
-                                  {getAvailableStatuses(
-                                    o.backendStatus,
-                                    user?.role || "cashier"
-                                  ).map((status) => (
-                                    <SelectItem key={status} value={status}>
-                                      <div className="flex items-center gap-2">
-                                        {getStatusIcon(status)}
-                                        {getStatusBadgeText(status)}
-                                      </div>
-                                    </SelectItem>
-                                  ))}
+                                  {getAvailableStatuses(o.backendStatus).map(
+                                    (status) => (
+                                      <SelectItem key={status} value={status}>
+                                        <div className="flex items-center gap-2">
+                                          {getStatusIcon(status)}
+                                          {getStatusBadgeText(status)}
+                                        </div>
+                                      </SelectItem>
+                                    )
+                                  )}
                                 </SelectContent>
                               </Select>
                             ) : (
@@ -1233,36 +1068,50 @@ export function CashierHistory() {
   );
 }
 
-// -------------------- Small Components -------------------- //
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm">
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function ReportCard({
-  icon,
+// -------------------- Enhanced Stat Card Component -------------------- //
+function EnhancedStatCard({
   label,
   value,
+  icon,
+  color = "blue",
 }: {
-  icon: React.ReactNode;
   label: string;
-  value: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color?:
+    | "blue"
+    | "green"
+    | "emerald"
+    | "purple"
+    | "indigo"
+    | "amber"
+    | "red"
+    | "orange";
 }) {
+  const colorClasses = {
+    blue: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    green:
+      "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+    emerald:
+      "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+    purple:
+      "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+    indigo:
+      "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
+    amber:
+      "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    red: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+    orange:
+      "bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+  };
+
   return (
-    <div className="rounded-lg border bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+    <div className={`rounded-lg border p-4 shadow-sm ${colorClasses[color]}`}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium opacity-80">{label}</p>
+        <div className="opacity-60">{icon}</div>
       </div>
-      <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-        {value}
-      </p>
+      <p className="text-xl font-bold">{value}</p>
     </div>
   );
 }

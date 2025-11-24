@@ -61,11 +61,16 @@ const getNavigationItems = (role?: string) => {
     ];
   }
 
-  // Cashier and other roles get Create Order
-  return [
-    { name: "Create Order", href: "/create-order", icon: ShoppingCart },
-    ...baseItems,
-  ];
+  // Cashier and Waiter get Create Order (not staff, not owner)
+  if (role === "cashier" || role === "waiter") {
+    return [
+      { name: "Create Order", href: "/create-order", icon: ShoppingCart },
+      ...baseItems,
+    ];
+  }
+
+  // Staff role or unknown role - no Create Order or Staff Management
+  return baseItems;
 };
 
 export function AppSidebar() {

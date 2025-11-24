@@ -6,9 +6,9 @@ export interface Staff {
   name: string;
   email?: string;
   phone?: string;
-  role: "cashier" | "waiter";
-  salary?: number;
-  status: "active" | "inactive";
+  role: "cashier" | "waiter" | "staff";
+  salary: number;
+  status?: "active" | "inactive";
   createdAt?: string;
   updatedAt?: string;
 }
@@ -24,7 +24,7 @@ export interface StaffListResponse {
 }
 
 export interface StaffListQuery {
-  role?: "cashier" | "waiter";
+  role?: "cashier" | "waiter" | "staff";
   status?: "active" | "inactive";
   search?: string;
   page?: number;
@@ -34,17 +34,17 @@ export interface StaffListQuery {
 export interface CreateStaffInput {
   name: string;
   email?: string;
-  password: string;
-  phone: string;
-  role: "cashier" | "waiter";
-  salary?: number;
+  password?: string;
+  phone?: string;
+  role: "cashier" | "waiter" | "staff";
+  salary: number;
 }
 
 export interface UpdateStaffInput {
   name?: string;
   email?: string;
   phone?: string;
-  role?: "cashier" | "waiter";
+  role?: "cashier" | "waiter" | "staff";
   salary?: number;
   status?: "active" | "inactive";
 }

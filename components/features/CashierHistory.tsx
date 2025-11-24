@@ -32,6 +32,11 @@ import {
   ArrowRightLeft,
   Ban,
   Eye,
+  Package,
+  DollarSign,
+  Receipt,
+  Wallet,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSelector } from "react-redux";
@@ -337,52 +342,107 @@ export function CashierHistory() {
 
   const summary = useMemo(() => {
     if (roleView === "owner") {
-      // Owner view: Calculate Transferred and Paid from Waiter
-      const transferredTotal = filtered
-        .filter((o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER")
-        .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
+      // Owner view: Detailed breakdown by status
+      const transferredOrders = filtered.filter(
+        (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER"
+      );
+      const paidOrders = filtered.filter(
+        (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER"
+      );
 
-      const paidFromWaiterTotal = filtered
-        .filter((o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER")
-        .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
+      const transferredTotal = transferredOrders.reduce(
+        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+        0
+      );
+      const paidFromWaiterTotal = paidOrders.reduce(
+        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+        0
+      );
+      const totalRevenue = transferredTotal + paidFromWaiterTotal;
 
       return {
-        count: filtered.length,
+        totalOrders: filtered.length,
+        transferredCount: transferredOrders.length,
         transferredTotal,
+        paidCount: paidOrders.length,
         paidFromWaiterTotal,
+        totalRevenue,
+        pendingTransfer: paidFromWaiterTotal, // Amount ready to transfer
       };
     } else if (roleView === "waiter") {
-      // Waiter view: Calculate Completed, Pending, and Total Birr
-      const totals = filtered.reduce(
-        (acc: { Completed: number; Pending: number }, o: DisplayOrder) => {
-          acc[o.status] += o.totalPrice || 0;
-          return acc;
-        },
-        { Completed: 0, Pending: 0 }
+      // Waiter view: Breakdown by status
+      const openOrders = filtered.filter(
+        (o: DisplayOrder) => o.backendStatus === "OPEN"
+      );
+      const paidOrders = filtered.filter(
+        (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER"
       );
 
+      const openTotal = openOrders.reduce(
+        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+        0
+      );
+      const paidTotal = paidOrders.reduce(
+        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+        0
+      );
+      const totalAmount = openTotal + paidTotal;
+
       return {
-        count: filtered.length,
-        completedTotal: totals.Completed,
-        pendingTotal: totals.Pending,
-        totalBirr: totals.Completed + totals.Pending,
+        totalOrders: filtered.length,
+        openCount: openOrders.length,
+        openTotal,
+        paidCount: paidOrders.length,
+        paidTotal,
+        totalAmount,
+        avgOrderValue: filtered.length > 0 ? totalAmount / filtered.length : 0,
       };
     } else {
-      // All view: Keep current calculation
-      const totals = filtered.reduce(
-        (acc: { Completed: number; Pending: number }, o: DisplayOrder) => {
-          acc[o.status] += o.totalPrice || 0;
+      // All view: Comprehensive overview
+      const statusBreakdown = filtered.reduce(
+        (
+          acc: Record<OrderStatus, { count: number; total: number }>,
+          o: DisplayOrder
+        ) => {
+          const status = o.backendStatus;
+          if (!acc[status]) {
+            acc[status] = { count: 0, total: 0 };
+          }
+          acc[status].count += 1;
+          acc[status].total += o.totalPrice || 0;
           return acc;
         },
-        { Completed: 0, Pending: 0 }
+        {} as Record<OrderStatus, { count: number; total: number }>
       );
 
-      const avg = filtered.length > 0 ? totals.Completed / filtered.length : 0;
+      const completedOrders = filtered.filter(
+        (o: DisplayOrder) =>
+          o.backendStatus === "PAID_TO_CASHIER" ||
+          o.backendStatus === "TRANSFERRED_TO_OWNER"
+      );
+      const pendingOrders = filtered.filter(
+        (o: DisplayOrder) => o.backendStatus === "OPEN"
+      );
+
+      const completedTotal = completedOrders.reduce(
+        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+        0
+      );
+      const pendingTotal = pendingOrders.reduce(
+        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+        0
+      );
+      const totalRevenue = completedTotal + pendingTotal;
+
       return {
-        count: filtered.length,
-        completedTotal: totals.Completed,
-        pendingTotal: totals.Pending,
-        avgTicket: avg,
+        totalOrders: filtered.length,
+        completedCount: completedOrders.length,
+        completedTotal,
+        pendingCount: pendingOrders.length,
+        pendingTotal,
+        totalRevenue,
+        avgTicket: filtered.length > 0 ? totalRevenue / filtered.length : 0,
+        statusBreakdown,
       };
     }
   }, [filtered, roleView]);
@@ -768,61 +828,129 @@ export function CashierHistory() {
             </div>
           )}
 
-          {/* Summary Cards */}
+          {/* Enhanced Summary Cards */}
           {orders.length > 0 && (
             <div
-              className={`grid gap-4 sm:grid-cols-2 ${
-                roleView === "owner" ? "lg:grid-cols-3" : "lg:grid-cols-4"
+              className={`grid gap-4 ${
+                roleView === "owner"
+                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-5"
+                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
               }`}
             >
-              <Stat label="Orders" value={summary.count} />
               {roleView === "owner" ? (
                 <>
-                  <Stat
-                    label="Transferred"
-                    value={`${
-                      (summary as any).transferredTotal?.toFixed(2) || "0.00"
-                    } Br`}
+                  <EnhancedStatCard
+                    label="Total Orders"
+                    value={(summary as any).totalOrders || 0}
+                    icon={<Package className="h-5 w-5" />}
+                    color="blue"
                   />
-                  <Stat
-                    label="Received from Waiter"
-                    value={`${
-                      (summary as any).paidFromWaiterTotal?.toFixed(2) || "0.00"
-                    } Br`}
+                  <EnhancedStatCard
+                    label="Transferred"
+                    value={`${((summary as any).transferredTotal || 0).toFixed(
+                      2
+                    )} Br`}
+                    icon={<ArrowRightLeft className="h-5 w-5" />}
+                    color="purple"
+                    subtitle={`${
+                      (summary as any).transferredCount || 0
+                    } orders`}
+                  />
+                  <EnhancedStatCard
+                    label="Received from Waiters"
+                    value={`${(
+                      (summary as any).paidFromWaiterTotal || 0
+                    ).toFixed(2)} Br`}
+                    icon={<Wallet className="h-5 w-5" />}
+                    color="emerald"
+                    subtitle={`${(summary as any).paidCount || 0} orders`}
+                  />
+                  <EnhancedStatCard
+                    label="Pending Transfer"
+                    value={`${((summary as any).pendingTransfer || 0).toFixed(
+                      2
+                    )} Br`}
+                    icon={<Clock className="h-5 w-5" />}
+                    color="amber"
+                    subtitle="Ready to transfer"
+                  />
+                  <EnhancedStatCard
+                    label="Total Revenue"
+                    value={`${((summary as any).totalRevenue || 0).toFixed(
+                      2
+                    )} Br`}
+                    icon={<DollarSign className="h-5 w-5" />}
+                    color="green"
                   />
                 </>
               ) : roleView === "waiter" ? (
                 <>
-                  <Stat
-                    label="Received from Waiter"
-                    value={`${summary.completedTotal.toFixed(2)} Br`}
+                  <EnhancedStatCard
+                    label="Total Orders"
+                    value={(summary as any).totalOrders || 0}
+                    icon={<Package className="h-5 w-5" />}
+                    color="blue"
                   />
-                  <Stat
-                    label="Pending"
-                    value={`${summary.pendingTotal.toFixed(2)} Br`}
+                  <EnhancedStatCard
+                    label="Open Orders"
+                    value={(summary as any).openCount || 0}
+                    icon={<AlertCircle className="h-5 w-5" />}
+                    color="amber"
+                    subtitle={`${((summary as any).openTotal || 0).toFixed(
+                      2
+                    )} Br`}
                   />
-                  <Stat
-                    label="Total Birr"
-                    value={`${
-                      (summary as any).totalBirr?.toFixed(2) || "0.00"
-                    } Br`}
+                  <EnhancedStatCard
+                    label="Paid Orders"
+                    value={(summary as any).paidCount || 0}
+                    icon={<CheckCircle2 className="h-5 w-5" />}
+                    color="green"
+                    subtitle={`${((summary as any).paidTotal || 0).toFixed(
+                      2
+                    )} Br`}
+                  />
+                  <EnhancedStatCard
+                    label="Total Amount"
+                    value={`${((summary as any).totalAmount || 0).toFixed(
+                      2
+                    )} Br`}
+                    icon={<Receipt className="h-5 w-5" />}
+                    color="emerald"
                   />
                 </>
               ) : (
                 <>
-                  <Stat
+                  <EnhancedStatCard
+                    label="Total Orders"
+                    value={(summary as any).totalOrders || 0}
+                    icon={<Package className="h-5 w-5" />}
+                    color="blue"
+                  />
+                  <EnhancedStatCard
                     label="Completed"
-                    value={`${summary.completedTotal.toFixed(2)} Br`}
+                    value={`${((summary as any).completedTotal || 0).toFixed(
+                      2
+                    )} Br`}
+                    icon={<CheckCircle2 className="h-5 w-5" />}
+                    color="green"
+                    subtitle={`${(summary as any).completedCount || 0} orders`}
                   />
-                  <Stat
+                  <EnhancedStatCard
                     label="Pending"
-                    value={`${summary.pendingTotal.toFixed(2)} Br`}
+                    value={`${((summary as any).pendingTotal || 0).toFixed(
+                      2
+                    )} Br`}
+                    icon={<Clock className="h-5 w-5" />}
+                    color="amber"
+                    subtitle={`${(summary as any).pendingCount || 0} orders`}
                   />
-                  <Stat
-                    label="Avg. Ticket"
-                    value={`${
-                      (summary as any).avgTicket?.toFixed(2) || "0.00"
-                    } Br`}
+                  <EnhancedStatCard
+                    label="Total Revenue"
+                    value={`${((summary as any).totalRevenue || 0).toFixed(
+                      2
+                    )} Br`}
+                    icon={<DollarSign className="h-5 w-5" />}
+                    color="emerald"
                   />
                 </>
               )}
@@ -1197,14 +1325,57 @@ export function CashierHistory() {
   );
 }
 
-// -------------------- Small Components -------------------- //
-function Stat({ label, value }: { label: string; value: string | number }) {
+// -------------------- Enhanced Stat Card Component -------------------- //
+function EnhancedStatCard({
+  label,
+  value,
+  icon,
+  color = "blue",
+  subtitle,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  color?:
+    | "blue"
+    | "green"
+    | "emerald"
+    | "purple"
+    | "indigo"
+    | "amber"
+    | "red"
+    | "orange";
+  subtitle?: string;
+}) {
+  const colorClasses = {
+    blue: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    green:
+      "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
+    emerald:
+      "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
+    purple:
+      "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
+    indigo:
+      "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
+    amber:
+      "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    red: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+    orange:
+      "bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+  };
+
   return (
-    <div className="rounded-lg border bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm">
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-        {value}
-      </p>
+    <div
+      className={`rounded-lg border p-4 shadow-sm transition-all hover:shadow-md ${colorClasses[color]}`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium opacity-80 uppercase tracking-wide">
+          {label}
+        </p>
+        <div className="opacity-60">{icon}</div>
+      </div>
+      <p className="text-2xl font-bold mb-1">{value}</p>
+      {subtitle && <p className="text-xs opacity-70 mt-1">{subtitle}</p>}
     </div>
   );
 }

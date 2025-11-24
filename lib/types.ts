@@ -21,13 +21,26 @@ export interface Category {
   clientId?: string;
 }
 
+export interface Inventory {
+  id: string;
+  name: string;
+  category: string; // categoryId as string
+  quantity: number;
+  unit: string;
+  minThreshold?: number;
+  description?: string;
+  isLowStock?: boolean;
+  updatedAt: string;
+}
+
+// Deprecated: Use Inventory instead
 export interface Product {
   id: string;
   name: string;
   category: string;
   quantity: number;
   unit: string;
-  price: number;
+  price: number; // Legacy field - inventory doesn't have price
   updatedAt: string;
 }
 

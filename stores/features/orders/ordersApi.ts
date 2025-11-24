@@ -346,11 +346,35 @@ export const ordersApi = createApiEndpoints({
     }),
 
     // Get orders by cashier
-    getOrdersByCashier: build.query<Order[], string>({
-      query: (cashierId) => ({
-        url: `/orders/cashier/${cashierId}`,
-        method: "GET",
-      }),
+    getOrdersByCashier: build.query<
+      Order[],
+      {
+        cashierId: string;
+        status?: OrderStatus | OrderStatus[];
+        waiterId?: string;
+        startDate?: string;
+        endDate?: string;
+      }
+    >({
+      query: ({ cashierId, status, waiterId, startDate, endDate }) => {
+        const queryParams = new URLSearchParams();
+        if (status) {
+          // Handle array of statuses - join with comma
+          if (Array.isArray(status)) {
+            queryParams.append("status", status.join(","));
+          } else {
+            queryParams.append("status", status);
+          }
+        }
+        if (waiterId) queryParams.append("waiterId", waiterId);
+        if (startDate) queryParams.append("startDate", startDate);
+        if (endDate) queryParams.append("endDate", endDate);
+        const qs = queryParams.toString();
+        return {
+          url: `/orders/cashier/${cashierId}${qs ? `?${qs}` : ""}`,
+          method: "GET",
+        };
+      },
       transformResponse: (response: unknown): Order[] => {
         if (Array.isArray(response)) {
           return response;

@@ -48,7 +48,7 @@ import { toast } from "sonner";
 const getNavigationItems = (role?: string) => {
   const baseItems = [
     { name: "Menus", href: "/menus", icon: Utensils },
-    { name: "Products", href: "/products", icon: Package },
+    { name: "Inventory", href: "/inventory", icon: Package },
     { name: "Categories", href: "/categories", icon: List },
     { name: "History", href: "/history", icon: History },
   ];

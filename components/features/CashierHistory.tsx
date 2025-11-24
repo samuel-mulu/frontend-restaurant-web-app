@@ -30,13 +30,7 @@ import {
   CheckCircle2,
   XCircle,
   ArrowRightLeft,
-  ShieldCheck,
   Ban,
-  ChevronLeft,
-  ChevronRight,
-  TrendingUp,
-  DollarSign,
-  Package,
   Eye,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -215,15 +209,40 @@ export function CashierHistory() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  // Fetch orders by cashier
+  // Determine statuses to fetch based on roleView
+  const statusesToFetch = useMemo(() => {
+    if (roleView === "waiter") {
+      // Fetch OPEN and PAID_TO_CASHIER for waiter view
+      return ["OPEN", "PAID_TO_CASHIER"] as OrderStatus[];
+    } else if (roleView === "owner") {
+      // Fetch PAID_TO_CASHIER and TRANSFERRED_TO_OWNER for owner view
+      return ["PAID_TO_CASHIER", "TRANSFERRED_TO_OWNER"] as OrderStatus[];
+    } else {
+      // For "all" view, use statusFilter if set, otherwise fetch all
+      return statusFilter !== "all"
+        ? ([statusFilter] as OrderStatus[])
+        : undefined;
+    }
+  }, [roleView, statusFilter]);
+
+  // Fetch orders by cashier with filters
   const {
     data: ordersData,
     isLoading,
     error,
     refetch,
-  } = useGetOrdersByCashierQuery(cashierId, {
-    skip: !cashierId,
-  });
+  } = useGetOrdersByCashierQuery(
+    {
+      cashierId,
+      status: statusesToFetch,
+      waiterId: waiterFilter !== "all" ? waiterFilter : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    },
+    {
+      skip: !cashierId,
+    }
+  );
 
   // Debug logging
   useEffect(() => {
@@ -294,51 +313,15 @@ export function CashierHistory() {
     [ordersData]
   );
 
-  // Filter orders based on UI filters
+  // Filter orders based on UI filters (status and waiter are now handled by backend)
   const filtered = useMemo(() => {
     return orders.filter((o: DisplayOrder) => {
-      // Role-based filtering (cash flow tracking)
-      // Waiter view: show only OPEN orders (cash to be accepted from waiters)
-      // If status filter is set to anything other than OPEN, show nothing
-      if (roleView === "waiter") {
-        if (statusFilter !== "all" && statusFilter !== "OPEN") {
-          return false;
-        }
-        if (o.backendStatus !== "OPEN") {
-          return false;
-        }
-      }
-      // Owner view: exclude OPEN orders, show only PAID_TO_CASHIER, TRANSFERRED_TO_OWNER, VOIDED, DISPUTED
-      if (roleView === "owner") {
-        if (o.backendStatus === "OPEN") {
-          return false;
-        }
-        // If status filter is set and not "all", apply it
-        if (statusFilter !== "all" && o.backendStatus !== statusFilter) {
-          return false;
-        }
-      } else {
-        // Status filter (only if roleView is "all", otherwise status is set by roleView)
-        if (
-          statusFilter !== "all" &&
-          roleView === "all" &&
-          o.backendStatus !== statusFilter
-        ) {
-          return false;
-        }
-      }
-
-      // Waiter filter
-      if (waiterFilter !== "all" && o.waiterId !== waiterFilter) {
-        return false;
-      }
-
-      // Date filter
+      // Date filter (client-side)
       if (dateFilter !== "all" && formatDate(o.date) !== dateFilter) {
         return false;
       }
 
-      // Search filter
+      // Search filter (client-side)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         return (
@@ -350,7 +333,7 @@ export function CashierHistory() {
 
       return true;
     });
-  }, [orders, roleView, statusFilter, waiterFilter, dateFilter, searchQuery]);
+  }, [orders, dateFilter, searchQuery]);
 
   const summary = useMemo(() => {
     if (roleView === "owner") {
@@ -647,14 +630,14 @@ export function CashierHistory() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between">
+      <header className="flex items-start justify-between">
         <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
           Cashier History
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           {/* Cash Flow Switcher - Track cash flow: Waiter (cash to accept) vs Owner (cash to give) */}
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
-            {(["all", "waiter", "owner"] as const).map((r) => (
+            {(["waiter", "owner", "all"] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => setRoleView(r)}
@@ -673,7 +656,7 @@ export function CashierHistory() {
             ))}
           </div>
           {/* Date Range Preset Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-center gap-2">
             <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
               <SelectTrigger className="w-[180px]">
                 <Calendar className="h-4 w-4 mr-2" />
@@ -688,20 +671,25 @@ export function CashierHistory() {
               </SelectContent>
             </Select>
             {dateRangePreset === "custom" && (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-[150px]"
-                />
-                <span className="text-slate-500">to</span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-[150px]"
-                />
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-500">from</span>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-[150px]"
+                  />
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-500">to</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-[150px]"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -869,7 +857,6 @@ export function CashierHistory() {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
                   {roleView === "owner" ? (
                     <>
                       <SelectItem value="PAID_TO_CASHIER">
@@ -882,18 +869,6 @@ export function CashierHistory() {
                         <div className="flex items-center gap-2">
                           <ArrowRightLeft className="h-4 w-4" />
                           Transferred
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="VOIDED">
-                        <div className="flex items-center gap-2">
-                          <Ban className="h-4 w-4" />
-                          Voided
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="DISPUTED">
-                        <div className="flex items-center gap-2">
-                          <XCircle className="h-4 w-4" />
-                          Disputed
                         </div>
                       </SelectItem>
                     </>
@@ -911,21 +886,10 @@ export function CashierHistory() {
                           Paid
                         </div>
                       </SelectItem>
-                      <SelectItem value="VOIDED">
-                        <div className="flex items-center gap-2">
-                          <Ban className="h-4 w-4" />
-                          Voided
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="DISPUTED">
-                        <div className="flex items-center gap-2">
-                          <XCircle className="h-4 w-4" />
-                          Disputed
-                        </div>
-                      </SelectItem>
                     </>
                   ) : (
                     <>
+                      <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="OPEN">
                         <div className="flex items-center gap-2">
                           <AlertCircle className="h-4 w-4" />

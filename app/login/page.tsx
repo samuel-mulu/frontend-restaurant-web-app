@@ -161,6 +161,51 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+
+          {/* Demo Credentials */}
+          <div className="mt-6 pt-6 border-t">
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                Demo Credentials
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="bg-white dark:bg-gray-800 p-3 rounded border border-blue-100 dark:border-blue-900">
+                  <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">
+                    👤 Owner
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Phone:</span>{" "}
+                    <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                      +1234567890
+                    </code>
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Password:</span>{" "}
+                    <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                      owner123
+                    </code>
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-3 rounded border border-blue-100 dark:border-blue-900">
+                  <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">
+                    💰 Cashier
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Phone:</span>{" "}
+                    <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                      +1234567891
+                    </code>
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    <span className="font-medium">Password:</span>{" "}
+                    <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                      cashier123
+                    </code>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

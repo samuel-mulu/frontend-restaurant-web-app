@@ -242,6 +242,7 @@ export const apiSlice = createApi({
     "Table",
     "Category",
     "Item",
+    "Inventory",
     "Salary",
   ],
   keepUnusedDataFor: 60,

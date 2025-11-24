@@ -252,23 +252,23 @@ export default function PixelPerfectMenu() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa] ">
-      <div className=" mx-auto grid grid-cols-1 lg:grid-cols-5 gap-8">
-        <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border border-[#eef2f6]">
-          <div className="px-8 pt-6">
-            <div className="flex items-center gap-4 overflow-x-auto scrollbar-hide pb-2">
+    <div className="min-h-screen bg-muted/30">
+      <div className="mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6 p-4 lg:p-6">
+        <div className="lg:col-span-3 bg-card rounded-lg shadow-sm border border-border">
+          <div className="px-6 pt-5 pb-3">
+            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2">
               <button
                 onClick={() => setSelectedCategory("all")}
-                className={`shrink-0 px-4 py-2 rounded-md font-semibold transition-colors ${
+                className={`shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                   selectedCategory === "all"
-                    ? "text-[#e11d2f] bg-[#fee2e2]"
-                    : "text-[#6b7b88] hover:text-[#163a5b]"
+                    ? "text-primary bg-primary/10 border border-primary/20"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
                 }`}
               >
                 All Categories
               </button>
               {categoriesLoading ? (
-                <div className="text-[#6b7b88] text-sm">
+                <div className="text-muted-foreground text-sm">
                   Loading categories...
                 </div>
               ) : (
@@ -282,10 +282,10 @@ export default function PixelPerfectMenu() {
                         onClick={() => {
                           setSelectedCategory(category.id);
                         }}
-                        className={`capitalize shrink-0 px-4 py-2 rounded-md font-semibold transition-colors whitespace-nowrap ${
+                        className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
                           isSelected
-                            ? "text-[#e11d2f] bg-[#fee2e2]"
-                            : "text-[#6b7b88] hover:text-[#163a5b]"
+                            ? "text-primary bg-primary/10 border border-primary/20"
+                            : "text-muted-foreground hover:text-foreground hover:bg-accent"
                         }`}
                       >
                         {category.name}
@@ -297,17 +297,17 @@ export default function PixelPerfectMenu() {
           </div>
 
           {/* Items list */}
-          <div className="divide-y divide-[#eef2f6]">
+          <div className="divide-y divide-border">
             {itemsLoading ? (
-              <div className="px-8 py-6 text-center text-[#6b7b88]">
+              <div className="px-6 py-8 text-center text-muted-foreground">
                 Loading items...
               </div>
             ) : itemsError ? (
-              <div className="px-8 py-6 text-center text-red-600">
+              <div className="px-6 py-8 text-center text-destructive">
                 Failed to load items
               </div>
             ) : items.length === 0 ? (
-              <div className="px-8 py-6 text-center text-[#6b7b88]">
+              <div className="px-6 py-8 text-center text-muted-foreground">
                 No items available
               </div>
             ) : (
@@ -316,16 +316,16 @@ export default function PixelPerfectMenu() {
                 .map((item: Menu) => (
                   <div
                     key={item.id}
-                    className="px-8 py-6 flex items-start gap-6"
+                    className="px-6 py-5 flex items-start gap-6 hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="text-[#0b3b66] text-lg font-bold leading-tight">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <h4 className="text-foreground text-lg font-semibold leading-tight">
                             {item.name}
                           </h4>
 
-                          <div className="text-[#e11d2f] font-semibold text-sm mt-2">
+                          <div className="text-primary font-semibold text-base mt-2">
                             Br {item.price.toFixed(2)}
                           </div>
                         </div>
@@ -334,10 +334,10 @@ export default function PixelPerfectMenu() {
                           <Button
                             onClick={() => addItem(item)}
                             size={"sm"}
-                            className="px-6 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58]"
+                            className="px-6 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                             aria-label={`Add ${item.name}`}
                           >
-                            <Plus size={16} />
+                            <Plus size={16} className="mr-1.5" />
                             Add Item
                           </Button>
                         </div>
@@ -350,13 +350,15 @@ export default function PixelPerfectMenu() {
         </div>
 
         {/* Right: order summary */}
-        <aside className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-[#eef2f6] p-6 flex flex-col h-fit max-h-[90vh]">
-          <div className="flex justify-between shrink-0">
-            <h3 className="text-[#163a5b] text-2xl font-bold">Your Order</h3>
+        <aside className="lg:col-span-2 bg-card rounded-lg shadow-sm border border-border px-6 py-2 flex flex-col h-fit max-h-[96vh] sticky top-4">
+          <div className="flex justify-between items-center shrink-0">
+            <h3 className="text-foreground text-2xl font-semibold">
+              Your Order
+            </h3>
             <Button
               size={"sm"}
               variant="outline"
-              className="rounded-full text-red-600 py-0"
+              className="rounded-lg text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
               onClick={() => {
                 setCart([]);
                 setSelectedWaiter("");
@@ -368,7 +370,7 @@ export default function PixelPerfectMenu() {
           </div>
 
           {/* Waiter and Table Selection */}
-          <div className="mt-4 flex gap-3 shrink-0">
+          <div className="mt-5 flex gap-2 shrink-0">
             <div className="flex-1">
               <Select
                 value={selectedWaiter}
@@ -448,22 +450,22 @@ export default function PixelPerfectMenu() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between shrink-0">
-            <div className="text-[#163a5b] font-semibold">
-              Total ({totalItems} items)
+          <div className="mt-3 px-1 flex items-center justify-between shrink-0">
+            <div className="text-foreground font-semibold text-sm">
+              Total ({totalItems} {totalItems === 1 ? "item" : "items"})
             </div>
-            <div className="text-[#0b3b66] font-semibold">
+            <div className="text-primary font-bold text-lg">
               Br {total.toFixed(2)}
             </div>
           </div>
 
-          <hr className="my-4 border-t border-[#eef2f6] shrink-0" />
+          <hr className="my-4 border-t border-border shrink-0" />
 
           {/* Cart Items List - Scrollable, max 4 items visible */}
-          <div className="flex-1 min-h-0 overflow-y-auto max-h-[280px]">
+          <div className="flex-1 min-h-0 overflow-y-auto max-h-[60vh] pr-1">
             <div className="space-y-4">
               {cart.length === 0 ? (
-                <div className="text-[#6b7b88] text-sm text-center py-8">
+                <div className="text-muted-foreground text-sm text-center py-8">
                   Your cart is empty
                 </div>
               ) : (
@@ -471,31 +473,31 @@ export default function PixelPerfectMenu() {
                   return (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between gap-3"
+                      className="flex items-start justify-between gap-3 "
                     >
-                      <div className="flex flex-col">
-                        <h4 className="text-[#0b3b66] font-semibold text-sm leading-tight">
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <h4 className="text-foreground font-medium text-sm leading-tight truncate">
                           {item.name}
                         </h4>
-                        <p className="text-sm text-[#6b7b88]">
-                          {item.price.toFixed(2)} ብር
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Br {item.price.toFixed(2)} × {item.quantity}
                         </p>
                       </div>
-                      <div className="flex flex-col items-end">
+                      <div className="flex flex-col items-end gap-1">
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => updateQuantity(item.id, -1)}
-                            className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
+                            className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
                             aria-label="Decrease quantity"
                           >
                             <Minus size={12} />
                           </button>
-                          <span className="text-sm font-medium text-[#163a5b] min-w-6 text-center">
+                          <span className="text-sm font-semibold text-foreground min-w-7 text-center">
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="w-6 h-6 flex items-center justify-center rounded border border-[#e6ecf2] text-[#6b7b88] hover:bg-[#f6f8fa] transition"
+                            className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
                             aria-label="Increase quantity"
                           >
                             <Plus size={12} />
@@ -503,10 +505,10 @@ export default function PixelPerfectMenu() {
                         </div>
                         <button
                           onClick={() => removeItem(item.id)}
-                          className="text-[#6b7b88] hover:text-[#e11d2f] transition p-1 mt-1"
-                          aria-label="Remove item"
+                          className="text-red-600  hover:text-destructive transition-colors p-1"
+                          aria-label="Remove item "
                         >
-                          <Trash2 size={16} className="text-red-600" />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </div>
@@ -516,10 +518,10 @@ export default function PixelPerfectMenu() {
             </div>
           </div>
 
-          <hr className="my-4 border-t border-[#eef2f6] shrink-0" />
+          <hr className="my-4 border-t border-border shrink-0" />
 
           <div className="mt-2 shrink-0">
-            <label className="text-sm font-medium text-[#163a5b] mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               Order Note (Optional)
             </label>
             <Input
@@ -527,7 +529,7 @@ export default function PixelPerfectMenu() {
               placeholder="Add a note to this order..."
               value={orderNote}
               onChange={(e) => setOrderNote(e.target.value)}
-              className="w-full rounded-md border border-[#eef2f6] bg-white text-[#163a5b] placeholder:text-[#6b7b88] focus:border-[#0b3b66]"
+              className="w-full"
             />
           </div>
 
@@ -535,7 +537,7 @@ export default function PixelPerfectMenu() {
             size={"sm"}
             onClick={handleCreateOrder}
             disabled={cart.length === 0 || !selectedWaiter || isCreatingOrder}
-            className="mt-4 w-full rounded-full bg-[#0b3b66] text-white shadow-lg shadow-[#0b3b66]/30 hover:bg-[#092c58] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            className="mt-4 w-full rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 h-10"
           >
             {isCreatingOrder ? "Creating Order..." : "Create Order"}
           </Button>

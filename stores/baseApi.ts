@@ -242,6 +242,7 @@ export const apiSlice = createApi({
     "Table",
     "Category",
     "Item",
+    "Salary",
   ],
   keepUnusedDataFor: 60,
   // refetchOnFocus: true,

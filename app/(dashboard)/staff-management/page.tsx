@@ -51,6 +51,7 @@ import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import Link from "next/link";
 
 type StaffRole = "cashier" | "waiter" | "staff";
 
@@ -776,9 +777,24 @@ export default function StaffManagementPage() {
   return (
     <div className="flex flex-col gap-3">
       <header className="flex justify-between items-center">
-        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-          Staff Management
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+            Staff Management
+          </h1>
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
+            <button
+              className="px-4 py-2 rounded-md text-sm font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
+            >
+              Staff
+            </button>
+            <Link
+              href="/staff-management/salary"
+              className="px-4 py-2 rounded-md text-sm font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Salary
+            </Link>
+          </div>
+        </div>
         <Button
           onClick={() => setIsCreateOpen(true)}
           disabled={isLoading}

@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useMemo, type ReactNode } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  startTransition,
+  type ReactNode,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -44,6 +51,8 @@ import {
   TrendingUp,
   Users,
   XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -54,6 +63,8 @@ import {
   OrderStatus,
   Order as RTKOrder,
   OrderItem,
+  PaginationMeta,
+  PaginatedOrdersResponse,
 } from "@/stores/features/orders/ordersApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -241,6 +252,15 @@ export function OwnerHistory() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailOrder, setDetailOrder] = useState<OwnerOrderRow | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const prevFiltersRef = useRef({
+    statusFilter,
+    cashierFilter,
+    staffFilter,
+    searchQuery,
+    allCashierFilter,
+  });
 
   const datePresets = getDateRange();
 
@@ -258,7 +278,31 @@ export function OwnerHistory() {
       }
     }
     // For "custom", keep existing dates or leave empty
+    setPage(1); // Reset to first page when date range changes
   };
+
+  // Reset page when filters change
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    if (
+      prev.statusFilter !== statusFilter ||
+      prev.cashierFilter !== cashierFilter ||
+      prev.staffFilter !== staffFilter ||
+      prev.searchQuery !== searchQuery ||
+      prev.allCashierFilter !== allCashierFilter
+    ) {
+      startTransition(() => {
+        setPage(1);
+      });
+      prevFiltersRef.current = {
+        statusFilter,
+        cashierFilter,
+        staffFilter,
+        searchQuery,
+        allCashierFilter,
+      };
+    }
+  }, [statusFilter, cashierFilter, staffFilter, searchQuery, allCashierFilter]);
 
   // When "Cashier Only" is selected, fetch only OWNER_CONFIRMED and TRANSFERRED_TO_OWNER
   const shouldFetchCashierOnly =
@@ -276,6 +320,8 @@ export function OwnerHistory() {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       search: searchQuery.trim() || undefined,
+      page: shouldFetchCashierOnly ? page : undefined,
+      limit: shouldFetchCashierOnly ? limit : undefined,
     },
     { skip: !shouldFetchCashierOnly }
   );
@@ -292,6 +338,8 @@ export function OwnerHistory() {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       search: searchQuery.trim() || undefined,
+      page: shouldFetchCashierOnly ? page : undefined,
+      limit: shouldFetchCashierOnly ? limit : undefined,
     },
     { skip: !shouldFetchCashierOnly }
   );
@@ -318,28 +366,73 @@ export function OwnerHistory() {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       search: searchQuery.trim() || undefined,
+      page: !shouldFetchCashierOnly ? page : undefined,
+      limit: !shouldFetchCashierOnly ? limit : undefined,
     },
     { skip: shouldFetchCashierOnly }
   );
 
+  // Extract orders and pagination from responses
+  const getOrdersAndPagination = (
+    data: PaginatedOrdersResponse | RTKOrder[] | undefined
+  ) => {
+    if (!data) return { orders: [], pagination: null };
+    if (Array.isArray(data)) {
+      return { orders: data, pagination: null };
+    }
+    if ("orders" in data && "pagination" in data) {
+      return {
+        orders: data.orders,
+        pagination: data.pagination as PaginationMeta,
+      };
+    }
+    return { orders: [], pagination: null };
+  };
+
   // Combine data from both queries when in "Cashier Only" mode
   const combinedOrdersData = useMemo(() => {
     if (shouldFetchCashierOnly) {
-      const confirmedList = Array.isArray(ordersDataConfirmed)
-        ? ordersDataConfirmed
-        : ordersDataConfirmed?.orders || [];
-      const transferredList = Array.isArray(ordersDataTransferred)
-        ? ordersDataTransferred
-        : ordersDataTransferred?.orders || [];
-      return [...confirmedList, ...transferredList];
+      const confirmed = getOrdersAndPagination(ordersDataConfirmed);
+      const transferred = getOrdersAndPagination(ordersDataTransferred);
+      // For combined mode, we'll use client-side pagination
+      return [...confirmed.orders, ...transferred.orders];
     }
-    return ordersData;
+    const result = getOrdersAndPagination(ordersData);
+    return result.orders;
   }, [
     shouldFetchCashierOnly,
     ordersDataConfirmed,
     ordersDataTransferred,
     ordersData,
   ]);
+
+  // Get pagination info
+  const paginationInfo = useMemo(() => {
+    if (shouldFetchCashierOnly) {
+      // Client-side pagination for combined mode
+      const total = combinedOrdersData.length;
+      const totalPages = Math.ceil(total / limit);
+      return {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      };
+    }
+    const result = getOrdersAndPagination(ordersData);
+    return (
+      result.pagination || {
+        page: 1,
+        limit,
+        total: result.orders.length,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      }
+    );
+  }, [shouldFetchCashierOnly, ordersData, combinedOrdersData, page, limit]);
 
   const isLoadingCombined = shouldFetchCashierOnly
     ? isLoadingConfirmed || isLoadingTransferred
@@ -384,12 +477,19 @@ export function OwnerHistory() {
     }
   };
 
-  // Transform orders
+  // Transform orders and apply client-side pagination if needed
   const orders: OwnerOrderRow[] = useMemo(() => {
-    if (!combinedOrdersData) return [];
-    const list = Array.isArray(combinedOrdersData)
-      ? combinedOrdersData
-      : combinedOrdersData.orders || [];
+    if (!combinedOrdersData || combinedOrdersData.length === 0) return [];
+
+    let list = combinedOrdersData;
+
+    // Apply client-side pagination for combined mode
+    if (shouldFetchCashierOnly) {
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      list = combinedOrdersData.slice(startIndex, endIndex);
+    }
+
     return list.map((o: RTKOrder): OwnerOrderRow => {
       const ownerStatus: OwnerStatus =
         OWNER_STATUS_MAP[o.status] || "AWAITING_PAYMENT";
@@ -414,7 +514,7 @@ export function OwnerHistory() {
         note: o.note,
       };
     });
-  }, [combinedOrdersData]);
+  }, [combinedOrdersData, shouldFetchCashierOnly, page, limit]);
 
   // Client-side filtering
   const filteredOrders = useMemo(() => {
@@ -902,6 +1002,105 @@ export function OwnerHistory() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {paginationInfo.totalPages > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-background">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Showing{" "}
+                  {Math.min(
+                    (paginationInfo.page - 1) * paginationInfo.limit + 1,
+                    paginationInfo.total
+                  )}{" "}
+                  to{" "}
+                  {Math.min(
+                    paginationInfo.page * paginationInfo.limit,
+                    paginationInfo.total
+                  )}{" "}
+                  of {paginationInfo.total} orders
+                </span>
+                <Select
+                  value={limit.toString()}
+                  onValueChange={(value) => {
+                    setLimit(Number(value));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground">per page</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={
+                    !paginationInfo.hasPreviousPage || isLoadingCombined
+                  }
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from(
+                    { length: Math.min(5, paginationInfo.totalPages) },
+                    (_, i) => {
+                      let pageNum;
+                      if (paginationInfo.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (paginationInfo.page <= 3) {
+                        pageNum = i + 1;
+                      } else if (
+                        paginationInfo.page >=
+                        paginationInfo.totalPages - 2
+                      ) {
+                        pageNum = paginationInfo.totalPages - 4 + i;
+                      } else {
+                        pageNum = paginationInfo.page - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={
+                            paginationInfo.page === pageNum
+                              ? "default"
+                              : "outline"
+                          }
+                          size="sm"
+                          onClick={() => setPage(pageNum)}
+                          disabled={isLoadingCombined}
+                          className="w-10"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    }
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPage((p) => Math.min(paginationInfo.totalPages, p + 1))
+                  }
+                  disabled={!paginationInfo.hasNextPage || isLoadingCombined}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
       <Dialog

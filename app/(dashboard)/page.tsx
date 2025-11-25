@@ -1,10 +1,23 @@
-export default function DashboardPage() {
-  return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
-      <p className="text-gray-600">
-        Welcome to the Restaurant Management System
-      </p>
-    </div>
-  );
+"use client";
+
+import { useSelector } from "react-redux";
+import { selectUser } from "@/stores/features/auth/authSlice";
+import { OrderHistory } from "@/components/features/OrderHistory";
+import { CashierHistory } from "@/components/features/CashierHistory";
+import { OwnerHistory } from "@/components/features/OwnerHistory";
+
+export default function HistoryPage() {
+  const user = useSelector(selectUser);
+  const userRole = user?.role || "";
+
+  // Show CashierHistory for cashiers, OwnerHistory for owners, OrderHistory for other roles
+  if (userRole === "cashier") {
+    return <CashierHistory />;
+  }
+
+  if (userRole === "owner") {
+    return <OwnerHistory />;
+  }
+
+  return <OrderHistory />;
 }

@@ -39,6 +39,8 @@ import {
   Clock,
   Download,
   Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { PaymentMethodSelector, PaymentMethod } from "./PaymentMethodSelector";
 import { PaymentImageModal } from "./PaymentImageModal";
@@ -244,6 +246,8 @@ export function CashierHistory() {
   const [bulkStatusChange, setBulkStatusChange] = useState<OrderStatus | "">(
     ""
   );
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   // Date range state
   const [dateRangePreset, setDateRangePreset] = useState<string>("all");
@@ -445,6 +449,27 @@ export function CashierHistory() {
       return true;
     });
   }, [orders, dateFilter, searchQuery]);
+
+  // Pagination info
+  const paginationInfo = useMemo(() => {
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / limit);
+    return {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    };
+  }, [filtered.length, page, limit]);
+
+  // Paginated orders
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    return filtered.slice(startIndex, endIndex);
+  }, [filtered, page, limit]);
 
   const summary = useMemo(() => {
     if (roleView === "owner") {
@@ -763,7 +788,10 @@ export function CashierHistory() {
     setIsViewPaymentProofModalOpen(true);
   };
 
-  const handleDownloadPaymentProof = (imageUrl: string, orderNumber: string) => {
+  const handleDownloadPaymentProof = (
+    imageUrl: string,
+    orderNumber: string
+  ) => {
     // Create a temporary anchor element to trigger download
     const link = document.createElement("a");
     link.href = imageUrl;
@@ -829,7 +857,13 @@ export function CashierHistory() {
     setRoleView(view);
     // Reset to "all" when switching views so users can see all orders for that view
     setStatusFilter("all");
+    setPage(1); // Reset to first page
   };
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, waiterFilter, dateFilter, searchQuery, dateRangePreset]);
 
   // Fetch all waiters from the API
   const { data: waitersData } = useListStaffQuery({
@@ -1022,7 +1056,7 @@ export function CashierHistory() {
             <div
               className={`grid gap-4 ${
                 roleView === "owner"
-                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-5"
+                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
                   : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
               }`}
             >
@@ -1044,15 +1078,6 @@ export function CashierHistory() {
                     subtitle={`${
                       (summary as any).transferredCount || 0
                     } orders`}
-                  />
-                  <EnhancedStatCard
-                    label="Received from Waiters"
-                    value={`${(
-                      (summary as any).paidFromWaiterTotal || 0
-                    ).toFixed(2)} Br`}
-                    icon={<Wallet className="h-5 w-5" />}
-                    color="emerald"
-                    subtitle={`${(summary as any).paidCount || 0} orders`}
                   />
                   <EnhancedStatCard
                     label="Pending Transfer"
@@ -1371,7 +1396,7 @@ export function CashierHistory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {paginatedOrders.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={7}
@@ -1381,7 +1406,7 @@ export function CashierHistory() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((o: DisplayOrder) => {
+                  paginatedOrders.map((o: DisplayOrder) => {
                     const isTerminalStatus =
                       o.backendStatus === "TRANSFERRED_TO_OWNER" ||
                       o.backendStatus === "VOIDED";
@@ -1530,7 +1555,8 @@ export function CashierHistory() {
                             {o.backendStatus === "PAID_TO_CASHIER" &&
                               o.paymentProofImage?.url &&
                               (o.paymentMethod === "mobile_banking" ||
-                                paymentMethods.get(o.id) === "mobile_banking") && (
+                                paymentMethods.get(o.id) ===
+                                  "mobile_banking") && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -1550,6 +1576,105 @@ export function CashierHistory() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {paginationInfo.totalPages > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-white dark:bg-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  Showing{" "}
+                  {Math.min(
+                    (paginationInfo.page - 1) * paginationInfo.limit + 1,
+                    paginationInfo.total
+                  )}{" "}
+                  to{" "}
+                  {Math.min(
+                    paginationInfo.page * paginationInfo.limit,
+                    paginationInfo.total
+                  )}{" "}
+                  of {paginationInfo.total} orders
+                </span>
+                <Select
+                  value={limit.toString()}
+                  onValueChange={(value) => {
+                    setLimit(Number(value));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  per page
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={!paginationInfo.hasPreviousPage || isLoading}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from(
+                    { length: Math.min(5, paginationInfo.totalPages) },
+                    (_, i) => {
+                      let pageNum;
+                      if (paginationInfo.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (paginationInfo.page <= 3) {
+                        pageNum = i + 1;
+                      } else if (
+                        paginationInfo.page >=
+                        paginationInfo.totalPages - 2
+                      ) {
+                        pageNum = paginationInfo.totalPages - 4 + i;
+                      } else {
+                        pageNum = paginationInfo.page - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={
+                            paginationInfo.page === pageNum
+                              ? "default"
+                              : "outline"
+                          }
+                          size="sm"
+                          onClick={() => setPage(pageNum)}
+                          disabled={isLoading}
+                          className="w-10"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    }
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPage((p) => Math.min(paginationInfo.totalPages, p + 1))
+                  }
+                  disabled={!paginationInfo.hasNextPage || isLoading}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -1650,8 +1775,9 @@ export function CashierHistory() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        const imageUrl =
-                          getPaymentProofImage(viewPaymentProofOrderId)?.url;
+                        const imageUrl = getPaymentProofImage(
+                          viewPaymentProofOrderId
+                        )?.url;
                         const orderNumber = filtered.find(
                           (o: DisplayOrder) => o.id === viewPaymentProofOrderId
                         )?.orderNumber;

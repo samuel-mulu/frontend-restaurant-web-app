@@ -226,11 +226,30 @@ export function CashierHistory() {
   // Determine statuses to fetch based on roleView
   const statusesToFetch = useMemo(() => {
     if (roleView === "waiter") {
+      // For waiter view, allow filtering by status within valid statuses
+      const validStatuses: OrderStatus[] = ["OPEN", "PAID_TO_CASHIER"];
+      if (
+        statusFilter !== "all" &&
+        validStatuses.includes(statusFilter as OrderStatus)
+      ) {
+        return [statusFilter as OrderStatus];
+      }
       // Fetch OPEN and PAID_TO_CASHIER for waiter view
-      return ["OPEN", "PAID_TO_CASHIER"] as OrderStatus[];
+      return validStatuses;
     } else if (roleView === "owner") {
+      // For owner view, allow filtering by status within valid statuses
+      const validStatuses: OrderStatus[] = [
+        "PAID_TO_CASHIER",
+        "TRANSFERRED_TO_OWNER",
+      ];
+      if (
+        statusFilter !== "all" &&
+        validStatuses.includes(statusFilter as OrderStatus)
+      ) {
+        return [statusFilter as OrderStatus];
+      }
       // Fetch PAID_TO_CASHIER and TRANSFERRED_TO_OWNER for owner view
-      return ["PAID_TO_CASHIER", "TRANSFERRED_TO_OWNER"] as OrderStatus[];
+      return validStatuses;
     } else {
       // For "all" view, use statusFilter if set, otherwise fetch all
       return statusFilter !== "all"
@@ -641,14 +660,8 @@ export function CashierHistory() {
 
   // Update status filter based on roleView
   useEffect(() => {
-    if (roleView === "waiter") {
-      setStatusFilter("OPEN");
-    } else if (roleView === "owner") {
-      setStatusFilter("PAID_TO_CASHIER");
-    } else {
-      // "all" view - reset to "all"
-      setStatusFilter("all");
-    }
+    // Reset to "all" when switching views so users can see all orders for that view
+    setStatusFilter("all");
   }, [roleView]);
 
   // Fetch all waiters from the API
@@ -996,6 +1009,7 @@ export function CashierHistory() {
                 <SelectContent>
                   {roleView === "owner" ? (
                     <>
+                      <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="PAID_TO_CASHIER">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4" />
@@ -1011,6 +1025,7 @@ export function CashierHistory() {
                     </>
                   ) : roleView === "waiter" ? (
                     <>
+                      <SelectItem value="all">All Statuses</SelectItem>
                       <SelectItem value="OPEN">
                         <div className="flex items-center gap-2">
                           <AlertCircle className="h-4 w-4" />

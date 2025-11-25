@@ -28,7 +28,6 @@ export interface Inventory {
   quantity: number;
   unit: string;
   price: number;
-  minThreshold?: number;
   description?: string;
   isLowStock?: boolean;
   updatedAt: string;

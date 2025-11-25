@@ -17,7 +17,6 @@ export interface InventoryResponse {
   quantity: number;
   unit: string;
   price: number;
-  minThreshold?: number;
   isLowStock?: boolean;
   stockStatus?: "low" | "normal";
   createdAt?: string;
@@ -42,7 +41,6 @@ export interface CreateInventoryInput {
   quantity: number;
   unit: string;
   price: number;
-  minThreshold?: number;
 }
 
 export interface UpdateInventoryInput {
@@ -52,7 +50,6 @@ export interface UpdateInventoryInput {
   quantity?: number;
   unit?: string;
   price?: number;
-  minThreshold?: number;
 }
 
 /**
@@ -82,12 +79,11 @@ function transformInventory(item: any): Inventory {
     categoryId = item.category.id || item.category._id?.toString() || "";
   }
 
-  // Calculate low stock status if not provided
-  const minThreshold = item.minThreshold ?? 0;
+  // Calculate low stock status if not provided (quantity <= 0)
   const isLowStock =
     item.isLowStock !== undefined
       ? item.isLowStock
-      : item.quantity <= minThreshold;
+      : item.quantity <= 0;
 
   // Format updatedAt date
   let updatedAt = "";
@@ -105,7 +101,6 @@ function transformInventory(item: any): Inventory {
     quantity: item.quantity,
     unit: item.unit,
     price: item.price ?? 0, // Fallback for migration period only
-    minThreshold,
     description: item.description,
     isLowStock,
     updatedAt,
@@ -186,7 +181,6 @@ export const inventoryApi = createApiEndpoints({
             quantity: body.quantity,
             unit: body.unit,
             price: body.price,
-            minThreshold: body.minThreshold,
           },
         };
       },
@@ -210,8 +204,6 @@ export const inventoryApi = createApiEndpoints({
         if (data.quantity !== undefined) updateData.quantity = data.quantity;
         if (data.unit !== undefined) updateData.unit = data.unit;
         if (data.price !== undefined) updateData.price = data.price;
-        if (data.minThreshold !== undefined)
-          updateData.minThreshold = data.minThreshold;
 
         return {
           url: `/inventory/${id}`,

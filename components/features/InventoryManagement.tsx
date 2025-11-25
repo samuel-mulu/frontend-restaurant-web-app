@@ -50,7 +50,6 @@ interface InventoryFormData {
   quantity: string;
   unit: string;
   price: string;
-  minThreshold: string;
 }
 
 export function InventoryManagement() {
@@ -73,7 +72,6 @@ export function InventoryManagement() {
     quantity: "",
     unit: "",
     price: "",
-    minThreshold: "0",
   });
 
   // Redux Toolkit hooks
@@ -185,11 +183,6 @@ export function InventoryManagement() {
       toast.error("Please enter a valid price");
       return;
     }
-    const minThreshold = parseFloat(formData.minThreshold || "0");
-    if (isNaN(minThreshold) || minThreshold < 0) {
-      toast.error("Please enter a valid minimum threshold");
-      return;
-    }
 
     try {
       await createInventory({
@@ -199,7 +192,6 @@ export function InventoryManagement() {
         quantity,
         unit: formData.unit.trim(),
         price,
-        minThreshold,
       }).unwrap();
 
       resetForm();
@@ -226,7 +218,6 @@ export function InventoryManagement() {
         quantity: item.quantity.toString(),
         unit: item.unit,
         price: item.price.toString(),
-        minThreshold: (item.minThreshold ?? 0).toString(),
       });
       setIsEditOpen(true);
     }
@@ -255,11 +246,6 @@ export function InventoryManagement() {
       toast.error("Please enter a valid price");
       return;
     }
-    const minThreshold = parseFloat(formData.minThreshold || "0");
-    if (isNaN(minThreshold) || minThreshold < 0) {
-      toast.error("Please enter a valid minimum threshold");
-      return;
-    }
 
     try {
       await updateInventory({
@@ -271,7 +257,6 @@ export function InventoryManagement() {
           quantity,
           unit: formData.unit.trim(),
           price,
-          minThreshold,
         },
       }).unwrap();
 
@@ -317,7 +302,6 @@ export function InventoryManagement() {
       quantity: "",
       unit: "",
       price: "",
-      minThreshold: "0",
     });
   };
 
@@ -477,10 +461,10 @@ export function InventoryManagement() {
                 </div>
                 <div>
                   <span className="text-gray-600 dark:text-gray-400">
-                    Min Threshold:
+                    Price:
                   </span>
-                  <span className="ml-2 font-medium text-gray-900 dark:text-gray-100">
-                    {item.minThreshold ?? 0} {item.unit}
+                  <span className="ml-2 font-medium text-primary">
+                    Br {item.price?.toFixed(2) || "0.00"}
                   </span>
                 </div>
                 <div className="col-span-2">
@@ -528,8 +512,8 @@ export function InventoryManagement() {
                   <TableHead className="w-auto min-w-[100px] pl-1 pr-1 py-2">
                     Unit
                   </TableHead>
-                  <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
-                    Min Threshold
+                  <TableHead className="w-auto min-w-[100px] pl-1 pr-1 py-2">
+                    Price
                   </TableHead>
                   <TableHead className="w-auto min-w-[100px] pl-1 pr-1 py-2">
                     Status
@@ -558,7 +542,9 @@ export function InventoryManagement() {
                       {item.unit}
                     </TableCell>
                     <TableCell className="py-1.5 pl-1 pr-1">
-                      {item.minThreshold ?? 0} {item.unit}
+                      <span className="font-medium text-primary">
+                        Br {item.price?.toFixed(2) || "0.00"}
+                      </span>
                     </TableCell>
                     <TableCell className="py-1.5 pl-1 pr-1">
                       <span
@@ -787,25 +773,6 @@ function InventoryForm({
           className="mt-2 min-h-[44px]"
           required
         />
-      </div>
-      <div>
-        <Label htmlFor="inventory-minThreshold">Minimum Threshold *</Label>
-        <Input
-          id="inventory-minThreshold"
-          type="number"
-          min="0"
-          step="0.01"
-          value={formData.minThreshold}
-          onChange={(e) =>
-            setFormData({ ...formData, minThreshold: e.target.value })
-          }
-          placeholder="Enter minimum threshold"
-          className="mt-2 min-h-[44px]"
-          required
-        />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Alert when quantity falls below this value
-        </p>
       </div>
     </div>
   );

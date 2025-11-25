@@ -39,8 +39,6 @@ import { useListCategoriesQuery } from "@/stores/features/categories/categoriesA
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { useSelector } from "react-redux";
-import { selectUser } from "@/stores/features/auth/authSlice";
 import { Inventory } from "@/lib/types";
 
 interface InventoryFormData {
@@ -53,9 +51,6 @@ interface InventoryFormData {
 }
 
 export function InventoryManagement() {
-  const user = useSelector(selectUser);
-  const isOwner = user?.role === "owner";
-
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingInventoryId, setEditingInventoryId] = useState<string | null>(
@@ -312,21 +307,14 @@ export function InventoryManagement() {
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
             Inventory
           </h1>
-          {isOwner && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              View-only mode
-            </p>
-          )}
         </div>
-        {!isOwner && (
-          <Button
-            onClick={() => setIsCreateOpen(true)}
-            disabled={isLoading}
-            className={cn(isLoading ? "spin-in" : "")}
-          >
-            Create Inventory Item
-          </Button>
-        )}
+        <Button
+          onClick={() => setIsCreateOpen(true)}
+          disabled={isLoading}
+          className={cn(isLoading ? "spin-in" : "")}
+        >
+          Create Inventory Item
+        </Button>
       </header>
 
       {error && !isLoading && (
@@ -412,8 +400,8 @@ export function InventoryManagement() {
               ? "No inventory items match your filters."
               : "No inventory items found."
           }
-          actionLabel={isOwner ? undefined : "Create Your First Inventory Item"}
-          onAction={isOwner ? undefined : () => setIsCreateOpen(true)}
+          actionLabel="Create Your First Inventory Item"
+          onAction={() => setIsCreateOpen(true)}
         />
       )}
 
@@ -439,16 +427,14 @@ export function InventoryManagement() {
                     </p>
                   )}
                 </div>
-                {!isOwner && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={() => handleEdit(item.id)}
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => handleEdit(item.id)}
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
@@ -559,16 +545,14 @@ export function InventoryManagement() {
                       </span>
                     </TableCell>
                     <TableCell className="py-1.5 pl-1">
-                      {!isOwner && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleEdit(item.id)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleEdit(item.id)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

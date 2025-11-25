@@ -34,23 +34,18 @@ import {
   Ban,
   Eye,
   TrendingUp,
-  DollarSign,
-  Package,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useSelector } from "react-redux";
 import { Input } from "@/components/ui/input";
 import {
   useListOrdersQuery,
-  useGetDateRangeReportQuery,
   useUpdateOrderStatusMutation,
   useBulkUpdateOrderStatusMutation,
   OrderStatus,
   Order as RTKOrder,
 } from "@/stores/features/orders/ordersApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
-import { selectUser } from "@/stores/features/auth/authSlice";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 
@@ -133,7 +128,7 @@ const getStatusBadgeText = (status: OrderStatus): string => {
   const statusMap: Partial<Record<OrderStatus, string>> = {
     OPEN: "Open",
     VOIDED: "Voided",
-    PAID_TO_CASHIER: "Received from Waiter",
+    PAID_TO_CASHIER: "To be Recieved",
     TRANSFERRED_TO_OWNER: "Transferred",
     OWNER_CONFIRMED: "Confirmed",
     DISPUTED: "Disputed",
@@ -191,15 +186,9 @@ function transformOrder(order: RTKOrder): DisplayOrder {
   };
 }
 
-const extractDates = (orders: DisplayOrder[]): string[] =>
-  [...new Set(orders.map((o) => formatDate(o.date)))].sort().reverse();
-
 // -------------------- Main Component -------------------- //
 export function OwnerHistory() {
-  const user = useSelector(selectUser);
-
-  const [statusFilter, setStatusFilter] = useState<string>("PAID_TO_CASHIER");
-  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [staffFilter, setStaffFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
@@ -235,17 +224,6 @@ export function OwnerHistory() {
     search: searchQuery.trim() || undefined,
   });
 
-  // Fetch date range report when dates are selected
-  const { data: dateRangeReport } = useGetDateRangeReportQuery(
-    {
-      startDate: startDate || "",
-      endDate: endDate || "",
-    },
-    {
-      skip: !startDate || !endDate,
-    }
-  );
-
   const [updateOrderStatus, { isLoading: isUpdating }] =
     useUpdateOrderStatusMutation();
   const [bulkUpdateOrderStatus, { isLoading: isBulkUpdating }] =
@@ -263,33 +241,10 @@ export function OwnerHistory() {
     return [];
   }, [ordersData]);
 
-  // Filter orders based on UI filters (client-side filtering for date and search)
+  // Filter orders based on UI filters (status and staff are handled by backend, search is client-side)
   const filtered = useMemo(() => {
     return orders.filter((o: DisplayOrder) => {
-      // Status filter is already applied via API query, but keep for consistency
-      if (statusFilter !== "all" && o.backendStatus !== statusFilter) {
-        return false;
-      }
-
-      // Staff filter (waiter or cashier based on status)
-      if (statusFilter === "OPEN") {
-        // When status is OPEN, filter by waiter
-        if (staffFilter !== "all" && o.waiterId !== staffFilter) {
-          return false;
-        }
-      } else {
-        // For other statuses, filter by cashier
-        if (staffFilter !== "all" && o.cashierId !== staffFilter) {
-          return false;
-        }
-      }
-
-      // Date filter
-      if (dateFilter !== "all" && formatDate(o.date) !== dateFilter) {
-        return false;
-      }
-
-      // Search filter
+      // Search filter (client-side for instant feedback)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         return (
@@ -302,49 +257,66 @@ export function OwnerHistory() {
 
       return true;
     });
-  }, [orders, statusFilter, staffFilter, dateFilter, searchQuery]);
+  }, [orders, searchQuery]);
 
-  // Enhanced summary stats for owner
+  // Enhanced summary stats for owner with detailed breakdown
   const summary = useMemo(() => {
     const totalOrders = filtered.length;
-    const totalRevenue = filtered.reduce(
+
+    // Open orders
+    const openOrders = filtered.filter(
+      (o: DisplayOrder) => o.backendStatus === "OPEN"
+    );
+
+    // Received from Waiters (PAID_TO_CASHIER)
+    const receivedOrders = filtered.filter(
+      (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER"
+    );
+    const receivedFromWaiters = receivedOrders.reduce(
       (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
       0
     );
 
-    const receivedFromWaiters = filtered
-      .filter((o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER")
-      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
+    // Transferred to Owner
+    const transferredOrders = filtered.filter(
+      (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER"
+    );
+    const transferred = transferredOrders.reduce(
+      (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+      0
+    );
 
-    const transferred = filtered
-      .filter((o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER")
-      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
+    // Owner Confirmed
+    const confirmedOrders = filtered.filter(
+      (o: DisplayOrder) => o.backendStatus === "OWNER_CONFIRMED"
+    );
+    const confirmed = confirmedOrders.reduce(
+      (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+      0
+    );
 
-    const confirmed = filtered
-      .filter((o: DisplayOrder) => o.backendStatus === "OWNER_CONFIRMED")
-      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
-
-    const pending = filtered
-      .filter((o: DisplayOrder) => o.backendStatus === "OPEN")
-      .reduce((sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0), 0);
-
-    const voidedCount = filtered.filter(
+    // Voided orders
+    const voidedOrders = filtered.filter(
       (o: DisplayOrder) => o.backendStatus === "VOIDED"
-    ).length;
+    );
 
-    const disputedCount = filtered.filter(
-      (o: DisplayOrder) => o.backendStatus === "DISPUTED"
-    ).length;
+    // To be Received (TRANSFERRED_TO_OWNER - money transferred but not yet confirmed)
+    const toBeReceived = transferred;
 
     return {
       totalOrders,
-      totalRevenue,
-      receivedFromWaiters,
-      transferred,
-      confirmed,
-      pending,
-      voidedCount,
-      disputedCount,
+      openOrdersCount: openOrders.length,
+      receivedCount: receivedOrders.length,
+      received: receivedFromWaiters, // Money received from waiters (PAID_TO_CASHIER)
+      toBeReceivedCount: transferredOrders.length,
+      toBeReceived, // Money transferred to owner, awaiting confirmation
+      confirmedCount: confirmedOrders.length,
+      confirmed, // Money confirmed by owner
+      voidedCount: voidedOrders.length,
+      voidedRevenue: voidedOrders.reduce(
+        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
+        0
+      ),
     };
   }, [filtered]);
 
@@ -363,15 +335,14 @@ export function OwnerHistory() {
   }, [selectedOrderIds, filtered]);
 
   const toggleSelect = (id: string, orderStatus: OrderStatus) => {
-    // Owner can only select orders that can be confirmed
-    if (
-      orderStatus !== "TRANSFERRED_TO_OWNER" &&
-      orderStatus !== "PAID_TO_CASHIER"
-    ) {
+    // Owner can only select orders with TRANSFERRED_TO_OWNER status to confirm
+    if (orderStatus !== "TRANSFERRED_TO_OWNER") {
       toast.error(
-        `Orders with ${getStatusBadgeText(
+        `Only orders with ${getStatusBadgeText(
+          "TRANSFERRED_TO_OWNER"
+        )} status can be confirmed. Current status: ${getStatusBadgeText(
           orderStatus
-        )} status cannot be changed`
+        )}`
       );
       return;
     }
@@ -406,27 +377,21 @@ export function OwnerHistory() {
 
   const selectAll = () => {
     if (filtered.length === 0) return;
-    const firstStatus = filtered[0].backendStatus;
 
-    // Only allow selecting TRANSFERRED_TO_OWNER or PAID_TO_CASHIER
-    if (
-      firstStatus !== "TRANSFERRED_TO_OWNER" &&
-      firstStatus !== "PAID_TO_CASHIER"
-    ) {
+    // Only allow selecting TRANSFERRED_TO_OWNER orders
+    const transferredOrders = filtered.filter(
+      (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER"
+    );
+
+    if (transferredOrders.length === 0) {
       toast.error(
-        `Cannot select orders with ${getStatusBadgeText(firstStatus)} status`
+        "No orders with Transferred status available to select. Only transferred orders can be confirmed."
       );
       return;
     }
 
-    const sameStatusOrders = filtered.filter(
-      (o: DisplayOrder) =>
-        (o.backendStatus === "TRANSFERRED_TO_OWNER" ||
-          o.backendStatus === "PAID_TO_CASHIER") &&
-        o.backendStatus === firstStatus
-    );
     setSelectedOrderIds(
-      new Set(sameStatusOrders.map((o: DisplayOrder) => o.id))
+      new Set(transferredOrders.map((o: DisplayOrder) => o.id))
     );
   };
 
@@ -440,12 +405,19 @@ export function OwnerHistory() {
       toast.error("No orders selected");
       return;
     }
-    if (!bulkStatusChange) {
-      toast.error("Please select a status to change to");
-      return;
-    }
     if (!selectedOrdersStatus) {
       toast.error("Selected orders must have the same status");
+      return;
+    }
+
+    // Auto-set status for TRANSFERRED_TO_OWNER orders
+    const targetStatus =
+      selectedOrdersStatus === "TRANSFERRED_TO_OWNER"
+        ? "OWNER_CONFIRMED"
+        : bulkStatusChange;
+
+    if (!targetStatus) {
+      toast.error("Please select a status to change to");
       return;
     }
 
@@ -454,7 +426,7 @@ export function OwnerHistory() {
     try {
       const result = await bulkUpdateOrderStatus({
         orderIds: ids,
-        status: bulkStatusChange,
+        status: targetStatus,
       }).unwrap();
 
       if (result.failed && result.failed.length > 0) {
@@ -495,18 +467,15 @@ export function OwnerHistory() {
     }
   };
 
-  // Owner-specific status transitions: only TRANSFERRED_TO_OWNER and PAID_TO_CASHIER can go to OWNER_CONFIRMED
+  // Owner-specific status transitions: only TRANSFERRED_TO_OWNER can go to OWNER_CONFIRMED
+  // This confirms the cash transferred from the cashier
   const getAvailableStatuses = (currentStatus: OrderStatus): OrderStatus[] => {
     if (currentStatus === "TRANSFERRED_TO_OWNER") {
-      return ["OWNER_CONFIRMED"];
-    }
-    if (currentStatus === "PAID_TO_CASHIER") {
       return ["OWNER_CONFIRMED"];
     }
     return [];
   };
 
-  const dates = extractDates(orders);
   const datePresets = getDatePresets();
 
   // Handle date range preset changes
@@ -578,12 +547,19 @@ export function OwnerHistory() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-          Owner History
-        </h1>
+      <header className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+            Owner History
+          </h1>
+          {orders.length > 0 && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Total Orders: {orders.length}
+            </p>
+          )}
+        </div>
         {/* Date Range Preset Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-2">
           <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
             <SelectTrigger className="w-[180px]">
               <Calendar className="h-4 w-4 mr-2" />
@@ -598,20 +574,25 @@ export function OwnerHistory() {
             </SelectContent>
           </Select>
           {dateRangePreset === "custom" && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-[150px]"
-              />
-              <span className="text-slate-500">to</span>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-[150px]"
-              />
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-start gap-2">
+                <span className="text-slate-500">from</span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-slate-500">to</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -625,91 +606,43 @@ export function OwnerHistory() {
 
       {!isLoading && !errorMessage && (
         <>
-          {/* Date Range Report */}
-          {dateRangeReport && startDate && endDate && (
-            <div className="rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700 p-4">
-              <h3 className="text-lg font-semibold mb-3">
-                Date Range Report: {startDate} to {endDate}
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm text-slate-500">Total Orders</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalOrders}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Revenue</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalRevenue.toFixed(2)} Br
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Collected</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalCollected.toFixed(2)} Br
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Transferred</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalTransferred.toFixed(2)} Br
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Enhanced Summary Stats Cards */}
           {orders.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <EnhancedStatCard
-                label="Total Orders"
-                value={summary.totalOrders}
-                icon={<Package className="h-5 w-5" />}
+                label="Open Orders"
+                value={summary.openOrdersCount}
+                icon={<AlertCircle className="h-5 w-5" />}
                 color="blue"
+                subtitle={`Out of ${summary.totalOrders} total orders`}
               />
               <EnhancedStatCard
-                label="Total Revenue"
-                value={`${summary.totalRevenue.toFixed(2)} Br`}
-                icon={<DollarSign className="h-5 w-5" />}
-                color="green"
-              />
-              <EnhancedStatCard
-                label="Received"
-                value={`${summary.receivedFromWaiters.toFixed(2)} Br`}
+                label="To be Recived From Cashier"
+                value={`${summary.received.toFixed(2)} Br`}
                 icon={<TrendingUp className="h-5 w-5" />}
                 color="emerald"
+                subtitle={`${summary.receivedCount} orders (PAID_TO_CASHIER)`}
               />
               <EnhancedStatCard
-                label="Transferred"
-                value={`${summary.transferred.toFixed(2)} Br`}
+                label="Awaiting Confirmation"
+                value={`${summary.toBeReceived.toFixed(2)} Br`}
                 icon={<ArrowRightLeft className="h-5 w-5" />}
-                color="purple"
+                color="amber"
+                subtitle={`${summary.toBeReceivedCount} orders - Click to confirm`}
               />
               <EnhancedStatCard
                 label="Confirmed"
                 value={`${summary.confirmed.toFixed(2)} Br`}
                 icon={<ShieldCheck className="h-5 w-5" />}
                 color="indigo"
-              />
-              <EnhancedStatCard
-                label="Pending"
-                value={`${summary.pending.toFixed(2)} Br`}
-                icon={<AlertCircle className="h-5 w-5" />}
-                color="amber"
+                subtitle={`${summary.confirmedCount} orders confirmed`}
               />
               <EnhancedStatCard
                 label="Voided"
                 value={summary.voidedCount}
                 icon={<Ban className="h-5 w-5" />}
                 color="red"
-              />
-              <EnhancedStatCard
-                label="Disputed"
-                value={summary.disputedCount}
-                icon={<XCircle className="h-5 w-5" />}
-                color="orange"
+                subtitle={`${summary.voidedRevenue.toFixed(2)} Br voided`}
               />
             </div>
           )}
@@ -746,13 +679,13 @@ export function OwnerHistory() {
                   <SelectItem value="PAID_TO_CASHIER">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4" />
-                      Received from Waiter
+                      to be received from cashier
                     </div>
                   </SelectItem>
                   <SelectItem value="TRANSFERRED_TO_OWNER">
                     <div className="flex items-center gap-2">
                       <ArrowRightLeft className="h-4 w-4" />
-                      Transferred
+                      Received
                     </div>
                   </SelectItem>
                   <SelectItem value="OWNER_CONFIRMED">
@@ -767,38 +700,23 @@ export function OwnerHistory() {
                       Open
                     </div>
                   </SelectItem>
-                  <SelectItem value="VOIDED">
-                    <div className="flex items-center gap-2">
-                      <Ban className="h-4 w-4" />
-                      Voided
-                    </div>
-                  </SelectItem>
                   <SelectItem value="DISPUTED">
                     <div className="flex items-center gap-2">
                       <XCircle className="h-4 w-4" />
                       Disputed
                     </div>
                   </SelectItem>
+                  <SelectItem value="VOIDED">
+                    <div className="flex items-center gap-2">
+                      <Ban className="h-4 w-4" />
+                      Voided
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                  <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                  <SelectValue placeholder="Date" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Dates</SelectItem>
-                  {dates.map((d: string) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Conditional Staff Filter: Waiter when OPEN, Cashier for other statuses */}
-              {statusFilter === "OPEN" && waiterList.length > 0 ? (
+              {/* Staff Filter: Waiter for OPEN orders, Cashier for other statuses */}
+              {statusFilter === "OPEN" && waiterList.length > 0 && (
                 <Select value={staffFilter} onValueChange={setStaffFilter}>
                   <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
                     <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -813,22 +731,25 @@ export function OwnerHistory() {
                     ))}
                   </SelectContent>
                 </Select>
-              ) : statusFilter !== "OPEN" && cashierList.length > 0 ? (
-                <Select value={staffFilter} onValueChange={setStaffFilter}>
-                  <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                    <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                    <SelectValue placeholder="Cashier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Cashiers</SelectItem>
-                    {cashierList.map((c: { id: string; name: string }) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
+              )}
+              {statusFilter !== "OPEN" &&
+                statusFilter !== "all" &&
+                cashierList.length > 0 && (
+                  <Select value={staffFilter} onValueChange={setStaffFilter}>
+                    <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
+                      <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                      <SelectValue placeholder="Cashier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Cashiers</SelectItem>
+                      {cashierList.map((c: { id: string; name: string }) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
             </div>
           </div>
 
@@ -853,7 +774,7 @@ export function OwnerHistory() {
                 <span className="text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap">
                   {selectedOrderIds.size} selected
                   {selectedOrdersStatus && (
-                    <span className="ml-2 text-xs">
+                    <span className="ml-2 text-xs text-nowrap">
                       (Status: {getStatusBadgeText(selectedOrdersStatus)})
                     </span>
                   )}
@@ -861,42 +782,73 @@ export function OwnerHistory() {
               </div>
               {selectedOrdersStatus && (
                 <div className="flex items-center gap-2 flex-1">
-                  <Select
-                    value={bulkStatusChange}
-                    onValueChange={(value) =>
-                      setBulkStatusChange(value as OrderStatus)
-                    }
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Change status to..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getAvailableStatuses(selectedOrdersStatus).map(
-                        (status) => (
-                          <SelectItem key={status} value={status}>
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(status)}
-                              {getStatusBadgeText(status)}
-                            </div>
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    onClick={handleBulkStatusChange}
-                    disabled={isBulkUpdating || !bulkStatusChange}
-                    className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
-                  >
-                    {isBulkUpdating ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      "Update Status"
-                    )}
-                  </Button>
+                  {selectedOrdersStatus === "TRANSFERRED_TO_OWNER" ? (
+                    <>
+                      <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                        <ArrowRightLeft className="h-4 w-4" />
+                        <span>
+                          Confirm {selectedOrderIds.size} transferred order
+                          {selectedOrderIds.size !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <Button
+                        onClick={handleBulkStatusChange}
+                        disabled={isBulkUpdating}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"
+                      >
+                        {isBulkUpdating ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Confirming...
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            Confirm Transfer
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Select
+                        value={bulkStatusChange}
+                        onValueChange={(value) =>
+                          setBulkStatusChange(value as OrderStatus)
+                        }
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Change status to..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableStatuses(selectedOrdersStatus).map(
+                            (status) => (
+                              <SelectItem key={status} value={status}>
+                                <div className="flex items-center gap-2">
+                                  {getStatusIcon(status)}
+                                  {getStatusBadgeText(status)}
+                                </div>
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={handleBulkStatusChange}
+                        disabled={isBulkUpdating || !bulkStatusChange}
+                        className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
+                      >
+                        {isBulkUpdating ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          "Update Status"
+                        )}
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
               <Button
@@ -936,9 +888,9 @@ export function OwnerHistory() {
                   </TableRow>
                 ) : (
                   filtered.map((o: DisplayOrder) => {
+                    // Owner can only change TRANSFERRED_TO_OWNER to OWNER_CONFIRMED
                     const canChangeStatus =
-                      o.backendStatus === "TRANSFERRED_TO_OWNER" ||
-                      o.backendStatus === "PAID_TO_CASHIER";
+                      o.backendStatus === "TRANSFERRED_TO_OWNER";
                     const canSelect =
                       canChangeStatus &&
                       (selectedOrderIds.size === 0 ||
@@ -1012,8 +964,29 @@ export function OwnerHistory() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {getAvailableStatuses(o.backendStatus).length >
-                            0 ? (
+                            {o.backendStatus === "TRANSFERRED_TO_OWNER" ? (
+                              <Button
+                                onClick={() =>
+                                  handleStatusChange(o.id, "OWNER_CONFIRMED")
+                                }
+                                disabled={isUpdating}
+                                size="sm"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs whitespace-nowrap"
+                              >
+                                {isUpdating ? (
+                                  <>
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                    Confirming...
+                                  </>
+                                ) : (
+                                  <>
+                                    <ShieldCheck className="mr-1 h-3 w-3" />
+                                    Confirm Transfer
+                                  </>
+                                )}
+                              </Button>
+                            ) : getAvailableStatuses(o.backendStatus).length >
+                              0 ? (
                               <Select
                                 value={o.backendStatus}
                                 onValueChange={(value) => {
@@ -1074,6 +1047,7 @@ function EnhancedStatCard({
   value,
   icon,
   color = "blue",
+  subtitle,
 }: {
   label: string;
   value: string | number;
@@ -1087,6 +1061,7 @@ function EnhancedStatCard({
     | "amber"
     | "red"
     | "orange";
+  subtitle?: string;
 }) {
   const colorClasses = {
     blue: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
@@ -1106,12 +1081,17 @@ function EnhancedStatCard({
   };
 
   return (
-    <div className={`rounded-lg border p-4 shadow-sm ${colorClasses[color]}`}>
+    <div
+      className={`rounded-lg border p-4 shadow-sm transition-all hover:shadow-md ${colorClasses[color]}`}
+    >
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium opacity-80">{label}</p>
+        <p className="text-xs font-medium opacity-80 uppercase tracking-wide">
+          {label}
+        </p>
         <div className="opacity-60">{icon}</div>
       </div>
-      <p className="text-xl font-bold">{value}</p>
+      <p className="text-2xl font-bold mb-1">{value}</p>
+      {subtitle && <p className="text-xs opacity-70 mt-1">{subtitle}</p>}
     </div>
   );
 }

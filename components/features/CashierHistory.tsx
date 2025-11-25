@@ -37,6 +37,8 @@ import {
   Receipt,
   Wallet,
   Clock,
+  Download,
+  Image as ImageIcon,
 } from "lucide-react";
 import { PaymentMethodSelector, PaymentMethod } from "./PaymentMethodSelector";
 import { PaymentImageModal } from "./PaymentImageModal";
@@ -70,6 +72,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // -------------------- Types & Utilities -------------------- //
 
@@ -86,6 +95,8 @@ interface DisplayOrder {
   cashierId?: string;
   cashierName?: string;
   backendStatus: OrderStatus;
+  paymentMethod?: "cash" | "mobile_banking";
+  paymentProofImage?: { url: string; publicId: string };
 }
 
 const formatDate = (date: string): string => {
@@ -207,6 +218,8 @@ function transformOrder(order: RTKOrder): DisplayOrder {
     cashierId,
     cashierName,
     backendStatus: order.status,
+    paymentMethod: order.paymentMethod,
+    paymentProofImage: order.paymentProofImage,
   };
 }
 
@@ -261,6 +274,13 @@ export function CashierHistory() {
   const [paymentImageStatus, setPaymentImageStatus] =
     useState<OrderStatus | null>(null);
   const [isPaymentImageModalOpen, setIsPaymentImageModalOpen] = useState(false);
+
+  // Payment proof view modal state
+  const [viewPaymentProofOrderId, setViewPaymentProofOrderId] = useState<
+    string | null
+  >(null);
+  const [isViewPaymentProofModalOpen, setIsViewPaymentProofModalOpen] =
+    useState(false);
 
   // Real-time updates
   useOrderSocket();
@@ -736,6 +756,28 @@ export function CashierHistory() {
       setVoidConfirmOrderId(null);
       setVoidConfirmStatus(null);
     }
+  };
+
+  const handleViewPaymentProof = (orderId: string) => {
+    setViewPaymentProofOrderId(orderId);
+    setIsViewPaymentProofModalOpen(true);
+  };
+
+  const handleDownloadPaymentProof = (imageUrl: string, orderNumber: string) => {
+    // Create a temporary anchor element to trigger download
+    const link = document.createElement("a");
+    link.href = imageUrl;
+    link.download = `payment-proof-${orderNumber}-${Date.now()}.jpg`;
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Download started");
+  };
+
+  const getPaymentProofImage = (orderId: string) => {
+    const order = filtered.find((o: DisplayOrder) => o.id === orderId);
+    return order?.paymentProofImage;
   };
 
   const getAvailableStatuses = (
@@ -1483,6 +1525,21 @@ export function CashierHistory() {
                                 No actions
                               </span>
                             )}
+                            {/* Payment Proof Icon - Show when order is paid with mobile banking and has proof */}
+                            {o.backendStatus === "PAID_TO_CASHIER" &&
+                              o.paymentProofImage?.url &&
+                              (o.paymentMethod === "mobile_banking" ||
+                                paymentMethods.get(o.id) === "mobile_banking") && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                  onClick={() => handleViewPaymentProof(o.id)}
+                                  title="View Payment Proof"
+                                >
+                                  <ImageIcon className="h-4 w-4" />
+                                </Button>
+                              )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1549,6 +1606,80 @@ export function CashierHistory() {
             : undefined
         }
       />
+
+      {/* Payment Proof View Modal */}
+      <Dialog
+        open={isViewPaymentProofModalOpen}
+        onOpenChange={setIsViewPaymentProofModalOpen}
+      >
+        <DialogContent className="max-w-2xl bg-white dark:bg-slate-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 dark:text-white">
+              <ImageIcon className="h-5 w-5 text-blue-600" />
+              Payment Proof
+            </DialogTitle>
+            <DialogDescription className="dark:text-gray-400">
+              {viewPaymentProofOrderId &&
+                filtered.find(
+                  (o: DisplayOrder) => o.id === viewPaymentProofOrderId
+                )?.orderNumber && (
+                  <span>
+                    Order #{" "}
+                    {
+                      filtered.find(
+                        (o: DisplayOrder) => o.id === viewPaymentProofOrderId
+                      )?.orderNumber
+                    }
+                  </span>
+                )}
+            </DialogDescription>
+          </DialogHeader>
+          {viewPaymentProofOrderId && (
+            <div className="mt-4">
+              {getPaymentProofImage(viewPaymentProofOrderId)?.url ? (
+                <div className="space-y-4">
+                  <div className="relative w-full rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden bg-gray-50 dark:bg-slate-900">
+                    <img
+                      src={getPaymentProofImage(viewPaymentProofOrderId)?.url}
+                      alt="Payment Proof"
+                      className="w-full h-auto max-h-[500px] object-contain"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const imageUrl =
+                          getPaymentProofImage(viewPaymentProofOrderId)?.url;
+                        const orderNumber = filtered.find(
+                          (o: DisplayOrder) => o.id === viewPaymentProofOrderId
+                        )?.orderNumber;
+                        if (imageUrl && orderNumber) {
+                          handleDownloadPaymentProof(imageUrl, orderNumber);
+                        }
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsViewPaymentProofModalOpen(false)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  Payment proof image not found
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

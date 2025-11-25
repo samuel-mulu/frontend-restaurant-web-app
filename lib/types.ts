@@ -123,3 +123,32 @@ export interface TestPrintResult {
   message: string;
   error?: string;
 }
+
+// Printer Configuration Types
+export interface PrinterConfiguration {
+  interface: "usb" | "serial" | "mock";
+  usbName?: string | null;
+  serialPort?: string | null;
+  maxRetries: number;
+  retryDelayMs: number;
+}
+
+export interface AvailableDevices {
+  success: boolean;
+  usbPrinters: string[];
+  serialPorts: string[];
+  error?: string;
+}
+
+export interface TestConnectionResult {
+  success: boolean;
+  connected: boolean;
+  message?: string;
+  error?: string;
+}
+
+export interface ConfigResponse {
+  success: boolean;
+  config: PrinterConfiguration;
+  error?: string;
+}

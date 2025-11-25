@@ -28,18 +28,18 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle2,
-  XCircle,
   ArrowRightLeft,
   ShieldCheck,
   Ban,
   Eye,
   TrendingUp,
   Users,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
-  useListOrdersQuery,
+  useGetOwnerOrdersQuery,
   useUpdateOrderStatusMutation,
   useBulkUpdateOrderStatusMutation,
   OrderStatus,
@@ -49,37 +49,60 @@ import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 
-// -------------------- Types & Utilities -------------------- //
+// -------------------- Constants & Mappings -------------------- //
 
-interface DisplayOrder {
-  id: string;
-  orderNumber: string;
-  tableNumber: string;
-  customer: string;
-  totalPrice: number;
-  status: "Completed" | "Pending";
-  date: string;
-  waiterId?: string;
-  waiterName?: string;
-  cashierId?: string;
-  cashierName?: string;
-  backendStatus: OrderStatus;
-}
-
-const formatDate = (date: string): string => {
-  try {
-    const d = new Date(date);
-    return d.toISOString().split("T")[0];
-  } catch {
-    return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
-  }
+const OWNER_STATUS_MAP: Record<OrderStatus, string> = {
+  OPEN: "AWAITING_PAYMENT",
+  PAID_TO_CASHIER: "AWAITING_TRANSFER",
+  TRANSFERRED_TO_OWNER: "AWAITING_CONFIRMATION",
+  OWNER_CONFIRMED: "CONFIRMED",
+  VOIDED: "CANCELLED",
+  DISPUTED: "NEEDS_REVIEW",
 };
 
-const formatDateForInput = (date: Date): string => {
-  return date.toISOString().split("T")[0];
+const STATUS_CONFIG: Record<
+  string,
+  { text: string; color: string; icon: React.ReactNode }
+> = {
+  AWAITING_PAYMENT: {
+    text: "Awaiting Payment",
+    color:
+      "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400",
+    icon: <AlertCircle className="h-4 w-4" />,
+  },
+  AWAITING_TRANSFER: {
+    text: "Awaiting Transfer",
+    color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",
+    icon: <CheckCircle2 className="h-4 w-4" />,
+  },
+  AWAITING_CONFIRMATION: {
+    text: "Awaiting Confirmation",
+    color:
+      "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400",
+    icon: <ArrowRightLeft className="h-4 w-4" />,
+  },
+  CONFIRMED: {
+    text: "Confirmed",
+    color:
+      "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400",
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
+  CANCELLED: {
+    text: "Cancelled",
+    color: "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400",
+    icon: <Ban className="h-4 w-4" />,
+  },
+  NEEDS_REVIEW: {
+    text: "Needs Review",
+    color:
+      "bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400",
+    icon: <XCircle className="h-4 w-4" />,
+  },
 };
 
-const getDatePresets = () => {
+const formatDate = (date: string) => new Date(date).toISOString().split("T")[0];
+
+const getDateRange = () => {
   const today = new Date();
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - today.getDay());
@@ -87,483 +110,259 @@ const getDatePresets = () => {
 
   return {
     today: {
-      start: formatDateForInput(today),
-      end: formatDateForInput(today),
+      start: formatDate(today.toISOString()),
+      end: formatDate(today.toISOString()),
     },
     thisWeek: {
-      start: formatDateForInput(startOfWeek),
-      end: formatDateForInput(today),
+      start: formatDate(startOfWeek.toISOString()),
+      end: formatDate(today.toISOString()),
     },
     thisMonth: {
-      start: formatDateForInput(startOfMonth),
-      end: formatDateForInput(today),
+      start: formatDate(startOfMonth.toISOString()),
+      end: formatDate(today.toISOString()),
     },
   };
 };
 
-/**
- * Map backend status to frontend display status
- */
-const normalizeStatus = (status: OrderStatus): "Completed" | "Pending" => {
-  if (
-    status === "PAID_TO_CASHIER" ||
-    status === "TRANSFERRED_TO_OWNER" ||
-    status === "OWNER_CONFIRMED"
-  ) {
-    return "Completed";
-  }
-  return "Pending";
-};
-
-const getStatusColor = (status: "Completed" | "Pending"): string => {
-  return {
-    Completed:
-      "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400",
-    Pending:
-      "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400",
-  }[status];
-};
-
-const getStatusBadgeText = (status: OrderStatus): string => {
-  const statusMap: Partial<Record<OrderStatus, string>> = {
-    OPEN: "Open",
-    VOIDED: "Voided",
-    PAID_TO_CASHIER: "To be Recieved",
-    TRANSFERRED_TO_OWNER: "Transferred",
-    OWNER_CONFIRMED: "Confirmed",
-    DISPUTED: "Disputed",
-  };
-  return statusMap[status] || status;
-};
-
-const getStatusIcon = (status: OrderStatus) => {
-  const iconMap: Partial<Record<OrderStatus, React.ReactNode>> = {
-    OPEN: <AlertCircle className="h-4 w-4" />,
-    VOIDED: <Ban className="h-4 w-4" />,
-    PAID_TO_CASHIER: <CheckCircle2 className="h-4 w-4" />,
-    TRANSFERRED_TO_OWNER: <ArrowRightLeft className="h-4 w-4" />,
-    OWNER_CONFIRMED: <ShieldCheck className="h-4 w-4" />,
-    DISPUTED: <XCircle className="h-4 w-4" />,
-  };
-  return iconMap[status] || <AlertCircle className="h-4 w-4" />;
-};
-
-/**
- * Transform backend order to display format
- */
-function transformOrder(order: RTKOrder): DisplayOrder {
-  const waiterId =
-    typeof order.waiterId === "string"
-      ? order.waiterId
-      : order.waiterId?._id || order.waiterId?.id || "";
-  const waiterName =
-    typeof order.waiterId === "object" && order.waiterId?.name
-      ? order.waiterId.name
-      : "";
-
-  const cashierId =
-    typeof order.cashierId === "string"
-      ? order.cashierId
-      : order.cashierId?._id || order.cashierId?.id || "";
-  const cashierName =
-    typeof order.cashierId === "object" && order.cashierId?.name
-      ? order.cashierId.name
-      : "";
-
-  return {
-    id: order.id || order._id || "",
-    orderNumber: order.orderNumber,
-    tableNumber: order.tableNumber,
-    customer: `Table ${order.tableNumber}`,
-    totalPrice: order.totalAmount,
-    status: normalizeStatus(order.status),
-    date: order.placedAt || order.createdAt,
-    waiterId,
-    waiterName,
-    cashierId,
-    cashierName,
-    backendStatus: order.status,
-  };
-}
-
 // -------------------- Main Component -------------------- //
+
 export function OwnerHistory() {
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [staffFilter, setStaffFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
-    new Set()
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [cashierFilter, setCashierFilter] = useState("all");
+  const [staffFilter, setStaffFilter] = useState("all");
+  const [dateRangePreset, setDateRangePreset] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [allCashierFilter, setAllCashierFilter] = useState<"all" | "cashier">(
+    "all"
   );
-  const [bulkStatusChange, setBulkStatusChange] = useState<OrderStatus | "">(
-    ""
-  );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Date range state
-  const [dateRangePreset, setDateRangePreset] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const datePresets = getDateRange();
 
-  // Fetch all orders (owner can see all orders)
+  // Handle date range preset change and update dates accordingly
+  const handleDateRangePresetChange = (value: string) => {
+    setDateRangePreset(value);
+    if (value === "all") {
+      setStartDate("");
+      setEndDate("");
+    } else if (value !== "custom") {
+      const range = datePresets[value as keyof typeof datePresets];
+      if (range) {
+        setStartDate(range.start);
+        setEndDate(range.end);
+      }
+    }
+    // For "custom", keep existing dates or leave empty
+  };
+
+  // Fetch orders
   const {
     data: ordersData,
     isLoading,
     error,
     refetch,
-  } = useListOrdersQuery({
+  } = useGetOwnerOrdersQuery({
     status: statusFilter !== "all" ? (statusFilter as OrderStatus) : undefined,
     waiterId:
       statusFilter === "OPEN" && staffFilter !== "all"
         ? staffFilter
         : undefined,
-    cashierId:
-      statusFilter !== "OPEN" && staffFilter !== "all"
-        ? staffFilter
-        : undefined,
+    cashierId: cashierFilter !== "all" ? cashierFilter : undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
     search: searchQuery.trim() || undefined,
   });
 
-  const [updateOrderStatus, { isLoading: isUpdating }] =
+  const [updateStatus, { isLoading: updating }] =
     useUpdateOrderStatusMutation();
-  const [bulkUpdateOrderStatus, { isLoading: isBulkUpdating }] =
+  const [bulkUpdate, { isLoading: bulkUpdating }] =
     useBulkUpdateOrderStatusMutation();
 
-  // Transform orders to display format
-  const orders = useMemo(() => {
-    if (!ordersData) return [];
-    if (Array.isArray(ordersData)) {
-      return ordersData.map(transformOrder);
-    }
-    if ("orders" in ordersData) {
-      return ordersData.orders.map(transformOrder);
-    }
-    return [];
-  }, [ordersData]);
-
-  // Filter orders based on UI filters (status and staff are handled by backend, search is client-side)
-  const filtered = useMemo(() => {
-    return orders.filter((o: DisplayOrder) => {
-      // Search filter (client-side for instant feedback)
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        return (
-          (o.orderNumber?.toLowerCase() || "").includes(query) ||
-          (o.tableNumber?.toLowerCase() || "").includes(query) ||
-          (o.waiterName?.toLowerCase() || "").includes(query) ||
-          (o.cashierName?.toLowerCase() || "").includes(query)
-        );
-      }
-
-      return true;
-    });
-  }, [orders, searchQuery]);
-
-  // Enhanced summary stats for owner with detailed breakdown
-  const summary = useMemo(() => {
-    const totalOrders = filtered.length;
-
-    // Open orders
-    const openOrders = filtered.filter(
-      (o: DisplayOrder) => o.backendStatus === "OPEN"
-    );
-
-    // Received from Waiters (PAID_TO_CASHIER)
-    const receivedOrders = filtered.filter(
-      (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER"
-    );
-    const receivedFromWaiters = receivedOrders.reduce(
-      (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-      0
-    );
-
-    // Transferred to Owner
-    const transferredOrders = filtered.filter(
-      (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER"
-    );
-    const transferred = transferredOrders.reduce(
-      (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-      0
-    );
-
-    // Owner Confirmed
-    const confirmedOrders = filtered.filter(
-      (o: DisplayOrder) => o.backendStatus === "OWNER_CONFIRMED"
-    );
-    const confirmed = confirmedOrders.reduce(
-      (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-      0
-    );
-
-    // Voided orders
-    const voidedOrders = filtered.filter(
-      (o: DisplayOrder) => o.backendStatus === "VOIDED"
-    );
-
-    // To be Received (TRANSFERRED_TO_OWNER - money transferred but not yet confirmed)
-    const toBeReceived = transferred;
-
-    return {
-      totalOrders,
-      openOrdersCount: openOrders.length,
-      receivedCount: receivedOrders.length,
-      received: receivedFromWaiters, // Money received from waiters (PAID_TO_CASHIER)
-      toBeReceivedCount: transferredOrders.length,
-      toBeReceived, // Money transferred to owner, awaiting confirmation
-      confirmedCount: confirmedOrders.length,
-      confirmed, // Money confirmed by owner
-      voidedCount: voidedOrders.length,
-      voidedRevenue: voidedOrders.reduce(
-        (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-        0
-      ),
-    };
-  }, [filtered]);
-
-  // Get the common status of selected orders
-  const selectedOrdersStatus = useMemo(() => {
-    if (selectedOrderIds.size === 0) return null;
-    const selectedOrders = filtered.filter((o: DisplayOrder) =>
-      selectedOrderIds.has(o.id)
-    );
-    if (selectedOrders.length === 0) return null;
-    const firstStatus = selectedOrders[0].backendStatus;
-    const allSameStatus = selectedOrders.every(
-      (o: DisplayOrder) => o.backendStatus === firstStatus
-    );
-    return allSameStatus ? firstStatus : null;
-  }, [selectedOrderIds, filtered]);
-
-  const toggleSelect = (id: string, orderStatus: OrderStatus) => {
-    // Owner can only select orders with TRANSFERRED_TO_OWNER status to confirm
-    if (orderStatus !== "TRANSFERRED_TO_OWNER") {
-      toast.error(
-        `Only orders with ${getStatusBadgeText(
-          "TRANSFERRED_TO_OWNER"
-        )} status can be confirmed. Current status: ${getStatusBadgeText(
-          orderStatus
-        )}`
-      );
-      return;
-    }
-
-    setSelectedOrderIds((prev) => {
-      const s = new Set(prev);
-      if (s.has(id)) {
-        s.delete(id);
-        if (s.size === 0) {
-          setBulkStatusChange("");
-        }
-      } else {
-        if (s.size > 0) {
-          const selectedOrders = filtered.filter((o: DisplayOrder) =>
-            s.has(o.id)
-          );
-          if (selectedOrders.length > 0) {
-            const firstStatus = selectedOrders[0].backendStatus;
-            if (firstStatus !== orderStatus) {
-              toast.error(
-                "You can only select orders with the same status. Please clear selection first."
-              );
-              return prev;
-            }
-          }
-        }
-        s.add(id);
-      }
-      return s;
-    });
-  };
-
-  const selectAll = () => {
-    if (filtered.length === 0) return;
-
-    // Only allow selecting TRANSFERRED_TO_OWNER orders
-    const transferredOrders = filtered.filter(
-      (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER"
-    );
-
-    if (transferredOrders.length === 0) {
-      toast.error(
-        "No orders with Transferred status available to select. Only transferred orders can be confirmed."
-      );
-      return;
-    }
-
-    setSelectedOrderIds(
-      new Set(transferredOrders.map((o: DisplayOrder) => o.id))
-    );
-  };
-
-  const clearSelection = () => {
-    setSelectedOrderIds(new Set());
-    setBulkStatusChange("");
-  };
-
-  const handleBulkStatusChange = async () => {
-    if (!selectedOrderIds.size) {
-      toast.error("No orders selected");
-      return;
-    }
-    if (!selectedOrdersStatus) {
-      toast.error("Selected orders must have the same status");
-      return;
-    }
-
-    // Auto-set status for TRANSFERRED_TO_OWNER orders
-    const targetStatus =
-      selectedOrdersStatus === "TRANSFERRED_TO_OWNER"
-        ? "OWNER_CONFIRMED"
-        : bulkStatusChange;
-
-    if (!targetStatus) {
-      toast.error("Please select a status to change to");
-      return;
-    }
-
-    const ids = Array.from(selectedOrderIds);
-
-    try {
-      const result = await bulkUpdateOrderStatus({
-        orderIds: ids,
-        status: targetStatus,
-      }).unwrap();
-
-      if (result.failed && result.failed.length > 0) {
-        toast.warning(
-          `Updated ${result.updated.length} order(s), ${result.failed.length} failed`
-        );
-      } else {
-        toast.success(`Successfully updated ${result.updated.length} order(s)`);
-      }
-      clearSelection();
-      refetch();
-    } catch (err: unknown) {
-      const error = err as {
-        data?: { message?: string };
-        message?: string;
-      };
-      toast.error(
-        error?.data?.message || error?.message || "Failed to update orders"
-      );
-    }
-  };
-
-  const handleStatusChange = async (orderId: string, status: OrderStatus) => {
-    try {
-      await updateOrderStatus({ id: orderId, status }).unwrap();
-      toast.success("Order status updated successfully");
-      refetch();
-    } catch (err: unknown) {
-      const error = err as {
-        data?: { message?: string };
-        message?: string;
-      };
-      toast.error(
-        error?.data?.message ||
-          error?.message ||
-          "Failed to update order status"
-      );
-    }
-  };
-
-  // Owner-specific status transitions: only TRANSFERRED_TO_OWNER can go to OWNER_CONFIRMED
-  // This confirms the cash transferred from the cashier
-  const getAvailableStatuses = (currentStatus: OrderStatus): OrderStatus[] => {
-    if (currentStatus === "TRANSFERRED_TO_OWNER") {
-      return ["OWNER_CONFIRMED"];
-    }
-    return [];
-  };
-
-  const datePresets = getDatePresets();
-
-  // Handle date range preset changes
-  useEffect(() => {
-    if (dateRangePreset === "today") {
-      setStartDate(datePresets.today.start);
-      setEndDate(datePresets.today.end);
-    } else if (dateRangePreset === "thisWeek") {
-      setStartDate(datePresets.thisWeek.start);
-      setEndDate(datePresets.thisWeek.end);
-    } else if (dateRangePreset === "thisMonth") {
-      setStartDate(datePresets.thisMonth.start);
-      setEndDate(datePresets.thisMonth.end);
-    } else if (dateRangePreset === "custom") {
-      // Keep current dates or clear if not set
-    } else {
-      // "all" - clear dates
-      setStartDate("");
-      setEndDate("");
-    }
-  }, [dateRangePreset]);
-
-  // Fetch waiters and cashiers for filters
+  // Staff lists
   const { data: waitersData } = useListStaffQuery({
     role: "waiter",
     status: "active",
     limit: 100,
   });
-
   const { data: cashiersData } = useListStaffQuery({
     role: "cashier",
-    status: "active",
     limit: 100,
   });
 
-  const waiterList = useMemo(() => {
-    if (!waitersData?.staff) return [];
-    return waitersData.staff.map(
-      (waiter: { _id?: string; id?: string; name: string }) => ({
-        id: waiter._id || waiter.id || "",
-        name: waiter.name,
-      })
+  const waiters = useMemo(
+    () =>
+      waitersData?.staff?.map((s) => ({ id: s._id || s.id, name: s.name })) ||
+      [],
+    [waitersData]
+  );
+  const cashiers = useMemo(
+    () =>
+      cashiersData?.staff?.map((s) => ({ id: s._id || s.id, name: s.name })) ||
+      [],
+    [cashiersData]
+  );
+
+  // Transform orders
+  const orders = useMemo(() => {
+    if (!ordersData) return [];
+    const list = Array.isArray(ordersData)
+      ? ordersData
+      : ordersData.orders || [];
+    return list.map((o: RTKOrder) => {
+      const ownerStatus = OWNER_STATUS_MAP[o.status] || "AWAITING_PAYMENT";
+      const config = STATUS_CONFIG[ownerStatus];
+
+      return {
+        id: o.id || o._id || "",
+        orderNumber: o.orderNumber,
+        tableNumber: o.tableNumber,
+        totalPrice: o.totalAmount,
+        date: o.placedAt || o.createdAt,
+        waiterName:
+          typeof o.waiterId === "object" ? o.waiterId?.name || "" : "",
+        cashierName:
+          typeof o.cashierId === "object" ? o.cashierId?.name || "" : "",
+        backendStatus: o.status,
+        ownerStatus,
+        statusText: config.text,
+        statusColor: config.color,
+        statusIcon: config.icon,
+      };
+    });
+  }, [ordersData]);
+
+  // Client-side filtering
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (allCashierFilter === "cashier" && !o.cashierName) return false;
+      if (!searchQuery.trim()) return true;
+
+      const q = searchQuery.toLowerCase();
+      return [o.orderNumber, o.tableNumber, o.waiterName, o.cashierName].some(
+        (field) => field?.toLowerCase().includes?.(q)
+      );
+    });
+  }, [orders, searchQuery, allCashierFilter]);
+
+  // Summary stats
+  const summary = useMemo(() => {
+    const paidToCashier = filteredOrders.filter(
+      (o) => o.backendStatus === "PAID_TO_CASHIER"
     );
-  }, [waitersData]);
-
-  const cashierList = useMemo(() => {
-    if (!cashiersData?.staff) return [];
-    return cashiersData.staff.map(
-      (cashier: { _id?: string; id?: string; name: string }) => ({
-        id: cashier._id || cashier.id || "",
-        name: cashier.name,
-      })
+    const transferred = filteredOrders.filter(
+      (o) => o.backendStatus === "TRANSFERRED_TO_OWNER"
     );
-  }, [cashiersData]);
+    const confirmed = filteredOrders.filter(
+      (o) => o.backendStatus === "OWNER_CONFIRMED"
+    );
+    const voided = filteredOrders.filter((o) => o.backendStatus === "VOIDED");
+    const open = filteredOrders.filter((o) => o.backendStatus === "OPEN");
 
-  // Reset staff filter when status changes
-  useEffect(() => {
-    setStaffFilter("all");
-  }, [statusFilter]);
+    return {
+      total: filteredOrders.length,
+      open: open.length,
+      received: paidToCashier.reduce((s, o) => s + o.totalPrice, 0),
+      receivedCount: paidToCashier.length,
+      toConfirm: transferred.reduce((s, o) => s + o.totalPrice, 0),
+      toConfirmCount: transferred.length,
+      confirmed: confirmed.reduce((s, o) => s + o.totalPrice, 0),
+      confirmedCount: confirmed.length,
+      voided: voided.length,
+      voidedAmount: voided.reduce((s, o) => s + o.totalPrice, 0),
+    };
+  }, [filteredOrders]);
 
-  const errorMessage =
-    error && "data" in error
-      ? (error.data as { message?: string; error?: string })?.message ||
-        (error.data as { message?: string; error?: string })?.error ||
-        "An error occurred"
-      : error && "error" in error
-      ? (error.error as string) || "An error occurred"
-      : null;
+  // Selection logic
+  const canConfirmSelected =
+    selectedIds.size > 0 &&
+    filteredOrders.some(
+      (o) => selectedIds.has(o.id) && o.backendStatus === "TRANSFERRED_TO_OWNER"
+    );
+
+  const toggleSelect = (id: string, status: OrderStatus) => {
+    if (status !== "TRANSFERRED_TO_OWNER") {
+      toast.error("Only transferred orders can be confirmed");
+      return;
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const selectAllTransferable = () => {
+    const transferable = filteredOrders
+      .filter((o) => o.backendStatus === "TRANSFERRED_TO_OWNER")
+      .map((o) => o.id);
+    if (transferable.length === 0) {
+      toast.error("No transferred orders to select");
+      return;
+    }
+    setSelectedIds(new Set(transferable));
+  };
+
+  const confirmBulk = async () => {
+    const ids = Array.from(selectedIds);
+    try {
+      const res = await bulkUpdate({
+        orderIds: ids,
+        status: "OWNER_CONFIRMED",
+      }).unwrap();
+      toast.success(`Confirmed ${res.updated?.length || ids.length} order(s)`);
+      setSelectedIds(new Set());
+      refetch();
+    } catch {
+      toast.error("Failed to confirm orders");
+    }
+  };
+
+  const errorMsg = error
+    ? (error as any)?.data?.message || "Failed to load orders"
+    : null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex items-start justify-between">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col sm:flex-row justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-            Owner History
-          </h1>
+          <h1 className="text-3xl font-semibold">Owner History</h1>
           {orders.length > 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Total Orders: {orders.length}
+            <p className="text-sm text-muted-foreground mt-1">
+              Total: {orders.length} orders
             </p>
           )}
         </div>
-        {/* Date Range Preset Selector */}
-        <div className="flex flex-col items-end gap-2">
-          <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
-            <SelectTrigger className="w-[180px]">
+
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border bg-background p-1">
+            {(["all", "cashier"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setAllCashierFilter(tab)}
+                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
+                  allCashierFilter === tab
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "all" ? "All" : "Cashier Only"}
+              </button>
+            ))}
+          </div>
+
+          <Select
+            value={dateRangePreset}
+            onValueChange={handleDateRangePresetChange}
+          >
+            <SelectTrigger className="w-48">
               <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Date Range" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Time</SelectItem>
@@ -573,158 +372,129 @@ export function OwnerHistory() {
               <SelectItem value="custom">Custom Range</SelectItem>
             </SelectContent>
           </Select>
+
           {dateRangePreset === "custom" && (
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-start gap-2">
-                <span className="text-slate-500">from</span>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-[150px]"
-                />
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-slate-500">to</span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-[150px]"
-                />
-              </div>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
           )}
         </div>
       </header>
 
-      {errorMessage && !isLoading && (
-        <ErrorState message={errorMessage} onRetry={() => refetch()} />
-      )}
-
+      {errorMsg && <ErrorState message={errorMsg} onRetry={refetch} />}
       {isLoading && <LoadingState message="Loading orders..." />}
 
-      {!isLoading && !errorMessage && (
+      {!isLoading && !errorMsg && (
         <>
-          {/* Enhanced Summary Stats Cards */}
-          {orders.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              <EnhancedStatCard
+          {/* Stats */}
+          {filteredOrders.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <StatCard
                 label="Open Orders"
-                value={summary.openOrdersCount}
-                icon={<AlertCircle className="h-5 w-5" />}
+                value={summary.open}
+                icon={<AlertCircle />}
                 color="blue"
-                subtitle={`Out of ${summary.totalOrders} total orders`}
               />
-              <EnhancedStatCard
-                label="To be Recived From Cashier"
+              <StatCard
+                label="To be Received"
                 value={`${summary.received.toFixed(2)} Br`}
-                icon={<TrendingUp className="h-5 w-5" />}
+                subtitle={`${summary.receivedCount} orders`}
+                icon={<TrendingUp />}
                 color="emerald"
-                subtitle={`${summary.receivedCount} orders (PAID_TO_CASHIER)`}
               />
-              <EnhancedStatCard
-                label="Awaiting Confirmation"
-                value={`${summary.toBeReceived.toFixed(2)} Br`}
-                icon={<ArrowRightLeft className="h-5 w-5" />}
+              <StatCard
+                label="Awaiting Confirm"
+                value={`${summary.toConfirm.toFixed(2)} Br`}
+                subtitle={`${summary.toConfirmCount} transferable`}
+                icon={<ArrowRightLeft />}
                 color="amber"
-                subtitle={`${summary.toBeReceivedCount} orders - Click to confirm`}
               />
-              <EnhancedStatCard
+              <StatCard
                 label="Confirmed"
                 value={`${summary.confirmed.toFixed(2)} Br`}
-                icon={<ShieldCheck className="h-5 w-5" />}
+                subtitle={`${summary.confirmedCount} orders`}
+                icon={<ShieldCheck />}
                 color="indigo"
-                subtitle={`${summary.confirmedCount} orders confirmed`}
               />
-              <EnhancedStatCard
+              <StatCard
                 label="Voided"
-                value={summary.voidedCount}
-                icon={<Ban className="h-5 w-5" />}
+                value={summary.voided}
+                subtitle={`${summary.voidedAmount.toFixed(2)} Br`}
+                icon={<Ban />}
                 color="red"
-                subtitle={`${summary.voidedRevenue.toFixed(2)} Br voided`}
               />
             </div>
           )}
 
-          {/* Search and Filters */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 p-2 rounded-full border bg-white dark:bg-slate-800">
+          {/* Search & Filters */}
+          <div className="flex flex-col lg:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                type="text"
-                placeholder="Search by order number, table, waiter, or cashier..."
+                placeholder="Search order, table, waiter, cashier..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-10 rounded-full"
+                className="pl-10"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
                 >
                   <X className="h-4 w-4" />
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                  <Filter className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                  <SelectValue placeholder="Status" />
+            <div className="flex gap-2">
+              <Select
+                value={statusFilter}
+                onValueChange={(v) => {
+                  setStatusFilter(v);
+                  setStaffFilter("all");
+                }}
+              >
+                <SelectTrigger>
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="PAID_TO_CASHIER">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" />
-                      to be received from cashier
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="TRANSFERRED_TO_OWNER">
-                    <div className="flex items-center gap-2">
-                      <ArrowRightLeft className="h-4 w-4" />
-                      Received
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="OWNER_CONFIRMED">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4" />
-                      Confirmed
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="OPEN">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4" />
-                      Open
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="DISPUTED">
-                    <div className="flex items-center gap-2">
-                      <XCircle className="h-4 w-4" />
-                      Disputed
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="VOIDED">
-                    <div className="flex items-center gap-2">
-                      <Ban className="h-4 w-4" />
-                      Voided
-                    </div>
-                  </SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                    <SelectItem
+                      key={key}
+                      value={
+                        Object.keys(OWNER_STATUS_MAP).find(
+                          (k) => OWNER_STATUS_MAP[k as OrderStatus] === key
+                        )!
+                      }
+                    >
+                      <div className="flex items-center gap-2">
+                        {cfg.icon} {cfg.text}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
-              {/* Staff Filter: Waiter for OPEN orders, Cashier for other statuses */}
-              {statusFilter === "OPEN" && waiterList.length > 0 && (
+              {statusFilter === "OPEN" && waiters.length > 0 && (
                 <Select value={staffFilter} onValueChange={setStaffFilter}>
-                  <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                    <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                  <SelectTrigger>
+                    <Users className="h-4 w-4 mr-2" />
                     <SelectValue placeholder="Waiter" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Waiters</SelectItem>
-                    {waiterList.map((w: { id: string; name: string }) => (
+                    {waiters.map((w) => (
                       <SelectItem key={w.id} value={w.id}>
                         {w.name}
                       </SelectItem>
@@ -732,141 +502,70 @@ export function OwnerHistory() {
                   </SelectContent>
                 </Select>
               )}
-              {statusFilter !== "OPEN" &&
-                statusFilter !== "all" &&
-                cashierList.length > 0 && (
-                  <Select value={staffFilter} onValueChange={setStaffFilter}>
-                    <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                      <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                      <SelectValue placeholder="Cashier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Cashiers</SelectItem>
-                      {cashierList.map((c: { id: string; name: string }) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+
+              {cashiers.length > 0 && (
+                <Select value={cashierFilter} onValueChange={setCashierFilter}>
+                  <SelectTrigger>
+                    <Users className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Cashier" />
+                  </SelectTrigger>
+                  <SelectContent className="w-fit">
+                    <SelectItem value="all">All Cashiers</SelectItem>
+                    {cashiers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
           {/* Bulk Actions */}
-          {selectedOrderIds.size > 0 && (
-            <div className="flex items-center gap-3 p-4 rounded-xl border bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-background">
+              <div className="flex items-center gap-4">
                 <Button
                   variant="ghost"
-                  onClick={selectAll}
-                  className="text-blue-700 dark:text-blue-400 whitespace-nowrap"
+                  size="sm"
+                  onClick={selectAllTransferable}
                 >
-                  Select All (
-                  {selectedOrdersStatus
-                    ? filtered.filter(
-                        (o: DisplayOrder) =>
-                          o.backendStatus === selectedOrdersStatus
-                      ).length
-                    : filtered.length}
-                  )
+                  Select All Transferable ({summary.toConfirmCount})
                 </Button>
-                <span className="text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap">
-                  {selectedOrderIds.size} selected
-                  {selectedOrdersStatus && (
-                    <span className="ml-2 text-xs text-nowrap">
-                      (Status: {getStatusBadgeText(selectedOrdersStatus)})
-                    </span>
-                  )}
+                <span className="text-sm font-medium">
+                  {selectedIds.size} selected
                 </span>
               </div>
-              {selectedOrdersStatus && (
-                <div className="flex items-center gap-2 flex-1">
-                  {selectedOrdersStatus === "TRANSFERRED_TO_OWNER" ? (
-                    <>
-                      <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
-                        <ArrowRightLeft className="h-4 w-4" />
-                        <span>
-                          Confirm {selectedOrderIds.size} transferred order
-                          {selectedOrderIds.size !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                      <Button
-                        onClick={handleBulkStatusChange}
-                        disabled={isBulkUpdating}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"
-                      >
-                        {isBulkUpdating ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Confirming...
-                          </>
-                        ) : (
-                          <>
-                            <ShieldCheck className="mr-2 h-4 w-4" />
-                            Confirm Transfer
-                          </>
-                        )}
-                      </Button>
-                    </>
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={confirmBulk}
+                  disabled={bulkUpdating || !canConfirmSelected}
+                >
+                  {bulkUpdating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <>
-                      <Select
-                        value={bulkStatusChange}
-                        onValueChange={(value) =>
-                          setBulkStatusChange(value as OrderStatus)
-                        }
-                      >
-                        <SelectTrigger className="w-[200px]">
-                          <SelectValue placeholder="Change status to..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getAvailableStatuses(selectedOrdersStatus).map(
-                            (status) => (
-                              <SelectItem key={status} value={status}>
-                                <div className="flex items-center gap-2">
-                                  {getStatusIcon(status)}
-                                  {getStatusBadgeText(status)}
-                                </div>
-                              </SelectItem>
-                            )
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        onClick={handleBulkStatusChange}
-                        disabled={isBulkUpdating || !bulkStatusChange}
-                        className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
-                      >
-                        {isBulkUpdating ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Updating...
-                          </>
-                        ) : (
-                          "Update Status"
-                        )}
-                      </Button>
-                    </>
+                    <ShieldCheck className="mr-2 h-4 w-4" />
                   )}
-                </div>
-              )}
-              <Button
-                variant="ghost"
-                onClick={clearSelection}
-                className="text-gray-600 dark:text-gray-400 whitespace-nowrap"
-              >
-                Clear
-              </Button>
+                  {bulkUpdating ? "Confirming..." : "Confirm Transfer"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
           )}
 
           {/* Table */}
-          <div className="rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700 overflow-hidden">
+          <div className="border rounded-xl overflow-hidden bg-background">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12" />
                   <TableHead>Order #</TableHead>
                   <TableHead>Waiter</TableHead>
                   <TableHead>Cashier</TableHead>
@@ -877,154 +576,91 @@ export function OwnerHistory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {filteredOrders.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
-                      className="text-center py-8 text-gray-500 dark:text-gray-400"
+                      className="text-center py-12 text-muted-foreground"
                     >
                       No orders found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((o: DisplayOrder) => {
-                    // Owner can only change TRANSFERRED_TO_OWNER to OWNER_CONFIRMED
-                    const canChangeStatus =
+                  filteredOrders.map((o) => {
+                    const selectable =
                       o.backendStatus === "TRANSFERRED_TO_OWNER";
-                    const canSelect =
-                      canChangeStatus &&
-                      (selectedOrderIds.size === 0 ||
-                        selectedOrdersStatus === o.backendStatus);
+                    const selected = selectedIds.has(o.id);
                     return (
                       <TableRow key={o.id}>
                         <TableCell>
                           <button
-                            onClick={() => {
-                              if (canSelect) {
-                                toggleSelect(o.id, o.backendStatus);
-                              } else if (!canChangeStatus) {
-                                toast.error(
-                                  `Orders with ${getStatusBadgeText(
-                                    o.backendStatus
-                                  )} status cannot be changed`
-                                );
-                              } else {
-                                toast.error(
-                                  "You can only select orders with the same status. Current selection: " +
-                                    getStatusBadgeText(selectedOrdersStatus!)
-                                );
-                              }
-                            }}
-                            disabled={!canSelect}
-                            className={`hover:opacity-70 ${
-                              !canSelect ? "opacity-30 cursor-not-allowed" : ""
-                            }`}
+                            onClick={() =>
+                              selectable && toggleSelect(o.id, o.backendStatus)
+                            }
+                            className={
+                              selectable ? "cursor-pointer" : "opacity-30"
+                            }
                             title={
-                              !canChangeStatus
-                                ? `Orders with ${getStatusBadgeText(
-                                    o.backendStatus
-                                  )} status cannot be changed`
-                                : !canSelect
-                                ? `Can only select orders with status: ${getStatusBadgeText(
-                                    selectedOrdersStatus!
-                                  )}`
-                                : "Select order"
+                              selectable
+                                ? "Select"
+                                : "Only transferred orders can be confirmed"
                             }
                           >
-                            {selectedOrderIds.has(o.id) ? (
-                              <CheckSquare className="text-blue-600 dark:text-blue-400" />
+                            {selected ? (
+                              <CheckSquare className="text-primary" />
                             ) : (
-                              <Square className="text-gray-400" />
+                              <Square className="text-muted-foreground" />
                             )}
                           </button>
                         </TableCell>
                         <TableCell className="font-medium">
                           {o.orderNumber}
                         </TableCell>
-                        <TableCell>{o.waiterName || "N/A"}</TableCell>
-                        <TableCell>{o.cashierName || "N/A"}</TableCell>
+                        <TableCell>{o.waiterName || "—"}</TableCell>
+                        <TableCell>{o.cashierName || "—"}</TableCell>
                         <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(o.status)}>
-                            {getStatusBadgeText(o.backendStatus)}
+                          <Badge className={o.statusColor}>
+                            {o.statusIcon}{" "}
+                            <span className="ml-1">{o.statusText}</span>
                           </Badge>
                         </TableCell>
                         <TableCell>{formatDate(o.date)}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
-                              onClick={() => {
-                                // Sample UI - show details (placeholder)
-                                toast.info("Order details view - Coming soon");
-                              }}
-                              title="View Details"
+                              onClick={() => toast.info("Details coming soon")}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {o.backendStatus === "TRANSFERRED_TO_OWNER" ? (
+                            {o.backendStatus === "TRANSFERRED_TO_OWNER" && (
                               <Button
-                                onClick={() =>
-                                  handleStatusChange(o.id, "OWNER_CONFIRMED")
-                                }
-                                disabled={isUpdating}
                                 size="sm"
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs whitespace-nowrap"
+                                onClick={() =>
+                                  updateStatus({
+                                    id: o.id,
+                                    status: "OWNER_CONFIRMED",
+                                  })
+                                    .unwrap()
+                                    .then(() => {
+                                      toast.success("Confirmed");
+                                      refetch();
+                                    })
+                                    .catch(() => toast.error("Failed"))
+                                }
+                                disabled={updating}
                               >
-                                {isUpdating ? (
-                                  <>
-                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                    Confirming...
-                                  </>
+                                {updating ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                  <>
-                                    <ShieldCheck className="mr-1 h-3 w-3" />
-                                    Confirm Transfer
-                                  </>
+                                  <ShieldCheck className="h-4 w-4 mr-1" />
                                 )}
+                                <span className="hidden sm:inline">
+                                  Confirm
+                                </span>
                               </Button>
-                            ) : getAvailableStatuses(o.backendStatus).length >
-                              0 ? (
-                              <Select
-                                value={o.backendStatus}
-                                onValueChange={(value) => {
-                                  if (value !== o.backendStatus) {
-                                    handleStatusChange(
-                                      o.id,
-                                      value as OrderStatus
-                                    );
-                                  }
-                                }}
-                                disabled={isUpdating}
-                              >
-                                <SelectTrigger className="w-full min-w-[140px] h-8 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value={o.backendStatus}>
-                                    <div className="flex items-center gap-2">
-                                      {getStatusIcon(o.backendStatus)}
-                                      {getStatusBadgeText(o.backendStatus)}
-                                    </div>
-                                  </SelectItem>
-                                  {getAvailableStatuses(o.backendStatus).map(
-                                    (status) => (
-                                      <SelectItem key={status} value={status}>
-                                        <div className="flex items-center gap-2">
-                                          {getStatusIcon(status)}
-                                          {getStatusBadgeText(status)}
-                                        </div>
-                                      </SelectItem>
-                                    )
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <span className="text-xs text-gray-400 dark:text-gray-500">
-                                No actions
-                              </span>
                             )}
                           </div>
                         </TableCell>
@@ -1041,56 +677,23 @@ export function OwnerHistory() {
   );
 }
 
-// -------------------- Enhanced Stat Card Component -------------------- //
-function EnhancedStatCard({
-  label,
-  value,
-  icon,
-  color = "blue",
-  subtitle,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color?:
-    | "blue"
-    | "green"
-    | "emerald"
-    | "purple"
-    | "indigo"
-    | "amber"
-    | "red"
-    | "orange";
-  subtitle?: string;
-}) {
-  const colorClasses = {
-    blue: "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-    green:
-      "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
-    emerald:
-      "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
-    purple:
-      "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
-    indigo:
-      "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
-    amber:
-      "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800",
-    red: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
-    orange:
-      "bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+// Simple reusable stat card
+function StatCard({ label, value, subtitle, icon, color = "blue" }: any) {
+  const colors: any = {
+    blue: "bg-blue-50 text-blue-700 border-blue-200",
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    amber: "bg-amber-50 text-amber-700 border-amber-200",
+    indigo: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    red: "bg-red-50 text-red-700 border-red-200",
   };
 
   return (
-    <div
-      className={`rounded-lg border p-4 shadow-sm transition-all hover:shadow-md ${colorClasses[color]}`}
-    >
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium opacity-80 uppercase tracking-wide">
-          {label}
-        </p>
-        <div className="opacity-60">{icon}</div>
+    <div className={`p-4 rounded-lg border ${colors[color]} bg-opacity-50`}>
+      <div className="flex justify-between items-start mb-2">
+        <p className="text-xs font-medium uppercase opacity-80">{label}</p>
+        <div className="opacity-70">{icon}</div>
       </div>
-      <p className="text-2xl font-bold mb-1">{value}</p>
+      <p className="text-2xl font-bold">{value}</p>
       {subtitle && <p className="text-xs opacity-70 mt-1">{subtitle}</p>}
     </div>
   );

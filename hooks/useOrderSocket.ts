@@ -6,6 +6,7 @@ import { useSelector } from "react-redux";
 import { connectSocket, getSocket } from "@/lib/socket";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import { ordersApi } from "@/stores/features/orders/ordersApi";
+import { offlineDetector } from "@/lib/offline/offlineDetector";
 
 interface OrderEventData {
   _id?: string;
@@ -31,6 +32,11 @@ export function useOrderSocket() {
 
   useEffect(() => {
     if (!user) {
+      return;
+    }
+
+    // Only connect socket when online
+    if (!offlineDetector.getOnlineStatus()) {
       return;
     }
 

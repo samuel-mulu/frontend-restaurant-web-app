@@ -1,4 +1,5 @@
 import { logout, markHydrated, setToken, setUser } from "./authSlice";
+import { storeAuth, clearAuth } from "@/lib/offline/authCache";
 import {
   ApiLoginResponse,
   ApiProfileResponse,
@@ -57,6 +58,19 @@ export const authApi = createApiEndpoints({
                 updatedAt: user.updatedAt,
               })
             );
+
+            // Store auth in offline cache
+            if (data.data.accessToken && user.id) {
+              const expiry = new Date();
+              expiry.setDate(expiry.getDate() + 30); // 30 days expiry
+              await storeAuth(
+                String(user.id),
+                user.role,
+                data.data.accessToken,
+                expiry.toISOString()
+              );
+            }
+
             dispatch(markHydrated());
           }
         } catch {
@@ -93,6 +107,8 @@ export const authApi = createApiEndpoints({
         try {
           await queryFulfilled;
         } finally {
+          // Clear offline auth cache
+          await clearAuth();
           dispatch(logout());
           dispatch(authApi.util.resetApiState());
           dispatch(markHydrated());

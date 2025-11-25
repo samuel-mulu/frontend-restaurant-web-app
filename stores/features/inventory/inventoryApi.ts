@@ -1,5 +1,6 @@
 import { createApiEndpoints } from "@/stores/baseApi";
 import { Inventory } from "@/lib/types";
+import { v4 as uuidv4 } from "uuid";
 
 export interface InventoryCategory {
   _id?: string;
@@ -171,6 +172,8 @@ export const inventoryApi = createApiEndpoints({
 
     createInventory: build.mutation<Inventory, CreateInventoryInput>({
       query: (body) => {
+        // Generate clientId for offline sync idempotency
+        const clientId = (body as any).clientId || uuidv4();
         return {
           url: "/inventory",
           method: "POST",
@@ -181,6 +184,7 @@ export const inventoryApi = createApiEndpoints({
             quantity: body.quantity,
             unit: body.unit,
             price: body.price,
+            clientId,
           },
         };
       },

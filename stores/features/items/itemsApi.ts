@@ -1,4 +1,5 @@
 import { createApiEndpoints } from "@/stores/baseApi";
+import { v4 as uuidv4 } from "uuid";
 import { Menu } from "@/lib/menu-store";
 
 export interface ImageInfo {
@@ -147,6 +148,9 @@ export const itemsApi = createApiEndpoints({
 
     createItem: build.mutation<Menu, CreateItemInput>({
       query: (body) => {
+        // Generate clientId for offline sync idempotency
+        const clientId = (body as any).clientId || uuidv4();
+
         // If image is provided, use FormData
         if (body.image) {
           const formData = new FormData();
@@ -164,6 +168,7 @@ export const itemsApi = createApiEndpoints({
             ).toString()
           );
           formData.append("image", body.image);
+          formData.append("clientId", clientId);
 
           return {
             url: "/items",
@@ -183,6 +188,7 @@ export const itemsApi = createApiEndpoints({
             price: body.price,
             isAvailable:
               body.isAvailable !== undefined ? body.isAvailable : true,
+            clientId,
           },
         };
       },

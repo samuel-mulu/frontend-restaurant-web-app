@@ -1,4 +1,5 @@
 import { createApiEndpoints } from "@/stores/baseApi";
+import { v4 as uuidv4 } from "uuid";
 
 export type OrderStatus =
   | "OPEN"
@@ -384,11 +385,18 @@ export const ordersApi = createApiEndpoints({
     }),
 
     createOrder: build.mutation<Order, CreateOrderInput>({
-      query: (body) => ({
-        url: "/orders",
-        method: "POST",
-        body,
-      }),
+      query: (body) => {
+        // Generate clientId for offline sync idempotency
+        const clientId = (body as any).clientId || uuidv4();
+        return {
+          url: "/orders",
+          method: "POST",
+          body: {
+            ...body,
+            clientId,
+          },
+        };
+      },
       transformResponse: (response: unknown): Order => {
         // API returns order directly
         return response as Order;

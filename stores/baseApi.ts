@@ -9,6 +9,7 @@ import type { BaseQueryFn } from "@reduxjs/toolkit/query";
 import { apiConfig } from "@/config/apiConfig";
 import { RootState } from "@/stores";
 import { logout, markHydrated } from "@/stores/features/auth/authSlice";
+import { createOfflineBaseQuery } from "./offline/offlineAdapter";
 
 /* -------------------------------------------------------
    ✅ Refresh Mutex
@@ -219,11 +220,17 @@ const baseQueryWithReauth: BaseQueryFn<
 };
 
 /* -------------------------------------------------------
+   ✅ Offline Base Query Wrapper
+   Wraps baseQueryWithReauth with offline support
+------------------------------------------------------- */
+const offlineBaseQuery = createOfflineBaseQuery(baseQueryWithReauth);
+
+/* -------------------------------------------------------
    🔥 The API Slice
 ------------------------------------------------------- */
 export const apiSlice = createApi({
   reducerPath: "api",
-  baseQuery: baseQueryWithReauth,
+  baseQuery: offlineBaseQuery,
   tagTypes: [
     "Auth",
     "Customer",

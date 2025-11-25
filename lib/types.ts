@@ -94,3 +94,61 @@ export interface Item {
   updatedAt: string;
   clientId?: string;
 }
+
+// POS Printer Service Types
+export interface POSPrinterHealth {
+  status: "ok" | "error";
+  printerConnected: boolean;
+  queue: {
+    length: number;
+    processing: boolean;
+  };
+  timestamp: string;
+  interface?: "usb" | "serial" | "mock";
+  printerName?: string;
+  serialPort?: string;
+}
+
+export interface POSPrinterConfig {
+  interface: "usb" | "serial" | "mock";
+  printerName?: string;
+  serialPort?: string;
+  printKey?: string; // Masked
+  maxRetries: number;
+  retryDelayMs: number;
+}
+
+export interface TestPrintResult {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
+// Printer Configuration Types
+export interface PrinterConfiguration {
+  interface: "usb" | "serial" | "mock";
+  usbName?: string | null;
+  serialPort?: string | null;
+  maxRetries: number;
+  retryDelayMs: number;
+}
+
+export interface AvailableDevices {
+  success: boolean;
+  usbPrinters: string[];
+  serialPorts: string[];
+  error?: string;
+}
+
+export interface TestConnectionResult {
+  success: boolean;
+  connected: boolean;
+  message?: string;
+  error?: string;
+}
+
+export interface ConfigResponse {
+  success: boolean;
+  config: PrinterConfiguration;
+  error?: string;
+}

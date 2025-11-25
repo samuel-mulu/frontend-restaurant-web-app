@@ -16,6 +16,7 @@ export interface InventoryResponse {
   category?: InventoryCategory;
   quantity: number;
   unit: string;
+  price: number;
   minThreshold?: number;
   isLowStock?: boolean;
   stockStatus?: "low" | "normal";
@@ -40,6 +41,7 @@ export interface CreateInventoryInput {
   categoryId?: string;
   quantity: number;
   unit: string;
+  price: number;
   minThreshold?: number;
 }
 
@@ -49,6 +51,7 @@ export interface UpdateInventoryInput {
   categoryId?: string;
   quantity?: number;
   unit?: string;
+  price?: number;
   minThreshold?: number;
 }
 
@@ -101,6 +104,7 @@ function transformInventory(item: any): Inventory {
     category: categoryId,
     quantity: item.quantity,
     unit: item.unit,
+    price: item.price ?? 0, // Fallback for migration period only
     minThreshold,
     description: item.description,
     isLowStock,
@@ -181,6 +185,7 @@ export const inventoryApi = createApiEndpoints({
             categoryId: body.categoryId || undefined,
             quantity: body.quantity,
             unit: body.unit,
+            price: body.price,
             minThreshold: body.minThreshold,
           },
         };
@@ -204,6 +209,7 @@ export const inventoryApi = createApiEndpoints({
           updateData.categoryId = data.categoryId || null;
         if (data.quantity !== undefined) updateData.quantity = data.quantity;
         if (data.unit !== undefined) updateData.unit = data.unit;
+        if (data.price !== undefined) updateData.price = data.price;
         if (data.minThreshold !== undefined)
           updateData.minThreshold = data.minThreshold;
 

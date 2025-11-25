@@ -55,6 +55,8 @@ import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { useOrderSocket } from "@/hooks/useOrderSocket";
+import { OrderDetailsModal } from "@/components/features/OrderDetailsModal";
 
 // -------------------- Types & Utilities -------------------- //
 
@@ -213,6 +215,13 @@ export function CashierHistory() {
   const [dateRangePreset, setDateRangePreset] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+
+  // Order details modal state
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Real-time updates
+  useOrderSocket();
 
   // Determine statuses to fetch based on roleView
   const statusesToFetch = useMemo(() => {
@@ -1259,8 +1268,8 @@ export function CashierHistory() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => {
-                                // Sample UI - show details (placeholder)
-                                toast.info("Order details view - Coming soon");
+                                setSelectedOrderId(o.id);
+                                setIsModalOpen(true);
                               }}
                               title="View Details"
                             >
@@ -1321,6 +1330,13 @@ export function CashierHistory() {
           </div>
         </>
       )}
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        orderId={selectedOrderId}
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+      />
     </div>
   );
 }

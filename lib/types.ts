@@ -27,6 +27,7 @@ export interface Inventory {
   category: string; // categoryId as string
   quantity: number;
   unit: string;
+  price: number;
   minThreshold?: number;
   description?: string;
   isLowStock?: boolean;

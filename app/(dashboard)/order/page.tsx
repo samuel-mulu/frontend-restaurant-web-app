@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Loading } from "@/components/ui/loading";
-import { Plus, Minus, Trash2 } from "lucide-react";
+import { Plus, Minus, Trash2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,16 +23,16 @@ import { useCreateOrderMutation } from "@/stores/features/orders/ordersApi";
 import { Menu } from "@/lib/menu-store";
 import { Category, Inventory } from "@/lib/types";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 type MenuCartItem = Menu & { quantity: number; type: "menu" };
 type InventoryCartItem = Inventory & {
   quantity: number;
-  price: number;
   type: "inventory";
 };
 type CartItem = MenuCartItem | InventoryCartItem;
 
-export default function PixelPerfectMenu() {
+export default function OrderPage() {
   // Route protection - Only cashiers and waiters can access this page
   const auth = useRequireAuth({
     allowedRoles: ["cashier", "waiter"],
@@ -47,7 +47,7 @@ export default function PixelPerfectMenu() {
     React.useState<string>("all");
   const [activeTab, setActiveTab] = useState<"menu" | "inventory">("menu");
   const [orderNote, setOrderNote] = React.useState<string>("");
-  const [inventoryPrices, setInventoryPrices] = useState<
+  const [inventoryQuantities, setInventoryQuantities] = useState<
     Record<string, number>
   >({});
 
@@ -82,6 +82,7 @@ export default function PixelPerfectMenu() {
     data: inventoryData,
     isLoading: inventoryLoading,
     error: inventoryError,
+    refetch: refetchInventory,
   } = useListInventoryQuery(
     selectedInventoryCategory &&
       selectedInventoryCategory !== "all" &&
@@ -96,10 +97,6 @@ export default function PixelPerfectMenu() {
     categoriesLoading ||
     itemsLoading ||
     inventoryLoading;
-
-  useEffect(() => {
-    console.log("waiter", waitersData);
-  }, [waitersData]);
 
   // Extract data from queries
   const waiters = waitersData?.staff || [];
@@ -134,28 +131,52 @@ export default function PixelPerfectMenu() {
   };
 
   const addInventoryItem = (item: Inventory) => {
-    const price = inventoryPrices[item.id] || 0;
-    if (price <= 0) {
-      toast.error("Please enter a purchase price for this inventory item");
+    const quantity = inventoryQuantities[item.id] || 1;
+    
+    if (quantity <= 0) {
+      toast.error("Please enter a valid quantity");
       return;
     }
+
+    if (quantity > item.quantity) {
+      toast.error(
+        `Insufficient stock. Available: ${item.quantity} ${item.unit}`
+      );
+      return;
+    }
+
+    if (!item.price || item.price <= 0) {
+      toast.error("This inventory item has no price set");
+      return;
+    }
+
     setCart((c) => {
       const itemId = item.id;
       const existingItem = c.find(
         (i) => i.id === itemId && i.type === "inventory"
       );
       if (existingItem) {
+        const newQuantity = (existingItem as InventoryCartItem).quantity + quantity;
+        if (newQuantity > item.quantity) {
+          toast.error(
+            `Cannot add more. Available: ${item.quantity} ${item.unit}`
+          );
+          return c;
+        }
         return c.map((i) =>
           i.id === itemId && i.type === "inventory"
-            ? { ...i, quantity: i.quantity + 1 }
+            ? { ...i, quantity: newQuantity }
             : i
         );
       }
       return [
         ...c,
-        { ...item, quantity: 1, price, type: "inventory" as const },
+        { ...item, quantity, type: "inventory" as const },
       ];
     });
+
+    // Reset quantity input
+    setInventoryQuantities((prev) => ({ ...prev, [item.id]: 1 }));
   };
 
   const updateQuantity = (itemId: string, delta: number) => {
@@ -163,6 +184,29 @@ export default function PixelPerfectMenu() {
       const item = c.find((i) => i.id === itemId);
       if (!item) return c;
 
+      // For inventory items, check available stock
+      if (item.type === "inventory") {
+        const inventoryItem = inventoryItems.find(
+          (inv: Inventory) => inv.id === itemId
+        );
+        if (inventoryItem) {
+          const newQuantity = item.quantity + delta;
+          if (newQuantity > inventoryItem.quantity) {
+            toast.error(
+              `Cannot increase quantity. Available: ${inventoryItem.quantity} ${inventoryItem.unit}`
+            );
+            return c;
+          }
+          if (newQuantity <= 0) {
+            return c.filter((i) => i.id !== itemId);
+          }
+          return c.map((i) =>
+            i.id === itemId ? { ...i, quantity: newQuantity } : i
+          );
+        }
+      }
+
+      // For menu items, no stock check needed
       const newQuantity = item.quantity + delta;
       if (newQuantity <= 0) {
         return c.filter((i) => i.id !== itemId);
@@ -201,6 +245,25 @@ export default function PixelPerfectMenu() {
       return;
     }
 
+    // Validate inventory quantities before submission
+    for (const cartItem of cart) {
+      if (cartItem.type === "inventory") {
+        const inventoryItem = inventoryItems.find(
+          (inv: Inventory) => inv.id === cartItem.id
+        );
+        if (!inventoryItem) {
+          toast.error(`Inventory item ${cartItem.name} not found`);
+          return;
+        }
+        if (cartItem.quantity > inventoryItem.quantity) {
+          toast.error(
+            `Insufficient quantity for ${cartItem.name}. Available: ${inventoryItem.quantity} ${inventoryItem.unit}, Requested: ${cartItem.quantity}`
+          );
+          return;
+        }
+      }
+    }
+
     try {
       // Validate item IDs are present
       const invalidItems = cart.filter(
@@ -218,7 +281,7 @@ export default function PixelPerfectMenu() {
         itemId: item.id,
         qty: item.quantity,
         nameSnapshot: item.name,
-        priceSnapshot: item.type === "menu" ? item.price : item.price,
+        priceSnapshot: item.price,
       }));
 
       // Get table number from selected table ID (optional)
@@ -233,18 +296,12 @@ export default function PixelPerfectMenu() {
 
       // Prepare order payload
       const orderPayload = {
-        ...(tableNumber && { tableNumber }), // Only include if table is selected
+        ...(tableNumber && { tableNumber }),
         items: orderItems,
         waiterId: selectedWaiter,
         note: orderNote.trim() || undefined,
-        customerChannel: "pos", // POS system for cashier-created orders
+        customerChannel: "pos",
       };
-
-      // Log the payload for debugging
-      console.log(
-        "Creating order with payload:",
-        JSON.stringify(orderPayload, null, 2)
-      );
 
       // Create order
       const result = await createOrder(orderPayload).unwrap();
@@ -259,11 +316,13 @@ export default function PixelPerfectMenu() {
       setSelectedWaiter("");
       setSelectedTable("");
       setOrderNote("");
+      setInventoryQuantities({});
+
+      // Refetch inventory to update quantities
+      refetchInventory();
     } catch (error: unknown) {
       console.error("Error creating order:", error);
 
-      // Handle RTK Query error format
-      // RTK Query errors have structure: { status: number, data: {...} }
       const err = error as {
         status?: number | string;
         data?:
@@ -275,38 +334,21 @@ export default function PixelPerfectMenu() {
         message?: string;
       };
 
-      // Extract error message from various possible locations
       let errorMessage = "Failed to create order. Please try again.";
 
-      // Check if data is a string (some APIs return error as string)
       if (typeof err?.data === "string") {
         errorMessage = err.data;
-      }
-      // Check if data is an object with error/message
-      else if (err?.data && typeof err.data === "object") {
+      } else if (err?.data && typeof err.data === "object") {
         errorMessage =
           err.data.error ||
           err.data.message ||
           err.data.details ||
           errorMessage;
-      }
-      // Check top-level message
-      else if (err?.message) {
+      } else if (err?.message) {
         errorMessage = err.message;
-      }
-      // Check top-level error
-      else if (err?.error) {
+      } else if (err?.error) {
         errorMessage = err.error;
       }
-
-      // Log full error structure for debugging
-      console.error("Error structure:", {
-        status: err?.status,
-        data: err?.data,
-        message: err?.message,
-        error: err?.error,
-        fullError: error,
-      });
 
       toast.error("Failed to create order", {
         description: errorMessage,
@@ -319,6 +361,7 @@ export default function PixelPerfectMenu() {
       <div className="mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6 p-4 lg:p-6">
         <div className="lg:col-span-3 bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 pt-5 pb-3">
+            <h2 className="text-2xl font-semibold mb-4">Create Order</h2>
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as "menu" | "inventory")}
@@ -396,7 +439,6 @@ export default function PixelPerfectMenu() {
                                 <h4 className="text-foreground text-lg font-semibold leading-tight">
                                   {item.name}
                                 </h4>
-
                                 <div className="text-primary font-semibold text-base mt-2">
                                   Br {item.price.toFixed(2)}
                                 </div>
@@ -478,7 +520,11 @@ export default function PixelPerfectMenu() {
                     </div>
                   ) : (
                     inventoryItems.map((item: Inventory) => {
-                      const currentPrice = inventoryPrices[item.id] || 0;
+                      const currentQuantity = inventoryQuantities[item.id] || 1;
+                      const isLowStock = item.isLowStock || false;
+                      const isOutOfStock = item.quantity === 0;
+                      const maxQuantity = item.quantity;
+
                       return (
                         <div
                           key={item.id}
@@ -487,31 +533,67 @@ export default function PixelPerfectMenu() {
                           <div className="flex-1">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
-                                <h4 className="text-foreground text-lg font-semibold leading-tight">
-                                  {item.name}
-                                </h4>
-                                <div className="text-sm text-muted-foreground mt-1">
-                                  Stock: {item.quantity} {item.unit}
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="text-foreground text-lg font-semibold leading-tight">
+                                    {item.name}
+                                  </h4>
+                                  {isLowStock && !isOutOfStock && (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                                    >
+                                      <AlertCircle className="h-3 w-3 mr-1" />
+                                      Low Stock
+                                    </Badge>
+                                  )}
+                                  {isOutOfStock && (
+                                    <Badge
+                                      variant="outline"
+                                      className="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200 dark:border-red-800"
+                                    >
+                                      Out of Stock
+                                    </Badge>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-2 mt-2">
+                                {item.description && (
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {item.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-4 mt-2">
+                                  <div className="text-sm text-muted-foreground">
+                                    <span className="font-medium">Stock:</span>{" "}
+                                    {item.quantity} {item.unit}
+                                  </div>
+                                  <div className="text-primary font-semibold text-base">
+                                    Br {item.price.toFixed(2)}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 mt-3">
+                                  <label className="text-sm font-medium text-foreground">
+                                    Quantity:
+                                  </label>
                                   <Input
                                     type="number"
-                                    placeholder="Price"
-                                    value={currentPrice || ""}
+                                    min="1"
+                                    max={maxQuantity}
+                                    value={currentQuantity}
                                     onChange={(e) => {
-                                      const price =
-                                        parseFloat(e.target.value) || 0;
-                                      setInventoryPrices((prev) => ({
+                                      const qty = parseInt(e.target.value) || 1;
+                                      const clampedQty = Math.max(
+                                        1,
+                                        Math.min(qty, maxQuantity)
+                                      );
+                                      setInventoryQuantities((prev) => ({
                                         ...prev,
-                                        [item.id]: price,
+                                        [item.id]: clampedQty,
                                       }));
                                     }}
-                                    className="w-24 h-8 text-sm"
-                                    min="0"
-                                    step="0.01"
+                                    className="w-20 h-8 text-sm"
+                                    disabled={isOutOfStock}
                                   />
                                   <span className="text-xs text-muted-foreground">
-                                    Br
+                                    Max: {maxQuantity}
                                   </span>
                                 </div>
                               </div>
@@ -522,7 +604,11 @@ export default function PixelPerfectMenu() {
                                   size={"sm"}
                                   className="px-6 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                                   aria-label={`Add ${item.name}`}
-                                  disabled={currentPrice <= 0}
+                                  disabled={
+                                    isOutOfStock ||
+                                    currentQuantity <= 0 ||
+                                    currentQuantity > maxQuantity
+                                  }
                                 >
                                   <Plus size={16} className="mr-1.5" />
                                   Add Item
@@ -554,6 +640,7 @@ export default function PixelPerfectMenu() {
                 setCart([]);
                 setSelectedWaiter("");
                 setSelectedTable("");
+                setInventoryQuantities({});
               }}
             >
               Clear
@@ -652,7 +739,7 @@ export default function PixelPerfectMenu() {
 
           <hr className="my-4 border-t border-border shrink-0" />
 
-          {/* Cart Items List - Scrollable, max 4 items visible */}
+          {/* Cart Items List - Scrollable */}
           <div className="flex-1 min-h-0 overflow-y-auto max-h-[60vh] pr-1">
             <div className="space-y-4">
               {cart.length === 0 ? (
@@ -660,56 +747,137 @@ export default function PixelPerfectMenu() {
                   Your cart is empty
                 </div>
               ) : (
-                cart.map((item) => {
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-start justify-between gap-3 "
-                    >
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <h4 className="text-foreground font-medium text-sm leading-tight truncate">
-                          {item.name}
-                        </h4>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Br{" "}
-                          {item.type === "menu"
-                            ? item.price.toFixed(2)
-                            : item.price.toFixed(2)}{" "}
-                          × {item.quantity}
-                          {item.type === "inventory" && ` (${item.unit})`}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
-                            aria-label="Decrease quantity"
-                          >
-                            <Minus size={12} />
-                          </button>
-                          <span className="text-sm font-semibold text-foreground min-w-7 text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => updateQuantity(item.id, 1)}
-                            className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
-                            aria-label="Increase quantity"
-                          >
-                            <Plus size={12} />
-                          </button>
-                        </div>
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-600  hover:text-destructive transition-colors p-1"
-                          aria-label="Remove item "
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                <>
+                  {/* Menu Items Section */}
+                  {cart.filter((item) => item.type === "menu").length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-2">
+                        Menu Items
+                      </h4>
+                      <div className="space-y-3">
+                        {cart
+                          .filter((item) => item.type === "menu")
+                          .map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-start justify-between gap-3"
+                            >
+                              <div className="flex flex-col flex-1 min-w-0">
+                                <h4 className="text-foreground font-medium text-sm leading-tight truncate">
+                                  {item.name}
+                                </h4>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Br {item.price.toFixed(2)} × {item.quantity}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => updateQuantity(item.id, -1)}
+                                    className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
+                                    aria-label="Decrease quantity"
+                                  >
+                                    <Minus size={12} />
+                                  </button>
+                                  <span className="text-sm font-semibold text-foreground min-w-7 text-center">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => updateQuantity(item.id, 1)}
+                                    className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
+                                    aria-label="Increase quantity"
+                                  >
+                                    <Plus size={12} />
+                                  </button>
+                                </div>
+                                <button
+                                  onClick={() => removeItem(item.id)}
+                                  className="text-red-600 hover:text-destructive transition-colors p-1"
+                                  aria-label="Remove item"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
                       </div>
                     </div>
-                  );
-                })
+                  )}
+
+                  {/* Inventory Items Section */}
+                  {cart.filter((item) => item.type === "inventory").length >
+                    0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground mb-2">
+                        Inventory Items
+                      </h4>
+                      <div className="space-y-3">
+                        {cart
+                          .filter((item) => item.type === "inventory")
+                          .map((item) => {
+                            const inventoryItem = inventoryItems.find(
+                              (inv: Inventory) => inv.id === item.id
+                            );
+                            const availableQty = inventoryItem?.quantity || 0;
+                            const cartQty = item.quantity;
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="flex items-start justify-between gap-3"
+                              >
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <h4 className="text-foreground font-medium text-sm leading-tight truncate">
+                                    {item.name}
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    Br {item.price.toFixed(2)} × {cartQty}{" "}
+                                    {item.unit}
+                                  </p>
+                                  {cartQty > availableQty && (
+                                    <p className="text-xs text-destructive mt-1">
+                                      Available: {availableQty} {item.unit}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() =>
+                                        updateQuantity(item.id, -1)
+                                      }
+                                      className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
+                                      aria-label="Decrease quantity"
+                                    >
+                                      <Minus size={12} />
+                                    </button>
+                                    <span className="text-sm font-semibold text-foreground min-w-7 text-center">
+                                      {item.quantity}
+                                    </span>
+                                    <button
+                                      onClick={() => updateQuantity(item.id, 1)}
+                                      className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      aria-label="Increase quantity"
+                                      disabled={cartQty >= availableQty}
+                                    >
+                                      <Plus size={12} />
+                                    </button>
+                                  </div>
+                                  <button
+                                    onClick={() => removeItem(item.id)}
+                                    className="text-red-600 hover:text-destructive transition-colors p-1"
+                                    aria-label="Remove item"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -742,3 +910,4 @@ export default function PixelPerfectMenu() {
     </div>
   );
 }
+

@@ -64,7 +64,7 @@ const getNavigationItems = (role?: string) => {
   // Cashier and Waiter get Create Order (not staff, not owner)
   if (role === "cashier" || role === "waiter") {
     return [
-      { name: "Create Order", href: "/create-order", icon: ShoppingCart },
+      { name: "Create Order", href: "/order", icon: ShoppingCart },
       ...baseItems,
     ];
   }

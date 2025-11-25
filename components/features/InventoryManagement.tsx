@@ -49,17 +49,21 @@ interface InventoryFormData {
   description: string;
   quantity: string;
   unit: string;
+  price: string;
   minThreshold: string;
 }
 
 export function InventoryManagement() {
   const user = useSelector(selectUser);
   const isOwner = user?.role === "owner";
-  
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editingInventoryId, setEditingInventoryId] = useState<string | null>(null);
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+  const [editingInventoryId, setEditingInventoryId] = useState<string | null>(
+    null
+  );
+  const [selectedCategoryFilter, setSelectedCategoryFilter] =
+    useState<string>("all");
   const [lowStockFilter, setLowStockFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [formData, setFormData] = useState<InventoryFormData>({
@@ -68,6 +72,7 @@ export function InventoryManagement() {
     description: "",
     quantity: "",
     unit: "",
+    price: "",
     minThreshold: "0",
   });
 
@@ -84,19 +89,24 @@ export function InventoryManagement() {
     error: inventoryError,
     refetch: refetchInventory,
   } = useListInventoryQuery({
-    categoryId: selectedCategoryFilter === "all" ? undefined : selectedCategoryFilter,
+    categoryId:
+      selectedCategoryFilter === "all" ? undefined : selectedCategoryFilter,
   });
 
-  const [createInventory, { isLoading: isCreating }] = useCreateInventoryMutation();
-  const [updateInventory, { isLoading: isUpdating }] = useUpdateInventoryMutation();
+  const [createInventory, { isLoading: isCreating }] =
+    useCreateInventoryMutation();
+  const [updateInventory, { isLoading: isUpdating }] =
+    useUpdateInventoryMutation();
 
   const isSubmitting = isCreating || isUpdating;
   const isLoading = isLoadingInventory || isLoadingCategories;
   const error =
     inventoryError && "data" in inventoryError
-      ? (inventoryError.data as { message?: string })?.message || "An error occurred"
+      ? (inventoryError.data as { message?: string })?.message ||
+        "An error occurred"
       : categoriesError && "data" in categoriesError
-      ? (categoriesError.data as { message?: string })?.message || "An error occurred"
+      ? (categoriesError.data as { message?: string })?.message ||
+        "An error occurred"
       : null;
 
   const getCategoryName = useCallback(
@@ -116,12 +126,18 @@ export function InventoryManagement() {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
         const matchesName = item.name.toLowerCase().includes(query);
-        const matchesDescription = item.description?.toLowerCase().includes(query) || false;
+        const matchesDescription =
+          item.description?.toLowerCase().includes(query) || false;
         const matchesCategory = getCategoryName(item.category)
           .toLowerCase()
           .includes(query);
         const matchesUnit = item.unit.toLowerCase().includes(query);
-        if (!matchesName && !matchesDescription && !matchesCategory && !matchesUnit) {
+        if (
+          !matchesName &&
+          !matchesDescription &&
+          !matchesCategory &&
+          !matchesUnit
+        ) {
           return false;
         }
       }
@@ -164,6 +180,11 @@ export function InventoryManagement() {
       toast.error("Please enter a unit");
       return;
     }
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price < 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
     const minThreshold = parseFloat(formData.minThreshold || "0");
     if (isNaN(minThreshold) || minThreshold < 0) {
       toast.error("Please enter a valid minimum threshold");
@@ -177,6 +198,7 @@ export function InventoryManagement() {
         categoryId: formData.categoryId || undefined,
         quantity,
         unit: formData.unit.trim(),
+        price,
         minThreshold,
       }).unwrap();
 
@@ -186,7 +208,9 @@ export function InventoryManagement() {
     } catch (err: unknown) {
       const error = err as { data?: { message?: string }; message?: string };
       const message =
-        error?.data?.message || error?.message || "Failed to create inventory item";
+        error?.data?.message ||
+        error?.message ||
+        "Failed to create inventory item";
       toast.error(message);
     }
   };
@@ -201,6 +225,7 @@ export function InventoryManagement() {
         description: item.description || "",
         quantity: item.quantity.toString(),
         unit: item.unit,
+        price: item.price.toString(),
         minThreshold: (item.minThreshold ?? 0).toString(),
       });
       setIsEditOpen(true);
@@ -225,6 +250,11 @@ export function InventoryManagement() {
       toast.error("Please enter a unit");
       return;
     }
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price < 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
     const minThreshold = parseFloat(formData.minThreshold || "0");
     if (isNaN(minThreshold) || minThreshold < 0) {
       toast.error("Please enter a valid minimum threshold");
@@ -240,6 +270,7 @@ export function InventoryManagement() {
           categoryId: formData.categoryId || undefined,
           quantity,
           unit: formData.unit.trim(),
+          price,
           minThreshold,
         },
       }).unwrap();
@@ -255,7 +286,9 @@ export function InventoryManagement() {
         status?: number;
       };
       const message =
-        error?.data?.message || error?.message || "Failed to update inventory item";
+        error?.data?.message ||
+        error?.message ||
+        "Failed to update inventory item";
       if (error?.status === 404) {
         toast.error("Item not found. It may have been deleted.");
         refetchInventory();
@@ -283,6 +316,7 @@ export function InventoryManagement() {
       description: "",
       quantity: "",
       unit: "",
+      price: "",
       minThreshold: "0",
     });
   };
@@ -381,7 +415,9 @@ export function InventoryManagement() {
         </div>
       )}
 
-      {isLoadingInventory && <LoadingState message="Loading inventory items..." />}
+      {isLoadingInventory && (
+        <LoadingState message="Loading inventory items..." />
+      )}
 
       {!isLoadingInventory && !error && filteredItems.length === 0 && (
         <EmptyState
@@ -432,13 +468,17 @@ export function InventoryManagement() {
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Quantity:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Quantity:
+                  </span>
                   <span className="ml-2 font-medium text-gray-900 dark:text-gray-100">
                     {item.quantity} {item.unit}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Min Threshold:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Min Threshold:
+                  </span>
                   <span className="ml-2 font-medium text-gray-900 dark:text-gray-100">
                     {item.minThreshold ?? 0} {item.unit}
                   </span>
@@ -456,7 +496,9 @@ export function InventoryManagement() {
                   </span>
                 </div>
                 <div className="col-span-2">
-                  <span className="text-gray-600 dark:text-gray-400">Updated:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Updated:
+                  </span>
                   <span className="ml-2 font-medium text-gray-900 dark:text-gray-100">
                     {item.updatedAt}
                   </span>
@@ -652,7 +694,9 @@ function InventoryForm({
         <Label htmlFor="inventory-category">Category (Optional)</Label>
         <Select
           value={formData.categoryId || "none"}
-          onValueChange={(val) => setFormData({ ...formData, categoryId: val === "none" ? "" : val })}
+          onValueChange={(val) =>
+            setFormData({ ...formData, categoryId: val === "none" ? "" : val })
+          }
           disabled={isLoadingCategories}
         >
           <SelectTrigger className="mt-2 min-h-[44px]">
@@ -731,6 +775,20 @@ function InventoryForm({
         />
       </div>
       <div>
+        <Label htmlFor="inventory-price">Price (Br) *</Label>
+        <Input
+          id="inventory-price"
+          type="number"
+          step="0.01"
+          min="0"
+          value={formData.price}
+          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+          placeholder="0.00"
+          className="mt-2 min-h-[44px]"
+          required
+        />
+      </div>
+      <div>
         <Label htmlFor="inventory-minThreshold">Minimum Threshold *</Label>
         <Input
           id="inventory-minThreshold"
@@ -752,4 +810,3 @@ function InventoryForm({
     </div>
   );
 }
-

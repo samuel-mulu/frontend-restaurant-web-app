@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -11,6 +11,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -44,6 +53,7 @@ import {
   useBulkUpdateOrderStatusMutation,
   OrderStatus,
   Order as RTKOrder,
+  OrderItem,
 } from "@/stores/features/orders/ordersApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -51,7 +61,15 @@ import { ErrorState } from "@/components/shared/ErrorState";
 
 // -------------------- Constants & Mappings -------------------- //
 
-const OWNER_STATUS_MAP: Record<OrderStatus, string> = {
+type OwnerStatus =
+  | "AWAITING_PAYMENT"
+  | "AWAITING_TRANSFER"
+  | "AWAITING_CONFIRMATION"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "NEEDS_REVIEW";
+
+const OWNER_STATUS_MAP: Record<OrderStatus, OwnerStatus> = {
   OPEN: "AWAITING_PAYMENT",
   PAID_TO_CASHIER: "AWAITING_TRANSFER",
   TRANSFERRED_TO_OWNER: "AWAITING_CONFIRMATION",
@@ -61,8 +79,8 @@ const OWNER_STATUS_MAP: Record<OrderStatus, string> = {
 };
 
 const STATUS_CONFIG: Record<
-  string,
-  { text: string; color: string; icon: React.ReactNode }
+  OwnerStatus,
+  { text: string; color: string; icon: ReactNode }
 > = {
   AWAITING_PAYMENT: {
     text: "Awaiting Payment",
@@ -100,7 +118,38 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const formatDate = (date: string) => new Date(date).toISOString().split("T")[0];
+type OwnerOrderRow = {
+  id: string;
+  orderNumber?: string;
+  tableNumber?: string | number;
+  totalPrice: number;
+  date?: string;
+  waiterName?: string;
+  cashierName?: string;
+  backendStatus: OrderStatus;
+  ownerStatus: OwnerStatus;
+  statusText: string;
+  statusColor: string;
+  statusIcon: ReactNode;
+  items: OrderItem[];
+  note?: string;
+};
+
+type StaffRecord = {
+  _id?: string;
+  id?: string;
+  name?: string;
+};
+
+type StaffOption = {
+  id: string;
+  name: string;
+};
+
+const formatDate = (date?: string) => {
+  if (!date) return "—";
+  return new Date(date).toISOString().split("T")[0];
+};
 
 const getDateRange = () => {
   const today = new Date();
@@ -124,6 +173,58 @@ const getDateRange = () => {
   };
 };
 
+const formatDateTime = (date?: string) => {
+  if (!date) return "—";
+  return new Date(date).toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const formatCurrency = (amount: number) =>
+  `${amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} Br`;
+
+const mapStaffToOptions = (staff?: StaffRecord[] | null): StaffOption[] => {
+  if (!staff) return [];
+  return staff
+    .map((member) => ({
+      id: member?._id || member?.id || "",
+      name: member?.name || "Unnamed",
+    }))
+    .filter((option) => Boolean(option.id));
+};
+
+const getErrorMessage = (err: unknown) => {
+  if (!err) return null;
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "data" in err &&
+    typeof (err as { data?: { message?: string } }).data === "object"
+  ) {
+    const data = (err as { data?: { message?: string } }).data;
+    if (data?.message) {
+      return data.message;
+    }
+  }
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "message" in err &&
+    typeof (err as { message?: string }).message === "string"
+  ) {
+    return (err as { message?: string }).message;
+  }
+  return "Failed to load orders";
+};
+
 // -------------------- Main Component -------------------- //
 
 export function OwnerHistory() {
@@ -138,6 +239,8 @@ export function OwnerHistory() {
     "all"
   );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [detailOrder, setDetailOrder] = useState<OwnerOrderRow | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const datePresets = getDateRange();
 
@@ -157,23 +260,93 @@ export function OwnerHistory() {
     // For "custom", keep existing dates or leave empty
   };
 
-  // Fetch orders
+  // When "Cashier Only" is selected, fetch only OWNER_CONFIRMED and TRANSFERRED_TO_OWNER
+  const shouldFetchCashierOnly =
+    allCashierFilter === "cashier" && statusFilter === "all";
+
+  const {
+    data: ordersDataConfirmed,
+    isLoading: isLoadingConfirmed,
+    error: errorConfirmed,
+    refetch: refetchConfirmed,
+  } = useGetOwnerOrdersQuery(
+    {
+      status: "OWNER_CONFIRMED" as OrderStatus,
+      cashierId: cashierFilter !== "all" ? cashierFilter : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      search: searchQuery.trim() || undefined,
+    },
+    { skip: !shouldFetchCashierOnly }
+  );
+
+  const {
+    data: ordersDataTransferred,
+    isLoading: isLoadingTransferred,
+    error: errorTransferred,
+    refetch: refetchTransferred,
+  } = useGetOwnerOrdersQuery(
+    {
+      status: "TRANSFERRED_TO_OWNER" as OrderStatus,
+      cashierId: cashierFilter !== "all" ? cashierFilter : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      search: searchQuery.trim() || undefined,
+    },
+    { skip: !shouldFetchCashierOnly }
+  );
+
+  // Regular query when not in "Cashier Only" mode or when status filter is set
   const {
     data: ordersData,
     isLoading,
     error,
     refetch,
-  } = useGetOwnerOrdersQuery({
-    status: statusFilter !== "all" ? (statusFilter as OrderStatus) : undefined,
-    waiterId:
-      statusFilter === "OPEN" && staffFilter !== "all"
-        ? staffFilter
-        : undefined,
-    cashierId: cashierFilter !== "all" ? cashierFilter : undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-    search: searchQuery.trim() || undefined,
-  });
+  } = useGetOwnerOrdersQuery(
+    {
+      status:
+        allCashierFilter === "cashier" && statusFilter !== "all"
+          ? (statusFilter as OrderStatus)
+          : statusFilter !== "all"
+          ? (statusFilter as OrderStatus)
+          : undefined,
+      waiterId:
+        statusFilter === "OPEN" && staffFilter !== "all"
+          ? staffFilter
+          : undefined,
+      cashierId: cashierFilter !== "all" ? cashierFilter : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      search: searchQuery.trim() || undefined,
+    },
+    { skip: shouldFetchCashierOnly }
+  );
+
+  // Combine data from both queries when in "Cashier Only" mode
+  const combinedOrdersData = useMemo(() => {
+    if (shouldFetchCashierOnly) {
+      const confirmedList = Array.isArray(ordersDataConfirmed)
+        ? ordersDataConfirmed
+        : ordersDataConfirmed?.orders || [];
+      const transferredList = Array.isArray(ordersDataTransferred)
+        ? ordersDataTransferred
+        : ordersDataTransferred?.orders || [];
+      return [...confirmedList, ...transferredList];
+    }
+    return ordersData;
+  }, [
+    shouldFetchCashierOnly,
+    ordersDataConfirmed,
+    ordersDataTransferred,
+    ordersData,
+  ]);
+
+  const isLoadingCombined = shouldFetchCashierOnly
+    ? isLoadingConfirmed || isLoadingTransferred
+    : isLoading;
+  const errorCombined = shouldFetchCashierOnly
+    ? errorConfirmed || errorTransferred
+    : error;
 
   const [updateStatus, { isLoading: updating }] =
     useUpdateOrderStatusMutation();
@@ -191,27 +364,35 @@ export function OwnerHistory() {
     limit: 100,
   });
 
-  const waiters = useMemo(
-    () =>
-      waitersData?.staff?.map((s) => ({ id: s._id || s.id, name: s.name })) ||
-      [],
+  const waiters: StaffOption[] = useMemo(
+    () => mapStaffToOptions(waitersData?.staff as StaffRecord[] | undefined),
     [waitersData]
   );
-  const cashiers = useMemo(
-    () =>
-      cashiersData?.staff?.map((s) => ({ id: s._id || s.id, name: s.name })) ||
-      [],
+  const cashiers: StaffOption[] = useMemo(
+    () => mapStaffToOptions(cashiersData?.staff as StaffRecord[] | undefined),
     [cashiersData]
   );
 
+  // Refetch function that handles both query modes
+  const handleRefetch = () => {
+    if (shouldFetchCashierOnly) {
+      // Refetch both queries
+      refetchConfirmed();
+      refetchTransferred();
+    } else {
+      refetch();
+    }
+  };
+
   // Transform orders
-  const orders = useMemo(() => {
-    if (!ordersData) return [];
-    const list = Array.isArray(ordersData)
-      ? ordersData
-      : ordersData.orders || [];
-    return list.map((o: RTKOrder) => {
-      const ownerStatus = OWNER_STATUS_MAP[o.status] || "AWAITING_PAYMENT";
+  const orders: OwnerOrderRow[] = useMemo(() => {
+    if (!combinedOrdersData) return [];
+    const list = Array.isArray(combinedOrdersData)
+      ? combinedOrdersData
+      : combinedOrdersData.orders || [];
+    return list.map((o: RTKOrder): OwnerOrderRow => {
+      const ownerStatus: OwnerStatus =
+        OWNER_STATUS_MAP[o.status] || "AWAITING_PAYMENT";
       const config = STATUS_CONFIG[ownerStatus];
 
       return {
@@ -229,19 +410,30 @@ export function OwnerHistory() {
         statusText: config.text,
         statusColor: config.color,
         statusIcon: config.icon,
+        items: Array.isArray(o.items) ? o.items : [],
+        note: o.note,
       };
     });
-  }, [ordersData]);
+  }, [combinedOrdersData]);
 
   // Client-side filtering
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
-      if (allCashierFilter === "cashier" && !o.cashierName) return false;
+      // When "Cashier Only" is selected, show only orders with cashier
+      // Status filtering is already done at API level
+      if (allCashierFilter === "cashier") {
+        if (!o.cashierName) return false;
+      }
+
+      // Search filtering
       if (!searchQuery.trim()) return true;
 
       const q = searchQuery.toLowerCase();
       return [o.orderNumber, o.tableNumber, o.waiterName, o.cashierName].some(
-        (field) => field?.toLowerCase().includes?.(q)
+        (field) =>
+          String(field ?? "")
+            .toLowerCase()
+            .includes(q)
       );
     });
   }, [orders, searchQuery, allCashierFilter]);
@@ -263,14 +455,26 @@ export function OwnerHistory() {
     return {
       total: filteredOrders.length,
       open: open.length,
-      received: paidToCashier.reduce((s, o) => s + o.totalPrice, 0),
+      received: paidToCashier.reduce(
+        (sum: number, order: OwnerOrderRow) => sum + order.totalPrice,
+        0
+      ),
       receivedCount: paidToCashier.length,
-      toConfirm: transferred.reduce((s, o) => s + o.totalPrice, 0),
+      toConfirm: transferred.reduce(
+        (sum: number, order: OwnerOrderRow) => sum + order.totalPrice,
+        0
+      ),
       toConfirmCount: transferred.length,
-      confirmed: confirmed.reduce((s, o) => s + o.totalPrice, 0),
+      confirmed: confirmed.reduce(
+        (sum: number, order: OwnerOrderRow) => sum + order.totalPrice,
+        0
+      ),
       confirmedCount: confirmed.length,
       voided: voided.length,
-      voidedAmount: voided.reduce((s, o) => s + o.totalPrice, 0),
+      voidedAmount: voided.reduce(
+        (sum: number, order: OwnerOrderRow) => sum + order.totalPrice,
+        0
+      ),
     };
   }, [filteredOrders]);
 
@@ -317,15 +521,25 @@ export function OwnerHistory() {
       }).unwrap();
       toast.success(`Confirmed ${res.updated?.length || ids.length} order(s)`);
       setSelectedIds(new Set());
-      refetch();
+      handleRefetch();
     } catch {
       toast.error("Failed to confirm orders");
     }
   };
 
-  const errorMsg = error
-    ? (error as any)?.data?.message || "Failed to load orders"
-    : null;
+  const handleViewDetails = (order: OwnerOrderRow) => {
+    setDetailOrder(order);
+    setDetailsOpen(true);
+  };
+
+  const handleDetailsOpenChange = (open: boolean) => {
+    setDetailsOpen(open);
+    if (!open) {
+      setDetailOrder(null);
+    }
+  };
+
+  const errorMsg = errorCombined ? getErrorMessage(errorCombined) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -390,10 +604,10 @@ export function OwnerHistory() {
         </div>
       </header>
 
-      {errorMsg && <ErrorState message={errorMsg} onRetry={refetch} />}
-      {isLoading && <LoadingState message="Loading orders..." />}
+      {errorMsg && <ErrorState message={errorMsg} onRetry={handleRefetch} />}
+      {isLoadingCombined && <LoadingState message="Loading orders..." />}
 
-      {!isLoading && !errorMsg && (
+      {!isLoadingCombined && !errorMsg && (
         <>
           {/* Stats */}
           {filteredOrders.length > 0 && (
@@ -469,20 +683,36 @@ export function OwnerHistory() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                    <SelectItem
-                      key={key}
-                      value={
-                        Object.keys(OWNER_STATUS_MAP).find(
+                  {Object.entries(STATUS_CONFIG)
+                    .filter(([key]) => {
+                      // When "Cashier Only" is selected, only show TRANSFERRED_TO_OWNER and OWNER_CONFIRMED
+                      if (allCashierFilter === "cashier") {
+                        const backendStatus = Object.keys(
+                          OWNER_STATUS_MAP
+                        ).find(
                           (k) => OWNER_STATUS_MAP[k as OrderStatus] === key
-                        )!
+                        ) as OrderStatus;
+                        return (
+                          backendStatus === "TRANSFERRED_TO_OWNER" ||
+                          backendStatus === "OWNER_CONFIRMED"
+                        );
                       }
-                    >
-                      <div className="flex items-center gap-2">
-                        {cfg.icon} {cfg.text}
-                      </div>
-                    </SelectItem>
-                  ))}
+                      return true;
+                    })
+                    .map(([key, cfg]) => (
+                      <SelectItem
+                        key={key}
+                        value={
+                          Object.keys(OWNER_STATUS_MAP).find(
+                            (k) => OWNER_STATUS_MAP[k as OrderStatus] === key
+                          )!
+                        }
+                      >
+                        <div className="flex items-center gap-2">
+                          {cfg.icon} {cfg.text}
+                        </div>
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
 
@@ -631,7 +861,8 @@ export function OwnerHistory() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => toast.info("Details coming soon")}
+                              onClick={() => handleViewDetails(o)}
+                              aria-label="View order details"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -646,7 +877,7 @@ export function OwnerHistory() {
                                     .unwrap()
                                     .then(() => {
                                       toast.success("Confirmed");
-                                      refetch();
+                                      handleRefetch();
                                     })
                                     .catch(() => toast.error("Failed"))
                                 }
@@ -673,13 +904,129 @@ export function OwnerHistory() {
           </div>
         </>
       )}
+      <Dialog
+        open={detailsOpen && !!detailOrder}
+        onOpenChange={handleDetailsOpenChange}
+      >
+        {detailOrder && (
+          <DialogContent className="flex max-w-2xl flex-col overflow-hidden border-none bg-background p-0 shadow-2xl dark:bg-background max-h-[90vh] sm:max-h-[85vh]">
+            <DialogHeader className="shrink-0 border-b border-border bg-muted/40 px-6 pt-6 pb-4 dark:bg-muted/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Order Details
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <DialogTitle className="text-2xl font-semibold">
+                    #{detailOrder.orderNumber || detailOrder.id.slice(-6)}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {formatDateTime(detailOrder.date)}
+                  </DialogDescription>
+                  <p className="text-xs">
+                    <span className="font-bold">Table </span> -{" "}
+                    {detailOrder.tableNumber}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Badge className={`w-fit ${detailOrder.statusColor}`}>
+                    {detailOrder.statusIcon}
+                    <span className="ml-1">{detailOrder.statusText}</span>
+                  </Badge>
+                  <p className="text-xs">
+                    <span className="font-bold">Cashier </span> -{" "}
+                    {detailOrder.cashierName || "—"}
+                  </p>
+                  <p className="text-xs">
+                    <span className="font-bold">Waiter </span> -{" "}
+                    {detailOrder.waiterName || "—"}
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto px-6 py-2">
+              <div className="flex flex-col gap-6">
+                {detailOrder.note && (
+                  <div className="rounded-2xl border bg-muted/20 p-4 dark:bg-muted/10">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Order Note
+                    </p>
+                    <p className="mt-2 text-sm text-foreground">
+                      {detailOrder.note}
+                    </p>
+                  </div>
+                )}
+
+                <OrderItemsList items={detailOrder.items} />
+              </div>
+            </div>
+
+            <DialogFooter className="shrink-0 px-6 pb-6">
+              <div className="flex w-full items-center justify-end gap-3">
+                {detailOrder.backendStatus === "TRANSFERRED_TO_OWNER" && (
+                  <Button
+                    onClick={() =>
+                      updateStatus({
+                        id: detailOrder.id,
+                        status: "OWNER_CONFIRMED",
+                      })
+                        .unwrap()
+                        .then(() => {
+                          toast.success("Transfer confirmed successfully");
+                          handleRefetch();
+                          handleDetailsOpenChange(false);
+                        })
+                        .catch(() => toast.error("Failed to confirm transfer"))
+                    }
+                    disabled={updating}
+                    className="w-full sm:w-auto"
+                  >
+                    {updating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Confirming...
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Confirm Transfer
+                      </>
+                    )}
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    Close
+                  </Button>
+                </DialogClose>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
 
 // Simple reusable stat card
-function StatCard({ label, value, subtitle, icon, color = "blue" }: any) {
-  const colors: any = {
+type StatCardColor = "blue" | "emerald" | "amber" | "indigo" | "red";
+
+type StatCardProps = {
+  label: string;
+  value: number | string;
+  subtitle?: string;
+  icon?: ReactNode;
+  color?: StatCardColor;
+};
+
+function StatCard({
+  label,
+  value,
+  subtitle,
+  icon,
+  color = "blue",
+}: StatCardProps) {
+  const colors: Record<StatCardColor, string> = {
     blue: "bg-blue-50 text-blue-700 border-blue-200",
     emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
     amber: "bg-amber-50 text-amber-700 border-amber-200",
@@ -695,6 +1042,69 @@ function StatCard({ label, value, subtitle, icon, color = "blue" }: any) {
       </div>
       <p className="text-2xl font-bold">{value}</p>
       {subtitle && <p className="text-xs opacity-70 mt-1">{subtitle}</p>}
+    </div>
+  );
+}
+
+function OrderItemsList({ items }: { items: OrderItem[] }) {
+  const hasItems = items.length > 0;
+
+  const getItemName = (item: OrderItem) => {
+    if (item.nameSnapshot) return item.nameSnapshot;
+    if (typeof item.itemId === "object") {
+      return item.itemId?.name || "Unnamed Item";
+    }
+    return "Unnamed Item";
+  };
+
+  const getItemKey = (item: OrderItem, index: number) => {
+    if (typeof item.itemId === "string") return item.itemId;
+    if (typeof item.itemId === "object" && item.itemId?._id) {
+      return item.itemId._id;
+    }
+    return `${getItemName(item)}-${index}`;
+  };
+
+  return (
+    <div className="rounded-2xl border bg-background/70 p-4 shadow-sm dark:bg-background/30">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Order Items
+          </p>
+          <p className="text-sm font-semibold text-foreground">
+            {hasItems ? `${items.length} item(s)` : "No items"}
+          </p>
+        </div>
+      </div>
+      {hasItems ? (
+        <div className="mt-4 divide-y divide-border">
+          {items.map((item, index) => {
+            const name = getItemName(item);
+            const lineTotal = item.qty * item.priceSnapshot;
+            return (
+              <div
+                key={getItemKey(item, index)}
+                className="flex items-start justify-between gap-4 py-3 first:pt-0"
+              >
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">{name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Qty {item.qty} · {formatCurrency(item.priceSnapshot)}
+                  </p>
+                </div>
+                <p className="text-sm font-semibold text-foreground">
+                  {formatCurrency(lineTotal)}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-muted-foreground">
+          No items available for this order.
+        </p>
+      )}
     </div>
   );
 }

@@ -658,11 +658,12 @@ export function CashierHistory() {
     }
   }, [dateRangePreset]);
 
-  // Update status filter based on roleView
-  useEffect(() => {
+  // Handle role view change and reset status filter
+  const handleRoleViewChange = (view: "all" | "waiter" | "owner") => {
+    setRoleView(view);
     // Reset to "all" when switching views so users can see all orders for that view
     setStatusFilter("all");
-  }, [roleView]);
+  };
 
   // Fetch all waiters from the API
   const { data: waitersData } = useListStaffQuery({
@@ -722,7 +723,7 @@ export function CashierHistory() {
             {(["waiter", "owner", "all"] as const).map((r) => (
               <button
                 key={r}
-                onClick={() => setRoleView(r)}
+                onClick={() => handleRoleViewChange(r)}
                 className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
                   roleView === r
                     ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"

@@ -62,6 +62,8 @@ export interface Order {
   paymentReceivedAt?: string;
   paymentDeliveredAt?: string;
   completedAt?: string;
+  paymentMethod?: "cash" | "mobile_banking";
+  paymentProofImage?: { url: string; publicId: string };
   cancelledBy?:
     | string
     | {
@@ -136,6 +138,8 @@ export interface PaginatedOrdersResponse {
 
 export interface UpdateOrderStatusInput {
   status: OrderStatus;
+  paymentMethod?: "cash" | "mobile_banking";
+  paymentProofImage?: File;
 }
 
 // Report Interfaces
@@ -300,13 +304,38 @@ export const ordersApi = createApiEndpoints({
 
     updateOrderStatus: build.mutation<
       Order,
-      { id: string; status: OrderStatus }
+      {
+        id: string;
+        status: OrderStatus;
+        paymentMethod?: "cash" | "mobile_banking";
+        paymentProofImage?: File;
+      }
     >({
-      query: ({ id, status }) => ({
-        url: `/orders/${id}/status`,
-        method: "PATCH",
-        body: { status },
-      }),
+      query: ({ id, status, paymentMethod, paymentProofImage }) => {
+        // If payment proof image is provided, use FormData
+        if (paymentProofImage) {
+          const formData = new FormData();
+          formData.append("status", status);
+          formData.append("paymentMethod", paymentMethod || "cash");
+          formData.append("paymentProofImage", paymentProofImage);
+
+          return {
+            url: `/orders/${id}/status`,
+            method: "PATCH",
+            body: formData,
+          };
+        }
+
+        // Otherwise use JSON
+        return {
+          url: `/orders/${id}/status`,
+          method: "PATCH",
+          body: {
+            status,
+            paymentMethod: paymentMethod || "cash",
+          },
+        };
+      },
       transformResponse: (response: unknown): Order => {
         // API returns order directly
         return response as Order;

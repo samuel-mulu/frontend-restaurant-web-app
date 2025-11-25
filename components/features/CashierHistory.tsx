@@ -38,6 +38,9 @@ import {
   Wallet,
   Clock,
 } from "lucide-react";
+import { PaymentMethodSelector, PaymentMethod } from "./PaymentMethodSelector";
+import { PaymentImageModal } from "./PaymentImageModal";
+import { ChevronDown, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { useSelector } from "react-redux";
 import { Input } from "@/components/ui/input";
@@ -57,6 +60,16 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
 import { OrderDetailsModal } from "@/components/features/OrderDetailsModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // -------------------- Types & Utilities -------------------- //
 
@@ -151,6 +164,14 @@ const getStatusIcon = (status: OrderStatus) => {
   return iconMap[status] || <AlertCircle className="h-4 w-4" />;
 };
 
+const getPaymentMethodIcon = (method: PaymentMethod) => {
+  return method === "cash" ? (
+    <ChevronDown className="h-3 w-3" />
+  ) : (
+    <Smartphone className="h-3 w-3" />
+  );
+};
+
 /**
  * Transform backend order to display format
  */
@@ -219,6 +240,27 @@ export function CashierHistory() {
   // Order details modal state
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Void confirmation modal state
+  const [voidConfirmOrderId, setVoidConfirmOrderId] = useState<string | null>(
+    null
+  );
+  const [voidConfirmStatus, setVoidConfirmStatus] =
+    useState<OrderStatus | null>(null);
+  const [isVoidConfirmOpen, setIsVoidConfirmOpen] = useState(false);
+
+  // Payment method state per order
+  const [paymentMethods, setPaymentMethods] = useState<
+    Map<string, PaymentMethod>
+  >(new Map());
+
+  // Payment image modal state
+  const [paymentImageOrderId, setPaymentImageOrderId] = useState<string | null>(
+    null
+  );
+  const [paymentImageStatus, setPaymentImageStatus] =
+    useState<OrderStatus | null>(null);
+  const [isPaymentImageModalOpen, setIsPaymentImageModalOpen] = useState(false);
 
   // Real-time updates
   useOrderSocket();
@@ -345,6 +387,22 @@ export function CashierHistory() {
     () => (ordersData || []).map(transformOrder),
     [ordersData]
   );
+
+  // Initialize payment methods from orders data
+  useEffect(() => {
+    if (ordersData) {
+      setPaymentMethods((prev) => {
+        const newMap = new Map(prev);
+        ordersData.forEach((order: RTKOrder) => {
+          const orderId = order.id || order._id || "";
+          if (order.paymentMethod && orderId) {
+            newMap.set(orderId, order.paymentMethod as PaymentMethod);
+          }
+        });
+        return newMap;
+      });
+    }
+  }, [ordersData]);
 
   // Filter orders based on UI filters (status and waiter are now handled by backend)
   const filtered = useMemo(() => {
@@ -597,8 +655,45 @@ export function CashierHistory() {
   };
 
   const handleStatusChange = async (orderId: string, status: OrderStatus) => {
+    // Show confirmation modal for voided status
+    if (status === "VOIDED") {
+      setVoidConfirmOrderId(orderId);
+      setVoidConfirmStatus(status);
+      setIsVoidConfirmOpen(true);
+      return;
+    }
+
+    // For PAID_TO_CASHIER status, check payment method
+    if (status === "PAID_TO_CASHIER") {
+      const paymentMethod = paymentMethods.get(orderId) || "cash";
+
+      // If mobile banking, show image upload modal
+      if (paymentMethod === "mobile_banking") {
+        setPaymentImageOrderId(orderId);
+        setPaymentImageStatus(status);
+        setIsPaymentImageModalOpen(true);
+        return;
+      }
+    }
+
+    // For other statuses, update directly
+    await executeStatusChange(orderId, status);
+  };
+
+  const executeStatusChange = async (
+    orderId: string,
+    status: OrderStatus,
+    paymentProofImage?: File
+  ) => {
     try {
-      await updateOrderStatus({ id: orderId, status }).unwrap();
+      const paymentMethod = paymentMethods.get(orderId) || "cash";
+
+      await updateOrderStatus({
+        id: orderId,
+        status,
+        paymentMethod,
+        paymentProofImage,
+      }).unwrap();
       toast.success("Order status updated successfully");
       refetch();
     } catch (err: unknown) {
@@ -614,12 +709,41 @@ export function CashierHistory() {
     }
   };
 
+  const handlePaymentMethodChange = (
+    orderId: string,
+    method: PaymentMethod
+  ) => {
+    setPaymentMethods((prev) => {
+      const newMap = new Map(prev);
+      newMap.set(orderId, method);
+      return newMap;
+    });
+  };
+
+  const handlePaymentImageConfirm = async (file: File) => {
+    if (paymentImageOrderId && paymentImageStatus) {
+      await executeStatusChange(paymentImageOrderId, paymentImageStatus, file);
+      setIsPaymentImageModalOpen(false);
+      setPaymentImageOrderId(null);
+      setPaymentImageStatus(null);
+    }
+  };
+
+  const handleVoidConfirm = async () => {
+    if (voidConfirmOrderId && voidConfirmStatus) {
+      await executeStatusChange(voidConfirmOrderId, voidConfirmStatus);
+      setIsVoidConfirmOpen(false);
+      setVoidConfirmOrderId(null);
+      setVoidConfirmStatus(null);
+    }
+  };
+
   const getAvailableStatuses = (
     currentStatus: OrderStatus,
     userRole: string
   ): OrderStatus[] => {
     const transitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
-      OPEN: ["VOIDED", "PAID_TO_CASHIER"],
+      OPEN: ["PAID_TO_CASHIER", "VOIDED"], // Swapped: Paid first, then Voided
       VOIDED: [],
       PAID_TO_CASHIER:
         userRole === "cashier" || userRole === "owner"
@@ -1294,41 +1418,66 @@ export function CashierHistory() {
                               o.backendStatus,
                               user?.role || "cashier"
                             ).length > 0 ? (
-                              <Select
-                                value={o.backendStatus}
-                                onValueChange={(value) => {
-                                  if (value !== o.backendStatus) {
-                                    handleStatusChange(
-                                      o.id,
-                                      value as OrderStatus
-                                    );
-                                  }
-                                }}
-                                disabled={isUpdating}
-                              >
-                                <SelectTrigger className="w-full min-w-[140px] h-8 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value={o.backendStatus}>
-                                    <div className="flex items-center gap-2">
-                                      {getStatusIcon(o.backendStatus)}
-                                      {getStatusBadgeText(o.backendStatus)}
-                                    </div>
-                                  </SelectItem>
-                                  {getAvailableStatuses(
-                                    o.backendStatus,
-                                    user?.role || "cashier"
-                                  ).map((status) => (
-                                    <SelectItem key={status} value={status}>
+                              <div className="flex items-center gap-1">
+                                <Select
+                                  value={o.backendStatus}
+                                  onValueChange={(value) => {
+                                    if (value !== o.backendStatus) {
+                                      handleStatusChange(
+                                        o.id,
+                                        value as OrderStatus
+                                      );
+                                    }
+                                  }}
+                                  disabled={isUpdating}
+                                >
+                                  <SelectTrigger className="w-full min-w-[140px] h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={o.backendStatus}>
                                       <div className="flex items-center gap-2">
-                                        {getStatusIcon(status)}
-                                        {getStatusBadgeText(status)}
+                                        {getStatusIcon(o.backendStatus)}
+                                        {getStatusBadgeText(o.backendStatus)}
                                       </div>
                                     </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                    {getAvailableStatuses(
+                                      o.backendStatus,
+                                      user?.role || "cashier"
+                                    ).map((status) => (
+                                      <SelectItem key={status} value={status}>
+                                        <div className="flex items-center justify-between gap-2 w-full">
+                                          <div className="flex items-center gap-2">
+                                            {getStatusIcon(status)}
+                                            {getStatusBadgeText(status)}
+                                          </div>
+                                          {status === "PAID_TO_CASHIER" && (
+                                            <div className="shrink-0 flex items-center text-gray-600 dark:text-gray-400">
+                                              {getPaymentMethodIcon(
+                                                paymentMethods.get(o.id) ||
+                                                  "cash"
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {o.backendStatus === "OPEN" &&
+                                  getAvailableStatuses(
+                                    o.backendStatus,
+                                    user?.role || "cashier"
+                                  ).includes("PAID_TO_CASHIER") && (
+                                    <PaymentMethodSelector
+                                      value={paymentMethods.get(o.id) || "cash"}
+                                      onChange={(method) => {
+                                        handlePaymentMethodChange(o.id, method);
+                                      }}
+                                      disabled={isUpdating}
+                                    />
+                                  )}
+                              </div>
                             ) : (
                               <span className="text-xs text-gray-400 dark:text-gray-500">
                                 No actions
@@ -1351,6 +1500,54 @@ export function CashierHistory() {
         orderId={selectedOrderId}
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
+      />
+
+      {/* Void Confirmation Modal */}
+      <AlertDialog open={isVoidConfirmOpen} onOpenChange={setIsVoidConfirmOpen}>
+        <AlertDialogContent className="bg-white border border-gray-200 shadow-xl dark:bg-slate-800 dark:border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 dark:text-white">
+              <Ban className="h-5 w-5 text-red-600" />
+              Void Order Confirmation
+            </AlertDialogTitle>
+            <AlertDialogDescription className="dark:text-gray-400">
+              Are you sure you want to void this order? This action cannot be
+              undone. The order will be marked as voided and cannot be changed
+              afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setIsVoidConfirmOpen(false);
+                setVoidConfirmOrderId(null);
+                setVoidConfirmStatus(null);
+              }}
+              className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleVoidConfirm}
+              className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-700"
+            >
+              Void Order
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Payment Image Upload Modal */}
+      <PaymentImageModal
+        open={isPaymentImageModalOpen}
+        onOpenChange={setIsPaymentImageModalOpen}
+        onConfirm={handlePaymentImageConfirm}
+        orderNumber={
+          paymentImageOrderId
+            ? filtered.find((o: DisplayOrder) => o.id === paymentImageOrderId)
+                ?.orderNumber
+            : undefined
+        }
       />
     </div>
   );

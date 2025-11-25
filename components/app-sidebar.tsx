@@ -13,6 +13,7 @@ import {
   LogOut,
   AlertTriangle,
   Users,
+  Printer,
 } from "lucide-react";
 
 import {
@@ -61,10 +62,11 @@ const getNavigationItems = (role?: string) => {
     ];
   }
 
-  // Cashier and Waiter get Create Order (not staff, not owner)
+  // Cashier and Waiter get Create Order and Printer Management
   if (role === "cashier" || role === "waiter") {
     return [
       { name: "Create Order", href: "/order", icon: ShoppingCart },
+      { name: "Printer", href: "/printer", icon: Printer },
       ...baseItems,
     ];
   }

@@ -100,10 +100,7 @@ export async function getOperationsForBatch(): Promise<SyncQueueRecord[]> {
  * Mark operation as syncing
  */
 export async function markAsSyncing(ids: number[]): Promise<void> {
-  await db.syncQueue
-    .where("id")
-    .anyOf(ids)
-    .modify({ status: "syncing" });
+  await db.syncQueue.where("id").anyOf(ids).modify({ status: "syncing" });
 }
 
 /**
@@ -116,9 +113,8 @@ export async function markAsSynced(
   await db.syncQueue
     .where("clientId")
     .equals(clientId)
-    .modify({
-      status: "synced",
-      syncedAt: new Date().toISOString(),
+    .modify((record) => {
+      record.status = "synced";
     });
 
   // Update the actual record with server ID if provided
@@ -134,10 +130,7 @@ export async function markAsError(
   clientId: string,
   error: string
 ): Promise<number> {
-  const record = await db.syncQueue
-    .where("clientId")
-    .equals(clientId)
-    .first();
+  const record = await db.syncQueue.where("clientId").equals(clientId).first();
 
   if (!record) {
     throw new Error(`Sync queue record not found: ${clientId}`);
@@ -179,10 +172,7 @@ export async function markAsError(
  * Get pending count
  */
 export async function getPendingCount(): Promise<number> {
-  return await db.syncQueue
-    .where("status")
-    .anyOf(["pending", "error"])
-    .count();
+  return await db.syncQueue.where("status").anyOf(["pending", "error"]).count();
 }
 
 /**
@@ -225,7 +215,9 @@ export async function retryFromDeadLetter(
 /**
  * Clear synced operations (cleanup)
  */
-export async function clearSyncedOperations(olderThanDays: number = 7): Promise<number> {
+export async function clearSyncedOperations(
+  olderThanDays: number = 7
+): Promise<number> {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
 
@@ -240,4 +232,3 @@ export async function clearSyncedOperations(olderThanDays: number = 7): Promise<
     })
     .delete();
 }
-

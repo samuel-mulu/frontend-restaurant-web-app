@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Order, OrderStatus } from "@/stores/features/orders/ordersApi";
+import { Order, OrderStatus, OrderItem } from "@/stores/features/orders/ordersApi";
 import { useGetOrderQuery } from "@/stores/features/orders/ordersApi";
 import { Loading } from "@/components/ui/loading";
 import {
@@ -205,7 +205,7 @@ export function OrderDetailsModal({
                 </TableHeader>
                 <TableBody>
                   {order.items && order.items.length > 0 ? (
-                    order.items.map((item, index) => {
+                    order.items.map((item: OrderItem, index: number) => {
                       const itemName =
                         typeof item.itemId === "object" && item.itemId?.name
                           ? item.itemId.name

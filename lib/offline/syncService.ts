@@ -120,7 +120,7 @@ async function updateLocalRecords(
           .modify({ _id: item.serverId, syncStatus: "synced" });
         break;
       case "table":
-        await db.tables
+        await db.restaurantTables
           .where("clientId")
           .equals(item.clientId)
           .modify({ _id: item.serverId, syncStatus: "synced" });

@@ -7,12 +7,18 @@ import { v4 as uuidv4 } from "uuid";
 import { offlineDetector } from "@/lib/offline/offlineDetector";
 import { addToSyncQueue } from "@/lib/offline/syncQueue";
 import { db } from "@/lib/db/indexedDB";
-import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import type {
+  BaseQueryFn,
+  FetchArgs,
+  FetchBaseQueryError,
+} from "@reduxjs/toolkit/query";
 
 /**
  * Determine operation type from URL
  */
-function getOperationType(url: string): "order" | "inventory" | "item" | "category" | "staff" | "table" | null {
+function getOperationType(
+  url: string
+): "order" | "inventory" | "item" | "category" | "staff" | "table" | null {
   if (url.includes("/orders")) return "order";
   if (url.includes("/inventory")) return "inventory";
   if (url.includes("/items")) return "item";
@@ -25,7 +31,9 @@ function getOperationType(url: string): "order" | "inventory" | "item" | "catego
 /**
  * Get method from args
  */
-function getMethod(args: string | FetchArgs): "GET" | "POST" | "PATCH" | "DELETE" {
+function getMethod(
+  args: string | FetchArgs
+): "GET" | "POST" | "PATCH" | "DELETE" {
   if (typeof args === "string") return "GET";
   return (args.method as any) || "GET";
 }
@@ -89,7 +97,7 @@ async function cacheQueryResult(url: string, data: any): Promise<void> {
           } as any);
           break;
         case "table":
-          await db.tables.put({
+          await db.restaurantTables.put({
             ...item,
             clientId,
             syncStatus: "synced",
@@ -123,7 +131,7 @@ async function getCachedData(url: string): Promise<any> {
       case "staff":
         return await db.staff.toArray();
       case "table":
-        return await db.tables.toArray();
+        return await db.restaurantTables.toArray();
       default:
         return null;
     }
@@ -203,7 +211,12 @@ export function createOfflineBaseQuery(
           type,
           data: bodyWithClientId,
           timestamp: Date.now(),
-          method: method === "POST" ? "create" : method === "PATCH" ? "update" : "delete",
+          method:
+            method === "POST"
+              ? "create"
+              : method === "PATCH"
+              ? "update"
+              : "delete",
         });
 
         // Store in local DB for immediate UI access
@@ -225,7 +238,9 @@ export function createOfflineBaseQuery(
               // Ensure order has all required fields
               const orderData = {
                 ...optimisticData,
-                orderNumber: optimisticData.orderNumber || `OFFLINE-${clientId.slice(0, 8)}`,
+                orderNumber:
+                  optimisticData.orderNumber ||
+                  `OFFLINE-${clientId.slice(0, 8)}`,
                 status: optimisticData.status || "OPEN",
                 totalAmount: optimisticData.totalAmount || 0,
                 items: optimisticData.items || [],
@@ -246,7 +261,7 @@ export function createOfflineBaseQuery(
               await db.staff.put(optimisticData as any);
               break;
             case "table":
-              await db.tables.put(optimisticData as any);
+              await db.restaurantTables.put(optimisticData as any);
               break;
           }
         } catch (error) {
@@ -277,4 +292,3 @@ export function createOfflineBaseQuery(
     return result;
   };
 }
-

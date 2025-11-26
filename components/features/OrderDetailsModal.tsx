@@ -9,7 +9,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Order, OrderStatus, OrderItem } from "@/stores/features/orders/ordersApi";
+import {
+  Order,
+  OrderStatus,
+  OrderItem,
+} from "@/stores/features/orders/ordersApi";
 import { useGetOrderQuery } from "@/stores/features/orders/ordersApi";
 import { Loading } from "@/components/ui/loading";
 import {

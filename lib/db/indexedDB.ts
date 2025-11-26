@@ -154,7 +154,7 @@ export class RestaurantDB extends Dexie {
   inventory!: Table<InventoryRecord, number>;
   categories!: Table<CategoryRecord, number>;
   staff!: Table<StaffRecord, number>;
-  tables!: Table<TableRecord, number>;
+  restaurantTables!: Table<TableRecord, number>;
   syncQueue!: Table<SyncQueueRecord, number>;
   deadLetterQueue!: Table<DeadLetterQueueRecord, number>;
   cashLedger!: Table<CashLedgerRecord, number>;
@@ -169,7 +169,7 @@ export class RestaurantDB extends Dexie {
       inventory: "++id, clientId, _id, categoryId, syncStatus, createdAt",
       categories: "++id, clientId, _id, syncStatus, createdAt",
       staff: "++id, clientId, _id, role, syncStatus, createdAt",
-      tables: "++id, clientId, _id, syncStatus, createdAt",
+      restaurantTables: "++id, clientId, _id, syncStatus, createdAt",
       syncQueue:
         "++id, clientId, type, priority, status, createdAt, [type+priority]",
       deadLetterQueue: "++id, clientId, type, createdAt",
@@ -181,4 +181,3 @@ export class RestaurantDB extends Dexie {
 
 // Export singleton instance
 export const db = new RestaurantDB();
-

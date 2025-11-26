@@ -145,7 +145,6 @@ const baseQueryWithReauth: BaseQueryFn<
     // Use structuredClone when available for completeness; fallback to JSON clone.
     const cloneArgs = (() => {
       try {
-        // @ts-expect-error structuredClone may exist in runtime environments
         return typeof structuredClone === "function"
           ? structuredClone(originalArgs)
           : JSON.parse(JSON.stringify(originalArgs));

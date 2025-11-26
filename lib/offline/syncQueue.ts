@@ -11,7 +11,7 @@ import {
   DeadLetterQueueRecord,
 } from "@/lib/db/indexedDB";
 
-export type { DeadLetterQueueRecord };
+export type { DeadLetterQueueRecord, SyncQueueRecord };
 
 // Priority mapping (lower number = higher priority)
 const PRIORITY_MAP: Record<SyncOperationType, number> = {
@@ -227,8 +227,8 @@ export async function clearSyncedOperations(
     .where("status")
     .equals("synced")
     .and((record) => {
-      const syncedAt = record.syncedAt;
-      return syncedAt && syncedAt < cutoffISO;
+      const createdAt = record.createdAt;
+      return Boolean(createdAt && createdAt < cutoffISO);
     })
     .delete();
 }

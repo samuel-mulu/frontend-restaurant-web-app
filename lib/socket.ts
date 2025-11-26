@@ -26,7 +26,9 @@ export const connectSocket = (userRole?: string, userId?: string): Socket => {
   });
 
   socket.on("connect", () => {
-    console.log("🔌 Socket.IO connected:", socket?.id);
+    if (!socket) return;
+    
+    console.log("🔌 Socket.IO connected:", socket.id);
 
     // Join role-based rooms
     if (userRole === "owner") {

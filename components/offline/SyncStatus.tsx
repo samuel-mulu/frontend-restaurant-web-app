@@ -3,15 +3,21 @@
 import { useEffect, useState } from "react";
 import { useSync } from "@/hooks/useSync";
 import { useOffline } from "@/hooks/useOffline";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, AlertCircle, Clock, Loader2 } from "lucide-react";
+import {
+  RefreshCw,
+  AlertCircle,
+  Clock,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import {
   getDeadLetterQueue,
   DeadLetterQueueRecord,
 } from "@/lib/offline/syncQueue";
+import { cn } from "@/lib/utils";
 
 export function SyncStatus() {
   const { sync, isSyncing, pendingCount, lastSyncTime, syncStatus } = useSync();
@@ -19,7 +25,7 @@ export function SyncStatus() {
   const [deadLetterItems, setDeadLetterItems] = useState<
     DeadLetterQueueRecord[]
   >([]);
-  const [showDetails, setShowDetails] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     const loadDeadLetter = async () => {
@@ -39,123 +45,140 @@ export function SyncStatus() {
     }
   };
 
+  // Don't show if offline and no pending items
   if (!isOnline && pendingCount === 0 && deadLetterItems.length === 0) {
     return null;
   }
 
+  const hasPending = pendingCount > 0;
+  const hasErrors = deadLetterItems.length > 0;
+
   return (
-    <Card className="fixed bottom-4 right-4 z-50 w-80 shadow-lg">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Sync Status</CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowDetails(!showDetails)}
-            className="h-6 px-2"
-          >
-            {showDetails ? "Hide" : "Show"}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Pending</span>
-            <Badge variant="secondary">{syncStatus.pending}</Badge>
-          </div>
-          {syncStatus.deadLetter > 0 && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Failed</span>
-              <Badge variant="destructive">{syncStatus.deadLetter}</Badge>
-            </div>
-          )}
-          {lastSyncTime && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              <span>
-                Last sync: {new Date(lastSyncTime).toLocaleTimeString()}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {isSyncing && (
-          <div className="space-y-1">
-            <Progress value={undefined} className="h-1" />
-            <p className="text-xs text-muted-foreground">
-              Syncing operations...
-            </p>
-          </div>
-        )}
-
-        {showDetails && (
-          <div className="space-y-2 border-t pt-2">
-            <div className="text-xs font-medium">Details</div>
-            <div className="space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span>Pending:</span>
-                <span>{syncStatus.pending}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Syncing:</span>
-                <span>{syncStatus.syncing}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Errors:</span>
-                <span>{syncStatus.errors}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Dead Letter:</span>
-                <span>{syncStatus.deadLetter}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-2">
+    <div className="fixed top-4 right-[calc(1rem+120px)] z-50 flex items-start gap-2">
+      {/* Compact sync button/indicator */}
+      <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+          {/* Sync button */}
           <Button
             size="sm"
+            variant="outline"
             onClick={handleSync}
             disabled={!isOnline || isSyncing || pendingCount === 0}
-            className="flex-1"
+            className={cn(
+              "h-8 px-3 text-xs",
+              hasPending && !isSyncing && "border-primary text-primary",
+              isSyncing && "border-primary"
+            )}
           >
             {isSyncing ? (
-              <>
-                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                Syncing...
-              </>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <>
-                <RefreshCw className="mr-2 h-3 w-3" />
-                Sync Now
-              </>
+              <RefreshCw className="h-3.5 w-3.5" />
             )}
           </Button>
+
+          {/* Expand/collapse button */}
+          {(hasPending || hasErrors || lastSyncTime) && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="h-8 w-8 p-0"
+            >
+              {isExpanded ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
         </div>
 
-        {deadLetterItems.length > 0 && (
-          <div className="border-t pt-2">
-            <div className="mb-2 flex items-center gap-1 text-xs font-medium text-destructive">
-              <AlertCircle className="h-3 w-3" />
-              <span>Failed Operations</span>
-            </div>
-            <div className="max-h-32 space-y-1 overflow-y-auto text-xs">
-              {deadLetterItems.slice(0, 3).map((item) => (
-                <div key={item.id} className="rounded bg-destructive/10 p-1">
-                  <div className="font-medium">{item.type}</div>
-                  <div className="text-muted-foreground">{item.error}</div>
+        {/* Expanded details panel */}
+        {isExpanded && (
+          <div className="w-64 rounded-lg border bg-background/95 backdrop-blur-sm shadow-lg p-3 space-y-2 text-xs">
+            {/* Status summary */}
+            <div className="space-y-1.5">
+              {hasPending && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Pending</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {syncStatus.pending}
+                  </Badge>
                 </div>
-              ))}
-              {deadLetterItems.length > 3 && (
-                <div className="text-muted-foreground">
-                  +{deadLetterItems.length - 3} more
+              )}
+              {hasErrors && (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Failed</span>
+                  <Badge variant="destructive" className="text-xs">
+                    {syncStatus.deadLetter}
+                  </Badge>
+                </div>
+              )}
+              {lastSyncTime && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  <span>
+                    Last: {new Date(lastSyncTime).toLocaleTimeString()}
+                  </span>
                 </div>
               )}
             </div>
+
+            {/* Detailed status */}
+            {(hasPending || hasErrors) && (
+              <div className="border-t pt-2 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Pending:</span>
+                  <span className="font-medium">{syncStatus.pending}</span>
+                </div>
+                {syncStatus.syncing > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Syncing:</span>
+                    <span className="font-medium">{syncStatus.syncing}</span>
+                  </div>
+                )}
+                {syncStatus.errors > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Errors:</span>
+                    <span className="font-medium text-destructive">
+                      {syncStatus.errors}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Failed operations */}
+            {hasErrors && (
+              <div className="border-t pt-2">
+                <div className="mb-1.5 flex items-center gap-1.5 font-medium text-destructive">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>Failed Operations</span>
+                </div>
+                <div className="max-h-32 space-y-1 overflow-y-auto">
+                  {deadLetterItems.slice(0, 3).map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded bg-destructive/10 p-1.5"
+                    >
+                      <div className="font-medium">{item.type}</div>
+                      <div className="text-muted-foreground text-[10px]">
+                        {item.error}
+                      </div>
+                    </div>
+                  ))}
+                  {deadLetterItems.length > 3 && (
+                    <div className="text-muted-foreground text-[10px]">
+                      +{deadLetterItems.length - 3} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSelector } from "react-redux";
 import { useOffline } from "@/hooks/useOffline";
 import { useSync } from "@/hooks/useSync";
+import { selectIsAuthenticated } from "@/stores/features/auth/authSlice";
 import { toast } from "sonner";
 
 export function OfflineNotification() {
   const { isOffline, isOnline } = useOffline();
   const { pendingCount, sync } = useSync();
+  const isAuthenticated = useSelector(selectIsAuthenticated);
 
   useEffect(() => {
     if (isOffline) {
@@ -18,17 +21,22 @@ export function OfflineNotification() {
   }, [isOffline]);
 
   useEffect(() => {
-    if (isOnline && pendingCount > 0) {
+    // Only attempt sync if user is authenticated (token may be in HTTP-only cookie)
+    if (isOnline && pendingCount > 0 && isAuthenticated) {
       // Auto-sync when coming online (with small delay to ensure connection is stable)
       const timeoutId = setTimeout(() => {
         sync().catch((error) => {
-          console.error("Auto-sync failed:", error);
+          // Silently handle errors - useSync hook already handles auto-sync
+          // This is just a fallback, so we don't need to show errors here
+          if (error.message !== "Not authenticated") {
+            console.error("Auto-sync failed:", error);
+          }
         });
       }, 1000);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [isOnline, pendingCount, sync]);
+  }, [isOnline, pendingCount, isAuthenticated, sync]);
 
   useEffect(() => {
     if (isOnline && pendingCount === 0) {
@@ -40,4 +48,3 @@ export function OfflineNotification() {
 
   return null; // This component only shows toasts
 }
-

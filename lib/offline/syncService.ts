@@ -94,10 +94,11 @@ async function formatSyncOperation(record: SyncQueueRecord) {
 
 /**
  * Process sync batch
+ * accessToken is optional - if not provided, authentication will use HTTP-only cookies
  */
 async function processBatch(
   operations: SyncQueueRecord[],
-  accessToken: string
+  accessToken?: string | null
 ): Promise<{
   synced: Array<{ clientId: string; serverId: string; type: string }>;
   conflicts: Array<{ clientId: string; reason: string }>;
@@ -105,13 +106,20 @@ async function processBatch(
 }> {
   const formattedOps = await Promise.all(operations.map(formatSyncOperation));
 
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  // Only add Authorization header if token is available
+  // Otherwise, rely on HTTP-only cookies for authentication
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
   const response = await fetch(`${apiConfig.BASE_URL}/sync`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    credentials: "include",
+    headers,
+    credentials: "include", // Always include credentials for cookie-based auth
     body: JSON.stringify({ operations: formattedOps }),
   });
 
@@ -185,8 +193,9 @@ async function updateLocalRecords(
 
 /**
  * Main sync function
+ * accessToken is optional - if not provided, authentication will use HTTP-only cookies
  */
-export async function sync(accessToken: string): Promise<SyncResult> {
+export async function sync(accessToken?: string | null): Promise<SyncResult> {
   if (!offlineDetector.getOnlineStatus()) {
     throw new Error("Cannot sync while offline");
   }
@@ -218,7 +227,7 @@ export async function sync(accessToken: string): Promise<SyncResult> {
       await markAsSyncing(operationIds);
 
       try {
-        // Process batch
+        // Process batch (accessToken is optional - cookies handle auth if not provided)
         const batchResult = await processBatch(operations, accessToken);
 
         // Mark synced operations
@@ -243,10 +252,12 @@ export async function sync(accessToken: string): Promise<SyncResult> {
         }
 
         retryCount = 0; // Reset retry count on success
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Mark all operations as error
+        const errorMessage =
+          error instanceof Error ? error.message : "Sync failed";
         for (const op of operations) {
-          await markAsError(op.clientId, error.message || "Sync failed");
+          await markAsError(op.clientId, errorMessage);
           result.errors++;
         }
 
@@ -259,7 +270,7 @@ export async function sync(accessToken: string): Promise<SyncResult> {
           hasMore = false;
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Sync error:", error);
       hasMore = false;
     }

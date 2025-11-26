@@ -2,9 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useSelector } from "react-redux";
-import { selectAccessToken } from "@/stores/features/auth/authSlice";
+import {
+  selectAccessToken,
+  selectIsAuthenticated,
+} from "@/stores/features/auth/authSlice";
 import { sync, getSyncStatus } from "@/lib/offline/syncService";
-import { offlineDetector } from "@/lib/offline/offlineDetector";
 import { useOffline } from "./useOffline";
 
 export interface UseSyncReturn {
@@ -34,6 +36,7 @@ export function useSync(): UseSyncReturn {
   });
 
   const accessToken = useSelector(selectAccessToken);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
   const { isOnline } = useOffline();
 
   // Update sync status periodically
@@ -47,13 +50,15 @@ export function useSync(): UseSyncReturn {
       throw new Error("Cannot sync while offline");
     }
 
-    if (!accessToken) {
+    // Check authentication - use isAuthenticated since token might be in HTTP-only cookie
+    if (!isAuthenticated) {
       throw new Error("Not authenticated");
     }
 
     setIsSyncing(true);
     try {
-      await sync(accessToken);
+      // Pass accessToken if available, otherwise rely on HTTP-only cookies
+      await sync(accessToken || null);
       setLastSyncTime(new Date());
       await updateSyncStatus();
     } catch (error) {
@@ -62,7 +67,7 @@ export function useSync(): UseSyncReturn {
     } finally {
       setIsSyncing(false);
     }
-  }, [isOnline, accessToken, updateSyncStatus]);
+  }, [isOnline, isAuthenticated, accessToken, updateSyncStatus]);
 
   // Initial load and periodic updates
   useEffect(() => {
@@ -73,7 +78,7 @@ export function useSync(): UseSyncReturn {
 
   // Auto-sync when coming online
   useEffect(() => {
-    if (isOnline && syncStatus.pending > 0 && accessToken) {
+    if (isOnline && syncStatus.pending > 0 && isAuthenticated) {
       // Small delay to ensure connection is stable
       const timeoutId = setTimeout(() => {
         performSync().catch((error) => {
@@ -83,12 +88,12 @@ export function useSync(): UseSyncReturn {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [isOnline, syncStatus.pending, accessToken, performSync]);
+  }, [isOnline, syncStatus.pending, isAuthenticated, performSync]);
 
   // Listen for sync-queue events from service worker
   useEffect(() => {
     const handleSyncQueue = () => {
-      if (isOnline && accessToken) {
+      if (isOnline && isAuthenticated) {
         performSync().catch((error) => {
           console.error("Background sync failed:", error);
         });
@@ -97,7 +102,7 @@ export function useSync(): UseSyncReturn {
 
     window.addEventListener("sync-queue", handleSyncQueue);
     return () => window.removeEventListener("sync-queue", handleSyncQueue);
-  }, [isOnline, accessToken, performSync]);
+  }, [isOnline, isAuthenticated, performSync]);
 
   return {
     sync: performSync,

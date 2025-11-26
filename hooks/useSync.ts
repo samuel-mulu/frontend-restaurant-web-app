@@ -42,41 +42,6 @@ export function useSync(): UseSyncReturn {
     setSyncStatus(status);
   }, []);
 
-  // Initial load and periodic updates
-  useEffect(() => {
-    updateSyncStatus();
-    const interval = setInterval(updateSyncStatus, 5000); // Update every 5s
-    return () => clearInterval(interval);
-  }, [updateSyncStatus]);
-
-  // Auto-sync when coming online
-  useEffect(() => {
-    if (isOnline && pendingCount > 0 && accessToken) {
-      // Small delay to ensure connection is stable
-      const timeoutId = setTimeout(() => {
-        performSync().catch((error) => {
-          console.error("Auto-sync on reconnect failed:", error);
-        });
-      }, 2000);
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isOnline, pendingCount, accessToken, performSync]);
-
-  // Listen for sync-queue events from service worker
-  useEffect(() => {
-    const handleSyncQueue = () => {
-      if (isOnline && accessToken) {
-        performSync().catch((error) => {
-          console.error("Background sync failed:", error);
-        });
-      }
-    };
-
-    window.addEventListener("sync-queue", handleSyncQueue);
-    return () => window.removeEventListener("sync-queue", handleSyncQueue);
-  }, [isOnline, accessToken, performSync]);
-
   const performSync = useCallback(async () => {
     if (!isOnline) {
       throw new Error("Cannot sync while offline");
@@ -99,6 +64,41 @@ export function useSync(): UseSyncReturn {
     }
   }, [isOnline, accessToken, updateSyncStatus]);
 
+  // Initial load and periodic updates
+  useEffect(() => {
+    updateSyncStatus();
+    const interval = setInterval(updateSyncStatus, 5000); // Update every 5s
+    return () => clearInterval(interval);
+  }, [updateSyncStatus]);
+
+  // Auto-sync when coming online
+  useEffect(() => {
+    if (isOnline && syncStatus.pending > 0 && accessToken) {
+      // Small delay to ensure connection is stable
+      const timeoutId = setTimeout(() => {
+        performSync().catch((error) => {
+          console.error("Auto-sync on reconnect failed:", error);
+        });
+      }, 2000);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isOnline, syncStatus.pending, accessToken, performSync]);
+
+  // Listen for sync-queue events from service worker
+  useEffect(() => {
+    const handleSyncQueue = () => {
+      if (isOnline && accessToken) {
+        performSync().catch((error) => {
+          console.error("Background sync failed:", error);
+        });
+      }
+    };
+
+    window.addEventListener("sync-queue", handleSyncQueue);
+    return () => window.removeEventListener("sync-queue", handleSyncQueue);
+  }, [isOnline, accessToken, performSync]);
+
   return {
     sync: performSync,
     isSyncing,
@@ -107,4 +107,3 @@ export function useSync(): UseSyncReturn {
     syncStatus,
   };
 }
-

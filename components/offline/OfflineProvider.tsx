@@ -1,14 +1,32 @@
 "use client";
 
 import { useEffect } from "react";
-import { OfflineBadge } from "./OfflineBadge";
-import { SyncStatus } from "./SyncStatus";
+import dynamic from "next/dynamic";
 import { OfflineNotification } from "./OfflineNotification";
 import { offlineDetector } from "@/lib/offline/offlineDetector";
 import { registerServiceWorker } from "@/lib/sw/serviceWorker";
 import { getCachedAuth } from "@/lib/offline/authCache";
 import { useDispatch } from "react-redux";
-import { setToken, setUser, markHydrated } from "@/stores/features/auth/authSlice";
+import {
+  setToken,
+  setUser,
+  markHydrated,
+} from "@/stores/features/auth/authSlice";
+
+// Dynamically import client-only components to prevent SSR hydration mismatches
+const DynamicOfflineBadge = dynamic(
+  () => import("./OfflineBadge").then((mod) => ({ default: mod.OfflineBadge })),
+  {
+    ssr: false,
+  }
+);
+
+const DynamicSyncStatus = dynamic(
+  () => import("./SyncStatus").then((mod) => ({ default: mod.SyncStatus })),
+  {
+    ssr: false,
+  }
+);
 
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch();
@@ -75,10 +93,9 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <OfflineBadge />
-      <SyncStatus />
+      <DynamicOfflineBadge />
+      <DynamicSyncStatus />
       <OfflineNotification />
     </>
   );
 }
-

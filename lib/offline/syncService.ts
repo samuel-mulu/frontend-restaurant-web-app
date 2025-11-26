@@ -33,8 +33,56 @@ function calculateBackoff(retries: number): number {
 
 /**
  * Format sync operation for backend
+ * For orders, ensures complete order data is included by merging with IndexedDB record
  */
-function formatSyncOperation(record: SyncQueueRecord) {
+async function formatSyncOperation(record: SyncQueueRecord) {
+  // For orders, we need to fetch the complete order from IndexedDB and merge with queue data
+  // This ensures all required fields (placedAt, totalAmount, orderNumber) are present
+  if (record.type === "order") {
+    const orderFromDB = await db.orders
+      .where("clientId")
+      .equals(record.clientId)
+      .first();
+
+    if (orderFromDB) {
+      // Merge queue data with complete order data from IndexedDB
+      // Queue data may only contain updates (partial fields)
+      const mergedData = {
+        ...orderFromDB,
+        ...record.data, // Queue data overrides DB data for updated fields
+        // Ensure required fields are always present
+        orderNumber:
+          record.data.orderNumber ||
+          orderFromDB.orderNumber ||
+          `OFFLINE-${record.clientId.slice(0, 8)}`,
+        totalAmount:
+          record.data.totalAmount !== undefined
+            ? record.data.totalAmount
+            : orderFromDB.totalAmount,
+        placedAt:
+          record.data.placedAt ||
+          orderFromDB.placedAt ||
+          orderFromDB.createdAt ||
+          new Date().toISOString(),
+        items: record.data.items || orderFromDB.items || [],
+        status: record.data.status || orderFromDB.status || "OPEN",
+      };
+
+      // Remove IndexedDB-specific fields before sending to backend
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, syncStatus, syncedAt, ...cleanData } = mergedData;
+
+      return {
+        type: record.type,
+        clientId: record.clientId,
+        data: cleanData,
+        timestamp: record.timestamp,
+        method: record.method,
+      };
+    }
+  }
+
+  // For other types, return as-is
   return {
     type: record.type,
     clientId: record.clientId,
@@ -55,7 +103,7 @@ async function processBatch(
   conflicts: Array<{ clientId: string; reason: string }>;
   errors: Array<{ clientId: string; error: string }>;
 }> {
-  const formattedOps = operations.map(formatSyncOperation);
+  const formattedOps = await Promise.all(operations.map(formatSyncOperation));
 
   const response = await fetch(`${apiConfig.BASE_URL}/sync`, {
     method: "POST",
@@ -162,7 +210,9 @@ export async function sync(accessToken: string): Promise<SyncResult> {
         break;
       }
 
-      const operationIds = operations.map((op) => op.id!).filter((id) => id !== undefined);
+      const operationIds = operations
+        .map((op) => op.id!)
+        .filter((id) => id !== undefined);
 
       // Mark as syncing
       await markAsSyncing(operationIds);
@@ -196,10 +246,7 @@ export async function sync(accessToken: string): Promise<SyncResult> {
       } catch (error: any) {
         // Mark all operations as error
         for (const op of operations) {
-          await markAsError(
-            op.clientId,
-            error.message || "Sync failed"
-          );
+          await markAsError(op.clientId, error.message || "Sync failed");
           result.errors++;
         }
 
@@ -244,4 +291,3 @@ export async function getSyncStatus(): Promise<{
     deadLetter,
   };
 }
-

@@ -14,8 +14,10 @@ class OfflineDetector {
   private apiUrl: string;
 
   constructor() {
-    this.isOnline = navigator.onLine;
-    this.apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+    // Default to true for SSR, will be updated on client mount
+    this.isOnline = typeof window !== "undefined" ? navigator.onLine : true;
+    this.apiUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
     // Listen to browser online/offline events
     if (typeof window !== "undefined") {
@@ -99,8 +101,12 @@ class OfflineDetector {
 
   /**
    * Get current online status
+   * Returns true during SSR to avoid hydration mismatches
    */
   getOnlineStatus(): boolean {
+    if (typeof window === "undefined") {
+      return true; // Default to online during SSR
+    }
     return this.isOnline;
   }
 
@@ -151,4 +157,3 @@ class OfflineDetector {
 
 // Export singleton instance
 export const offlineDetector = new OfflineDetector();
-

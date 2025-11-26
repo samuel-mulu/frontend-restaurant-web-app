@@ -13,6 +13,7 @@ export interface OrderRecord {
   waiterId?: string;
   cashierId?: string;
   note?: string;
+  placedAt?: string;
   createdAt: string;
   updatedAt: string;
   syncedAt?: string;

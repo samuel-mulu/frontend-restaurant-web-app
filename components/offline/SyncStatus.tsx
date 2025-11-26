@@ -3,18 +3,22 @@
 import { useEffect, useState } from "react";
 import { useSync } from "@/hooks/useSync";
 import { useOffline } from "@/hooks/useOffline";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, AlertCircle, CheckCircle2, Clock, Loader2 } from "lucide-react";
-import { getDeadLetterQueue, DeadLetterQueueRecord } from "@/lib/offline/syncQueue";
-import { db } from "@/lib/db/indexedDB";
+import { RefreshCw, AlertCircle, Clock, Loader2 } from "lucide-react";
+import {
+  getDeadLetterQueue,
+  DeadLetterQueueRecord,
+} from "@/lib/offline/syncQueue";
 
 export function SyncStatus() {
   const { sync, isSyncing, pendingCount, lastSyncTime, syncStatus } = useSync();
   const { isOnline } = useOffline();
-  const [deadLetterItems, setDeadLetterItems] = useState<DeadLetterQueueRecord[]>([]);
+  const [deadLetterItems, setDeadLetterItems] = useState<
+    DeadLetterQueueRecord[]
+  >([]);
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
@@ -69,7 +73,9 @@ export function SyncStatus() {
           {lastSyncTime && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              <span>Last sync: {new Date(lastSyncTime).toLocaleTimeString()}</span>
+              <span>
+                Last sync: {new Date(lastSyncTime).toLocaleTimeString()}
+              </span>
             </div>
           )}
         </div>
@@ -77,7 +83,9 @@ export function SyncStatus() {
         {isSyncing && (
           <div className="space-y-1">
             <Progress value={undefined} className="h-1" />
-            <p className="text-xs text-muted-foreground">Syncing operations...</p>
+            <p className="text-xs text-muted-foreground">
+              Syncing operations...
+            </p>
           </div>
         )}
 
@@ -151,4 +159,3 @@ export function SyncStatus() {
     </Card>
   );
 }
-

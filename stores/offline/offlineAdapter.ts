@@ -221,12 +221,46 @@ export function createOfflineBaseQuery(
 
         // Store in local DB for immediate UI access
         const now = new Date().toISOString();
+
+        // For updates (PATCH), extract order ID from URL and fetch existing order
+        const isUpdate = method === "PATCH";
+        let existingOrder: any = null;
+
+        if (isUpdate && type === "order") {
+          // Extract order ID from URL (e.g., /orders/123 or /orders/123/status)
+          const urlMatch = url.match(/\/orders\/([^\/]+)/);
+          if (urlMatch) {
+            const orderId = urlMatch[1];
+            // Try to find by _id or clientId
+            existingOrder = await db.orders
+              .where("_id")
+              .equals(orderId)
+              .first();
+            if (!existingOrder) {
+              existingOrder = await db.orders
+                .where("clientId")
+                .equals(orderId)
+                .first();
+            }
+            // If still not found, try by id field
+            if (!existingOrder) {
+              const allOrders = await db.orders.toArray();
+              existingOrder = allOrders.find(
+                (o) =>
+                  o.id?.toString() === orderId ||
+                  o._id === orderId ||
+                  o.clientId === orderId
+              );
+            }
+          }
+        }
+
         const optimisticData = {
           ...bodyWithClientId,
-          id: clientId,
-          _id: clientId,
-          clientId,
-          createdAt: now,
+          id: existingOrder?.id || clientId,
+          _id: existingOrder?._id || clientId,
+          clientId: existingOrder?.clientId || clientId,
+          createdAt: existingOrder?.createdAt || now,
           updatedAt: now,
           syncStatus: "pending" as const,
         };
@@ -235,18 +269,39 @@ export function createOfflineBaseQuery(
         try {
           switch (type) {
             case "order":
-              // Ensure order has all required fields
-              const orderData = {
-                ...optimisticData,
-                orderNumber:
-                  optimisticData.orderNumber ||
-                  `OFFLINE-${clientId.slice(0, 8)}`,
-                status: optimisticData.status || "OPEN",
-                totalAmount: optimisticData.totalAmount || 0,
-                items: optimisticData.items || [],
-                placedAt: optimisticData.placedAt || now,
-              };
-              await db.orders.put(orderData as any);
+              // For updates, merge with existing order data
+              const baseOrderData = existingOrder
+                ? {
+                    ...existingOrder,
+                    ...optimisticData,
+                    // Preserve existing required fields if not in update
+                    orderNumber:
+                      optimisticData.orderNumber || existingOrder.orderNumber,
+                    totalAmount:
+                      optimisticData.totalAmount !== undefined
+                        ? optimisticData.totalAmount
+                        : existingOrder.totalAmount,
+                    placedAt:
+                      optimisticData.placedAt ||
+                      existingOrder.placedAt ||
+                      existingOrder.createdAt ||
+                      now,
+                    items: optimisticData.items || existingOrder.items || [],
+                    status:
+                      optimisticData.status || existingOrder.status || "OPEN",
+                  }
+                : {
+                    ...optimisticData,
+                    orderNumber:
+                      optimisticData.orderNumber ||
+                      `OFFLINE-${clientId.slice(0, 8)}`,
+                    status: optimisticData.status || "OPEN",
+                    totalAmount: optimisticData.totalAmount || 0,
+                    items: optimisticData.items || [],
+                    placedAt: optimisticData.placedAt || now,
+                  };
+
+              await db.orders.put(baseOrderData as any);
               break;
             case "item":
               await db.items.put(optimisticData as any);

@@ -106,6 +106,7 @@ export const createOrderSchema = z.object({
     .optional(),
   customerChannel: z.string().optional(),
   waiterId: objectIdSchema.optional(),
+  cashierId: objectIdSchema.optional(),
   discount: z.number().min(0).optional(),
 });
 
@@ -226,7 +227,7 @@ export function validate<T>(schema: z.ZodSchema<T>, data: unknown): { success: t
     return { success: true, data: result };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const details = error.errors.map((err) => ({
+      const details = error.issues.map((err) => ({
         field: err.path.join("."),
         message: err.message,
       }));

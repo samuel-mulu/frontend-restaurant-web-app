@@ -250,6 +250,7 @@ export const apiSlice = createApi({
     "Item",
     "Inventory",
     "Salary",
+    "Shift",
   ],
   keepUnusedDataFor: 60,
   // refetchOnFocus: true,

@@ -118,8 +118,14 @@ export const itemsApi = createApiEndpoints({
         url: `/items/${id}`,
         method: "GET",
       }),
-      transformResponse: (response: ApiResponse<ItemResponse>) => {
-        return transformItem(response.data);
+      transformResponse: (
+        response: ApiResponse<ItemResponse> | ItemResponse
+      ) => {
+        // Handle both wrapped API response and direct response (from offline adapter)
+        const itemData =
+          (response as ApiResponse<ItemResponse>).data ||
+          (response as ItemResponse);
+        return transformItem(itemData);
       },
       providesTags: (result, _error, id) => [{ type: "Item" as const, id }],
     }),
@@ -192,8 +198,14 @@ export const itemsApi = createApiEndpoints({
           },
         };
       },
-      transformResponse: (response: ApiResponse<ItemResponse>) => {
-        return transformItem(response.data);
+      transformResponse: (
+        response: ApiResponse<ItemResponse> | ItemResponse
+      ) => {
+        // Handle both wrapped API response and direct response (from offline adapter)
+        const itemData =
+          (response as ApiResponse<ItemResponse>).data ||
+          (response as ItemResponse);
+        return transformItem(itemData);
       },
       invalidatesTags: [{ type: "Item", id: "LIST" }],
     }),
@@ -244,8 +256,14 @@ export const itemsApi = createApiEndpoints({
           body: updateData,
         };
       },
-      transformResponse: (response: ApiResponse<ItemResponse>) => {
-        return transformItem(response.data);
+      transformResponse: (
+        response: ApiResponse<ItemResponse> | ItemResponse
+      ) => {
+        // Handle both wrapped API response and direct response (from offline adapter)
+        const itemData =
+          (response as ApiResponse<ItemResponse>).data ||
+          (response as ItemResponse);
+        return transformItem(itemData);
       },
       invalidatesTags: (result, _error, { id }) => [
         { type: "Item", id },
@@ -270,8 +288,17 @@ export const itemsApi = createApiEndpoints({
         url: `/items/${id}/restore`,
         method: "PATCH",
       }),
-      transformResponse: (response: ApiResponse<ItemResponse>) => {
-        return transformItem(response.data);
+      transformResponse: (
+        response: ApiResponse<ItemResponse> | ItemResponse
+      ) => {
+        // Handle both wrapped API response and direct response (from offline adapter)
+        const itemData =
+          (response as ApiResponse<ItemResponse>).data ||
+          (response as ItemResponse);
+        if (!itemData) {
+          throw new Error("Invalid response: item data is missing");
+        }
+        return transformItem(itemData);
       },
       invalidatesTags: (result, _error, id) => [
         { type: "Item", id },
@@ -301,8 +328,17 @@ export const itemsApi = createApiEndpoints({
         method: "PATCH",
         body: data,
       }),
-      transformResponse: (response: ApiResponse<ItemResponse>) => {
-        return transformItem(response.data);
+      transformResponse: (
+        response: ApiResponse<ItemResponse> | ItemResponse
+      ) => {
+        // Handle both wrapped API response and direct response (from offline adapter)
+        const itemData =
+          (response as ApiResponse<ItemResponse>).data ||
+          (response as ItemResponse);
+        if (!itemData) {
+          throw new Error("Invalid response: item data is missing");
+        }
+        return transformItem(itemData);
       },
       invalidatesTags: (result, _error, { id }) => [
         { type: "Item", id },

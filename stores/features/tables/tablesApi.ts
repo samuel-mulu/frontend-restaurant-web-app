@@ -1,4 +1,5 @@
 import { createApiEndpoints } from "@/stores/baseApi";
+import { v4 as uuidv4 } from "uuid";
 
 export interface Table {
   _id: string;
@@ -82,11 +83,18 @@ export const tablesApi = createApiEndpoints({
       { success: boolean; data: Table },
       CreateTableInput
     >({
-      query: (body) => ({
-        url: "/tables",
-        method: "POST",
-        body,
-      }),
+      query: (body) => {
+        // Generate clientId for offline sync idempotency
+        const clientId = body.clientId || uuidv4();
+        return {
+          url: "/tables",
+          method: "POST",
+          body: {
+            ...body,
+            clientId,
+          },
+        };
+      },
       invalidatesTags: [{ type: "Table", id: "LIST" }],
     }),
 

@@ -1,5 +1,6 @@
 import { createApiEndpoints } from "@/stores/baseApi";
 import { Category } from "@/lib/types";
+import { v4 as uuidv4 } from "uuid";
 
 export interface CategoryResponse {
   _id?: string;
@@ -73,11 +74,18 @@ export const categoriesApi = createApiEndpoints({
     }),
 
     createCategory: build.mutation<Category, CreateCategoryInput>({
-      query: (body) => ({
-        url: "/categories",
-        method: "POST",
-        body,
-      }),
+      query: (body) => {
+        // Generate clientId for offline sync idempotency
+        const clientId = body.clientId || uuidv4();
+        return {
+          url: "/categories",
+          method: "POST",
+          body: {
+            ...body,
+            clientId,
+          },
+        };
+      },
       transformResponse: (response: ApiResponse<CategoryResponse>) => {
         return transformCategory(response.data);
       },

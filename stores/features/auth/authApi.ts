@@ -8,6 +8,16 @@ import {
 } from "@/types/auth";
 import { createApiEndpoints } from "@/stores/baseApi";
 
+/**
+ * Normalize date to ISO string for Redux serialization
+ */
+function normalizeDate(date: Date | string | undefined): string | undefined {
+  if (!date) return undefined;
+  if (typeof date === "string") return date;
+  if (date instanceof Date) return date.toISOString();
+  return undefined;
+}
+
 export const authApi = createApiEndpoints({
   endpoints: (build) => ({
     createStaff: build.mutation<
@@ -54,8 +64,8 @@ export const authApi = createApiEndpoints({
                 email: user.email,
                 phone: user.phone,
                 role: user.role,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
+                createdAt: normalizeDate(user.createdAt),
+                updatedAt: normalizeDate(user.updatedAt),
               })
             );
 
@@ -146,8 +156,8 @@ export const authApi = createApiEndpoints({
               email: userResponse.email,
               phone: userResponse.phone || "",
               role: userResponse.role || "cashier",
-              createdAt: userResponse.createdAt,
-              updatedAt: userResponse.updatedAt,
+              createdAt: normalizeDate(userResponse.createdAt),
+              updatedAt: normalizeDate(userResponse.updatedAt),
             },
           };
         }
@@ -170,8 +180,8 @@ export const authApi = createApiEndpoints({
                 email: user.email,
                 phone: user.phone,
                 role: user.role,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
+                createdAt: normalizeDate(user.createdAt),
+                updatedAt: normalizeDate(user.updatedAt),
               })
             );
           } else {
@@ -196,7 +206,14 @@ export const authApi = createApiEndpoints({
       async onQueryStarted(_, { dispatch, queryFulfilled }) {
         const { data } = await queryFulfilled;
         if (data?.success && data.data) {
-          dispatch(setUser(data.data));
+          const user = data.data;
+          dispatch(
+            setUser({
+              ...user,
+              createdAt: normalizeDate(user.createdAt),
+              updatedAt: normalizeDate(user.updatedAt),
+            })
+          );
         }
       },
       invalidatesTags: ["Auth"],

@@ -16,7 +16,9 @@ export type { DeadLetterQueueRecord, SyncQueueRecord };
 // Priority mapping (lower number = higher priority)
 const PRIORITY_MAP: Record<SyncOperationType, number> = {
   cashLedger: 1, // Highest priority - financial operations
+  salary: 1, // Financial operations
   order: 2,
+  shift: 2, // Core operations
   inventory: 3,
   item: 4,
   staff: 5,

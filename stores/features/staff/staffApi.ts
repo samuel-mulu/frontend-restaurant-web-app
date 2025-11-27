@@ -1,4 +1,5 @@
 import { createApiEndpoints } from "@/stores/baseApi";
+import { v4 as uuidv4 } from "uuid";
 
 export interface Staff {
   _id: string;
@@ -98,11 +99,18 @@ export const staffApi = createApiEndpoints({
       { success: boolean; message: string; data: Staff },
       CreateStaffInput
     >({
-      query: (body) => ({
-        url: "/staff",
-        method: "POST",
-        body,
-      }),
+      query: (body) => {
+        // Generate clientId for offline sync idempotency
+        const clientId = (body as any).clientId || uuidv4();
+        return {
+          url: "/staff",
+          method: "POST",
+          body: {
+            ...body,
+            clientId,
+          },
+        };
+      },
       invalidatesTags: [{ type: "Staff", id: "LIST" }],
     }),
 

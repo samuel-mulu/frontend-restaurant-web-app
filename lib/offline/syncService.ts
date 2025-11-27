@@ -34,8 +34,24 @@ function calculateBackoff(retries: number): number {
 /**
  * Format sync operation for backend
  * For orders, ensures complete order data is included by merging with IndexedDB record
+ * For DELETE operations, includes entity ID in data
  */
 async function formatSyncOperation(record: SyncQueueRecord) {
+  // For DELETE operations, ensure entity ID is included
+  if (record.method === "delete") {
+    return {
+      type: record.type,
+      clientId: record.clientId,
+      data: {
+        id: record.data.id || record.data._id || record.clientId,
+        _id: record.data._id || record.data.id || record.clientId,
+        clientId: record.clientId,
+      },
+      timestamp: record.timestamp,
+      method: record.method,
+    };
+  }
+
   // For orders, we need to fetch the complete order from IndexedDB and merge with queue data
   // This ensures all required fields (placedAt, totalAmount, orderNumber) are present
   if (record.type === "order") {
@@ -70,7 +86,7 @@ async function formatSyncOperation(record: SyncQueueRecord) {
 
       // Remove IndexedDB-specific fields before sending to backend
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id, syncStatus, syncedAt, ...cleanData } = mergedData;
+      const { id, syncStatus, syncedAt, _deleted, ...cleanData } = mergedData;
 
       return {
         type: record.type,
@@ -82,11 +98,14 @@ async function formatSyncOperation(record: SyncQueueRecord) {
     }
   }
 
-  // For other types, return as-is
+  // For other types, remove IndexedDB-specific fields
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id, syncStatus, syncedAt, _deleted, ...cleanData } = record.data;
+
   return {
     type: record.type,
     clientId: record.clientId,
-    data: record.data,
+    data: cleanData,
     timestamp: record.timestamp,
     method: record.method,
   };
@@ -138,54 +157,74 @@ async function processBatch(
 
 /**
  * Update local records with server IDs
+ * For UPDATE operations, also removes _deleted flag if present
  */
 async function updateLocalRecords(
   synced: Array<{ clientId: string; serverId: string; type: string }>
 ): Promise<void> {
   for (const item of synced) {
     // Update the appropriate table based on type
+    // Remove _deleted flag and update sync status
+    const updateData: any = {
+      _id: item.serverId,
+      syncStatus: "synced",
+      _deleted: false, // Remove deleted flag on successful sync
+    };
+
     switch (item.type) {
       case "order":
         await db.orders
           .where("clientId")
           .equals(item.clientId)
-          .modify({ _id: item.serverId, syncStatus: "synced" });
+          .modify(updateData);
         break;
       case "item":
         await db.items
           .where("clientId")
           .equals(item.clientId)
-          .modify({ _id: item.serverId, syncStatus: "synced" });
+          .modify(updateData);
         break;
       case "inventory":
         await db.inventory
           .where("clientId")
           .equals(item.clientId)
-          .modify({ _id: item.serverId, syncStatus: "synced" });
+          .modify(updateData);
         break;
       case "category":
         await db.categories
           .where("clientId")
           .equals(item.clientId)
-          .modify({ _id: item.serverId, syncStatus: "synced" });
+          .modify(updateData);
         break;
       case "staff":
         await db.staff
           .where("clientId")
           .equals(item.clientId)
-          .modify({ _id: item.serverId, syncStatus: "synced" });
+          .modify(updateData);
         break;
       case "table":
         await db.restaurantTables
           .where("clientId")
           .equals(item.clientId)
-          .modify({ _id: item.serverId, syncStatus: "synced" });
+          .modify(updateData);
+        break;
+      case "salary":
+        await db.salary
+          .where("clientId")
+          .equals(item.clientId)
+          .modify(updateData);
+        break;
+      case "shift":
+        await db.shifts
+          .where("clientId")
+          .equals(item.clientId)
+          .modify(updateData);
         break;
       case "cashLedger":
         await db.cashLedger
           .where("clientId")
           .equals(item.clientId)
-          .modify({ _id: item.serverId, syncStatus: "synced" });
+          .modify(updateData);
         break;
     }
   }
@@ -230,14 +269,87 @@ export async function sync(accessToken?: string | null): Promise<SyncResult> {
         // Process batch (accessToken is optional - cookies handle auth if not provided)
         const batchResult = await processBatch(operations, accessToken);
 
-        // Mark synced operations
+        // Mark synced operations and track DELETE operations
+        const deleteOperations: Array<{ clientId: string; type: string }> = [];
         for (const synced of batchResult.synced) {
           await markAsSynced(synced.clientId, synced.serverId);
           result.synced++;
+
+          // Track DELETE operations for hard deletion
+          const operation = operations.find(
+            (op) => op.clientId === synced.clientId
+          );
+          if (operation && operation.method === "delete") {
+            deleteOperations.push({
+              clientId: synced.clientId,
+              type: synced.type,
+            });
+          }
         }
 
         // Update local records with server IDs
         await updateLocalRecords(batchResult.synced);
+
+        // Hard delete records for successfully synced DELETE operations
+        for (const deleteOp of deleteOperations) {
+          try {
+            switch (deleteOp.type) {
+              case "order":
+                await db.orders
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+              case "item":
+                await db.items
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+              case "inventory":
+                await db.inventory
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+              case "category":
+                await db.categories
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+              case "staff":
+                await db.staff
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+              case "table":
+                await db.restaurantTables
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+              case "salary":
+                await db.salary
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+              case "shift":
+                await db.shifts
+                  .where("clientId")
+                  .equals(deleteOp.clientId)
+                  .delete();
+                break;
+            }
+          } catch (error) {
+            console.error(
+              `Failed to hard delete ${deleteOp.type} record:`,
+              error
+            );
+          }
+        }
 
         // Handle conflicts
         for (const conflict of batchResult.conflicts) {

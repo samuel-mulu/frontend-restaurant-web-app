@@ -48,8 +48,8 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
               role: cachedAuth.role as any,
               email: "",
               phone: "",
-              createdAt: new Date(),
-              updatedAt: new Date(),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             })
           );
         }

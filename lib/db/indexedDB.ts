@@ -59,7 +59,6 @@ export interface InventoryRecord {
   unit: string;
   price: number;
   description?: string;
-  categoryId?: string;
   createdAt: string;
   updatedAt: string;
   syncedAt?: string;

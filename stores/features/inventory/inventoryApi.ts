@@ -2,19 +2,11 @@ import { createApiEndpoints } from "@/stores/baseApi";
 import { Inventory } from "@/lib/types";
 import { v4 as uuidv4 } from "uuid";
 
-export interface InventoryCategory {
-  _id?: string;
-  id: string;
-  name: string;
-}
-
 export interface InventoryResponse {
   _id?: string;
   id: string;
   name: string;
   description?: string;
-  categoryId?: string | { id: string; name: string };
-  category?: InventoryCategory;
   quantity: number;
   unit: string;
   price: number;
@@ -31,14 +23,12 @@ interface ApiResponse<T> {
 }
 
 export interface InventoryListQuery {
-  categoryId?: string;
   lowStock?: boolean;
 }
 
 export interface CreateInventoryInput {
   name: string;
   description?: string;
-  categoryId?: string;
   quantity: number;
   unit: string;
   price: number;
@@ -47,7 +37,6 @@ export interface CreateInventoryInput {
 export interface UpdateInventoryInput {
   name?: string;
   description?: string;
-  categoryId?: string;
   quantity?: number;
   unit?: string;
   price?: number;
@@ -61,23 +50,6 @@ function transformInventory(item: any): Inventory {
   const itemId = item.id || item._id?.toString() || "";
   if (!itemId) {
     throw new Error("Inventory item is missing an ID");
-  }
-
-  // Handle category - can be populated object, ID string, or undefined
-  let categoryId = "";
-  if (item.categoryId) {
-    if (typeof item.categoryId === "object" && item.categoryId.id) {
-      categoryId = item.categoryId.id;
-    } else if (typeof item.categoryId === "object" && item.categoryId._id) {
-      categoryId = item.categoryId._id.toString();
-    } else if (typeof item.categoryId === "string") {
-      categoryId = item.categoryId;
-    }
-  }
-
-  // Also check category field (if populated differently)
-  if (!categoryId && item.category) {
-    categoryId = item.category.id || item.category._id?.toString() || "";
   }
 
   // Calculate low stock status if not provided (quantity <= 0)
@@ -98,7 +70,6 @@ function transformInventory(item: any): Inventory {
   return {
     id: itemId,
     name: item.name,
-    category: categoryId,
     quantity: item.quantity,
     unit: item.unit,
     price: item.price ?? 0, // Fallback for migration period only
@@ -113,8 +84,6 @@ export const inventoryApi = createApiEndpoints({
     listInventory: build.query<Inventory[], InventoryListQuery | void>({
       query: (params) => {
         const queryParams = new URLSearchParams();
-        if (params?.categoryId)
-          queryParams.append("categoryId", params.categoryId);
         if (params?.lowStock) queryParams.append("lowStock", "true");
 
         const qs = queryParams.toString();
@@ -180,7 +149,6 @@ export const inventoryApi = createApiEndpoints({
           body: {
             name: body.name,
             description: body.description,
-            categoryId: body.categoryId || undefined,
             quantity: body.quantity,
             unit: body.unit,
             price: body.price,
@@ -203,8 +171,6 @@ export const inventoryApi = createApiEndpoints({
         if (data.name !== undefined) updateData.name = data.name;
         if (data.description !== undefined)
           updateData.description = data.description;
-        if (data.categoryId !== undefined)
-          updateData.categoryId = data.categoryId || null;
         if (data.quantity !== undefined) updateData.quantity = data.quantity;
         if (data.unit !== undefined) updateData.unit = data.unit;
         if (data.price !== undefined) updateData.price = data.price;

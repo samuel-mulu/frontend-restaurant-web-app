@@ -11,7 +11,6 @@ import { validateOrThrow, createInventorySchema, updateInventorySchema } from "@
 export interface CreateInventoryInput {
   name: string;
   description?: string;
-  categoryId?: string | null;
   quantity: number;
   unit: string;
   price: number;
@@ -21,7 +20,6 @@ export interface CreateInventoryInput {
 export interface UpdateInventoryInput {
   name?: string;
   description?: string;
-  categoryId?: string | null;
   quantity?: number;
   unit?: string;
   price?: number;
@@ -29,7 +27,6 @@ export interface UpdateInventoryInput {
 
 export interface ListInventoryFilters {
   lowStock?: boolean;
-  categoryId?: string;
 }
 
 /**
@@ -38,22 +35,6 @@ export interface ListInventoryFilters {
 export async function createInventory(data: CreateInventoryInput): Promise<InventoryRecord> {
   // Validate input
   const validatedData = validateOrThrow(createInventorySchema, data);
-
-  // Check category if provided
-  if (validatedData.categoryId) {
-    const category = await db.categories
-      .where("_id")
-      .equals(validatedData.categoryId)
-      .or("clientId")
-      .equals(validatedData.categoryId)
-      .first();
-
-    if (!category || category._deleted) {
-      const error: any = new Error("Category not found");
-      error.status = 404;
-      throw error;
-    }
-  }
 
   // Check for idempotency
   if (data.clientId) {
@@ -71,7 +52,6 @@ export async function createInventory(data: CreateInventoryInput): Promise<Inven
     clientId,
     name: validatedData.name.trim(),
     description: validatedData.description?.trim(),
-    categoryId: validatedData.categoryId || undefined,
     quantity: validatedData.quantity,
     unit: validatedData.unit.trim(),
     price: validatedData.price,
@@ -119,22 +99,6 @@ export async function updateInventory(
     throw error;
   }
 
-  // Check category if provided
-  if (validatedData.categoryId !== undefined && validatedData.categoryId !== null) {
-    const category = await db.categories
-      .where("_id")
-      .equals(validatedData.categoryId)
-      .or("clientId")
-      .equals(validatedData.categoryId)
-      .first();
-
-    if (!category || category._deleted) {
-      const error: any = new Error("Category not found");
-      error.status = 404;
-      throw error;
-    }
-  }
-
   // Build updates
   const updates: Partial<InventoryRecord> = {
     updatedAt: new Date().toISOString(),
@@ -143,9 +107,6 @@ export async function updateInventory(
 
   if (validatedData.name !== undefined) updates.name = validatedData.name.trim();
   if (validatedData.description !== undefined) updates.description = validatedData.description?.trim();
-  if (validatedData.categoryId !== undefined) {
-    updates.categoryId = validatedData.categoryId || undefined;
-  }
   if (validatedData.quantity !== undefined) {
     if (validatedData.quantity < 0) {
       const error: any = new Error("Quantity cannot be negative");
@@ -189,45 +150,17 @@ export async function listInventory(filters: ListInventoryFilters = {}): Promise
     query = query.filter((inv) => inv.quantity <= 0);
   }
 
-  if (filters.categoryId) {
-    query = query.filter((inv) => inv.categoryId === filters.categoryId);
-  }
-
   // Exclude deleted
   query = query.filter((inv) => !inv._deleted);
 
   const inventory = await query.toArray();
 
-  // Populate category relationship
-  const inventoryWithCategory = await Promise.all(
-    inventory.map(async (inv) => {
-      if (!inv.categoryId) {
-        return { ...inv, category: null };
-      }
-
-      const category = await db.categories
-        .where("_id")
-        .equals(inv.categoryId)
-        .or("clientId")
-        .equals(inv.categoryId)
-        .first();
-
-      return {
-        ...inv,
-        category: category
-          ? {
-              id: category._id || category.clientId,
-              name: category.name,
-            }
-          : null,
-        // Add virtuals
-        isLowStock: inv.quantity <= 0,
-        stockStatus: inv.quantity <= 0 ? "low" : "normal",
-      };
-    })
-  );
-
-  return inventoryWithCategory as any;
+  // Add virtuals
+  return inventory.map((inv) => ({
+    ...inv,
+    isLowStock: inv.quantity <= 0,
+    stockStatus: inv.quantity <= 0 ? "low" : "normal",
+  })) as any;
 }
 
 /**
@@ -245,27 +178,8 @@ export async function getInventoryById(id: string): Promise<InventoryRecord | nu
     return null;
   }
 
-  // Populate category
-  let category = null;
-  if (inventory.categoryId) {
-    category = await db.categories
-      .where("_id")
-      .equals(inventory.categoryId)
-      .or("clientId")
-      .equals(inventory.categoryId)
-      .first();
-
-    if (category) {
-      category = {
-        id: category._id || category.clientId,
-        name: category.name,
-      };
-    }
-  }
-
   return {
     ...inventory,
-    category,
     isLowStock: inventory.quantity <= 0,
     stockStatus: inventory.quantity <= 0 ? "low" : "normal",
   } as any;
@@ -279,33 +193,10 @@ export async function getLowStockItems(): Promise<InventoryRecord[]> {
     .filter((inv) => inv.quantity <= 0 && !inv._deleted)
     .sortBy("quantity");
 
-  // Populate categories
-  return Promise.all(
-    items.map(async (item) => {
-      let category = null;
-      if (item.categoryId) {
-        const cat = await db.categories
-          .where("_id")
-          .equals(item.categoryId)
-          .or("clientId")
-          .equals(item.categoryId)
-          .first();
-
-        if (cat) {
-          category = {
-            id: cat._id || cat.clientId,
-            name: cat.name,
-          };
-        }
-      }
-
-      return {
-        ...item,
-        category,
-        isLowStock: true,
-        stockStatus: "low",
-      };
-    })
-  ) as any;
+  return items.map((item) => ({
+    ...item,
+    isLowStock: true,
+    stockStatus: "low",
+  })) as any;
 }
 

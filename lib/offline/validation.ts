@@ -64,7 +64,6 @@ export const updateCategorySchema = z.object({
 export const createInventorySchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   description: z.string().trim().optional(),
-  categoryId: objectIdSchema.optional().nullable(),
   quantity: z.number().min(0, "Quantity must be non-negative"),
   unit: z.string().trim().min(1, "Unit is required"),
   price: z.number().min(0, "Price must be non-negative"),
@@ -73,7 +72,6 @@ export const createInventorySchema = z.object({
 export const updateInventorySchema = z.object({
   name: z.string().trim().min(1).optional(),
   description: z.string().trim().optional(),
-  categoryId: objectIdSchema.optional().nullable(),
   quantity: z.number().min(0).optional(),
   unit: z.string().trim().min(1).optional(),
   price: z.number().min(0).optional(),

@@ -35,14 +35,12 @@ import {
   useCreateInventoryMutation,
   useUpdateInventoryMutation,
 } from "@/stores/features/inventory/inventoryApi";
-import { useListCategoriesQuery } from "@/stores/features/categories/categoriesApi";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { Inventory } from "@/lib/types";
 
 interface InventoryFormData {
-  categoryId: string;
   name: string;
   description: string;
   quantity: string;
@@ -56,12 +54,9 @@ export function InventoryManagement() {
   const [editingInventoryId, setEditingInventoryId] = useState<string | null>(
     null
   );
-  const [selectedCategoryFilter, setSelectedCategoryFilter] =
-    useState<string>("all");
   const [lowStockFilter, setLowStockFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [formData, setFormData] = useState<InventoryFormData>({
-    categoryId: "",
     name: "",
     description: "",
     quantity: "",
@@ -71,20 +66,11 @@ export function InventoryManagement() {
 
   // Redux Toolkit hooks
   const {
-    data: categories = [],
-    isLoading: isLoadingCategories,
-    error: categoriesError,
-  } = useListCategoriesQuery();
-
-  const {
     data: inventoryItems = [],
     isLoading: isLoadingInventory,
     error: inventoryError,
     refetch: refetchInventory,
-  } = useListInventoryQuery({
-    categoryId:
-      selectedCategoryFilter === "all" ? undefined : selectedCategoryFilter,
-  });
+  } = useListInventoryQuery();
 
   const [createInventory, { isLoading: isCreating }] =
     useCreateInventoryMutation();
@@ -92,25 +78,12 @@ export function InventoryManagement() {
     useUpdateInventoryMutation();
 
   const isSubmitting = isCreating || isUpdating;
-  const isLoading = isLoadingInventory || isLoadingCategories;
+  const isLoading = isLoadingInventory;
   const error =
     inventoryError && "data" in inventoryError
       ? (inventoryError.data as { message?: string })?.message ||
         "An error occurred"
-      : categoriesError && "data" in categoriesError
-      ? (categoriesError.data as { message?: string })?.message ||
-        "An error occurred"
       : null;
-
-  const getCategoryName = useCallback(
-    (categoryId: string): string => {
-      const category = categories.find(
-        (cat: { id: string; name: string }) => cat.id === categoryId
-      );
-      return category?.name || categoryId || "Uncategorized";
-    },
-    [categories]
-  );
 
   // Client-side filtering for search and low stock
   const filteredItems = useMemo(() => {
@@ -121,14 +94,10 @@ export function InventoryManagement() {
         const matchesName = item.name.toLowerCase().includes(query);
         const matchesDescription =
           item.description?.toLowerCase().includes(query) || false;
-        const matchesCategory = getCategoryName(item.category)
-          .toLowerCase()
-          .includes(query);
         const matchesUnit = item.unit.toLowerCase().includes(query);
         if (
           !matchesName &&
           !matchesDescription &&
-          !matchesCategory &&
           !matchesUnit
         ) {
           return false;
@@ -145,11 +114,7 @@ export function InventoryManagement() {
 
       return true;
     });
-  }, [inventoryItems, searchQuery, lowStockFilter, getCategoryName]);
-
-  const handleCategoryFilterChange = (categoryId: string) => {
-    setSelectedCategoryFilter(categoryId);
-  };
+  }, [inventoryItems, searchQuery, lowStockFilter]);
 
   const handleLowStockFilterChange = (filter: string) => {
     setLowStockFilter(filter);
@@ -183,7 +148,6 @@ export function InventoryManagement() {
       await createInventory({
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
-        categoryId: formData.categoryId || undefined,
         quantity,
         unit: formData.unit.trim(),
         price,
@@ -207,7 +171,6 @@ export function InventoryManagement() {
     if (item) {
       setEditingInventoryId(id);
       setFormData({
-        categoryId: item.category || "",
         name: item.name,
         description: item.description || "",
         quantity: item.quantity.toString(),
@@ -248,7 +211,6 @@ export function InventoryManagement() {
         data: {
           name: formData.name.trim(),
           description: formData.description.trim() || undefined,
-          categoryId: formData.categoryId || undefined,
           quantity,
           unit: formData.unit.trim(),
           price,
@@ -291,7 +253,6 @@ export function InventoryManagement() {
 
   const resetForm = () => {
     setFormData({
-      categoryId: "",
       name: "",
       description: "",
       quantity: "",
@@ -334,7 +295,7 @@ export function InventoryManagement() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
             <Input
               type="text"
-              placeholder="Search by name, description, category, or unit..."
+              placeholder="Search by name, description, or unit..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10 pr-10 rounded-full"
@@ -351,24 +312,6 @@ export function InventoryManagement() {
 
           {/* Filters */}
           <div className="flex items-center gap-2 shrink-0">
-            <Select
-              value={selectedCategoryFilter}
-              onValueChange={handleCategoryFilterChange}
-            >
-              <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                <Filter className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category: { id: string; name: string }) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <Select
               value={lowStockFilter}
               onValueChange={handleLowStockFilterChange}
@@ -395,7 +338,6 @@ export function InventoryManagement() {
         <EmptyState
           message={
             searchQuery ||
-            selectedCategoryFilter !== "all" ||
             lowStockFilter !== "all"
               ? "No inventory items match your filters."
               : "No inventory items found."
@@ -418,9 +360,6 @@ export function InventoryManagement() {
                   <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                     {item.name}
                   </h3>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Category: {getCategoryName(item.category)}
-                  </p>
                   {item.description && (
                     <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                       {item.description}
@@ -489,9 +428,6 @@ export function InventoryManagement() {
                   <TableHead className="w-auto min-w-[200px] pr-1 py-2">
                     Item Name
                   </TableHead>
-                  <TableHead className="w-auto min-w-[150px] pl-1 pr-1 py-2">
-                    Category
-                  </TableHead>
                   <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
                     Quantity
                   </TableHead>
@@ -517,9 +453,6 @@ export function InventoryManagement() {
                   >
                     <TableCell className="font-medium py-1.5 pl-3 pr-0">
                       {item.name}
-                    </TableCell>
-                    <TableCell className="py-1.5 pl-1 pr-1">
-                      {getCategoryName(item.category)}
                     </TableCell>
                     <TableCell className="py-1.5 pl-1 pr-2">
                       {item.quantity}
@@ -571,8 +504,6 @@ export function InventoryManagement() {
           <InventoryForm
             formData={formData}
             setFormData={setFormData}
-            categories={categories}
-            isLoadingCategories={isLoadingCategories}
           />
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
@@ -587,7 +518,7 @@ export function InventoryManagement() {
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={isSubmitting || isLoadingCategories}
+              disabled={isSubmitting}
               className="min-h-[44px] w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {isSubmitting ? (
@@ -612,8 +543,6 @@ export function InventoryManagement() {
           <InventoryForm
             formData={formData}
             setFormData={setFormData}
-            categories={categories}
-            isLoadingCategories={isLoadingCategories}
           />
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
@@ -625,7 +554,7 @@ export function InventoryManagement() {
             </Button>
             <Button
               onClick={handleUpdate}
-              disabled={isSubmitting || isLoadingCategories}
+              disabled={isSubmitting}
               className="min-h-[44px] w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {isSubmitting ? (
@@ -648,52 +577,14 @@ export function InventoryManagement() {
 interface InventoryFormProps {
   formData: InventoryFormData;
   setFormData: React.Dispatch<React.SetStateAction<InventoryFormData>>;
-  categories: Array<{ id: string; name: string }>;
-  isLoadingCategories: boolean;
 }
 
 function InventoryForm({
   formData,
   setFormData,
-  categories,
-  isLoadingCategories,
 }: InventoryFormProps) {
   return (
     <div className="space-y-4 py-4">
-      <div>
-        <Label htmlFor="inventory-category">Category (Optional)</Label>
-        <Select
-          value={formData.categoryId || "none"}
-          onValueChange={(val) =>
-            setFormData({ ...formData, categoryId: val === "none" ? "" : val })
-          }
-          disabled={isLoadingCategories}
-        >
-          <SelectTrigger className="mt-2 min-h-[44px]">
-            <SelectValue
-              placeholder={
-                isLoadingCategories
-                  ? "Loading categories..."
-                  : "Select category (optional)"
-              }
-            />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            {categories.length === 0 && !isLoadingCategories ? (
-              <SelectItem value="no-categories" disabled>
-                No categories available
-              </SelectItem>
-            ) : (
-              categories.map((category) => (
-                <SelectItem key={category.id} value={category.id}>
-                  {category.name}
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-      </div>
       <div>
         <Label htmlFor="inventory-name">Item Name *</Label>
         <Input

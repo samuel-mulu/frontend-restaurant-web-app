@@ -24,7 +24,6 @@ export interface Category {
 export interface Inventory {
   id: string;
   name: string;
-  category: string; // categoryId as string
   quantity: number;
   unit: string;
   price: number;

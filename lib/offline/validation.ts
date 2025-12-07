@@ -121,6 +121,7 @@ export const createOrderSchema = z.object({
   customerChannel: z.string().optional(),
   waiterId: objectIdSchema.optional(),
   cashierId: objectIdSchema.optional(),
+  cashierId: objectIdSchema.optional(),
   discount: z.number().min(0).optional(),
 });
 

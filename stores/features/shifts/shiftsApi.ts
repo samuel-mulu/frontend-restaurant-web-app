@@ -59,6 +59,11 @@ export interface ShiftRevenueResponse {
   };
 }
 
+const resolveStaffId = (staff: Shift["staffId"] | undefined): string | undefined => {
+  if (!staff) return undefined;
+  return typeof staff === "string" ? staff : staff._id || staff.id;
+};
+
 export const shiftsApi = createApiEndpoints({
   endpoints: (build) => ({
     listShifts: build.query<ShiftListResponse, ShiftListQuery | void>({
@@ -168,12 +173,13 @@ export const shiftsApi = createApiEndpoints({
         method: "POST",
         body,
       }),
-      invalidatesTags: [
-        { type: "Shift", id: "LIST" },
-        (result, _error, _arg) => [
-          { type: "Shift", id: `ACTIVE_${result?.data?.staffId || "CURRENT"}` },
-        ],
-      ],
+      invalidatesTags: (result) => {
+        const staffId = resolveStaffId(result?.data?.staffId);
+        return [
+          { type: "Shift", id: "LIST" },
+          { type: "Shift", id: `ACTIVE_${staffId || "CURRENT"}` },
+        ];
+      },
     }),
 
     endShift: build.mutation<
@@ -185,16 +191,14 @@ export const shiftsApi = createApiEndpoints({
         method: "POST",
         body: data || {},
       }),
-      invalidatesTags: (result, _error, { id }) => [
-        { type: "Shift", id },
-        { type: "Shift", id: "LIST" },
-        (result) => [
-          {
-            type: "Shift",
-            id: `ACTIVE_${typeof result?.data?.staffId === "object" ? result.data.staffId._id : result?.data?.staffId || "CURRENT"}`,
-          },
-        ],
-      ],
+      invalidatesTags: (result, _error, { id }) => {
+        const staffId = resolveStaffId(result?.data?.staffId);
+        return [
+          { type: "Shift", id },
+          { type: "Shift", id: "LIST" },
+          { type: "Shift", id: `ACTIVE_${staffId || "CURRENT"}` },
+        ];
+      },
     }),
 
     getShiftRevenue: build.query<ShiftRevenueResponse, string>({

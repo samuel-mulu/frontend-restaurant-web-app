@@ -246,12 +246,12 @@ export async function listStaff(filters: ListStaffFilters = {}): Promise<{
   // Apply search filter
   if (filters.search) {
     const searchLower = filters.search.toLowerCase();
-    query = query.filter(
-      (staff) =>
-        staff.name.toLowerCase().includes(searchLower) ||
-        staff.email?.toLowerCase().includes(searchLower) ||
-        staff.phone?.includes(searchLower)
-    );
+    query = query.filter((staff) => {
+      const nameMatch = (staff.name || "").toLowerCase().includes(searchLower);
+      const emailMatch = (staff.email || "").toLowerCase().includes(searchLower);
+      const phoneMatch = (staff.phone || "").includes(searchLower);
+      return nameMatch || emailMatch || phoneMatch;
+    });
   }
 
   const allStaff = await query.toArray();

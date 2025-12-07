@@ -6,10 +6,14 @@
 import { z } from "zod";
 
 // Helper to validate ObjectId format (MongoDB ObjectId)
-const objectIdSchema = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId format");
+const objectIdSchema = z
+  .string()
+  .regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId format");
 
 // Helper to validate YYYY-MM format
-const monthFormatSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format");
+const monthFormatSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}$/, "Month must be in YYYY-MM format");
 
 // Helper to validate phone number
 const phoneSchema = z
@@ -23,8 +27,16 @@ const phoneSchema = z
 
 export const createItemSchema = z.object({
   categoryId: objectIdSchema,
-  name: z.string().trim().min(1).max(120, "Name must be at most 120 characters"),
-  description: z.string().trim().max(500, "Description must be at most 500 characters").optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120, "Name must be at most 120 characters"),
+  description: z
+    .string()
+    .trim()
+    .max(500, "Description must be at most 500 characters")
+    .optional(),
   price: z.number().min(0, "Price must be non-negative"),
   isAvailable: z.boolean().optional().default(true),
   image: z
@@ -52,7 +64,11 @@ export const updateItemSchema = z.object({
 // ==================== CATEGORY VALIDATION ====================
 
 export const createCategorySchema = z.object({
-  name: z.string().trim().min(1).max(120, "Name must be at most 120 characters"),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120, "Name must be at most 120 characters"),
 });
 
 export const updateCategorySchema = z.object({
@@ -104,6 +120,7 @@ export const createOrderSchema = z.object({
     .optional(),
   customerChannel: z.string().optional(),
   waiterId: objectIdSchema.optional(),
+  cashierId: objectIdSchema.optional(),
   discount: z.number().min(0).optional(),
 });
 
@@ -116,7 +133,14 @@ export const updateOrderSchema = z.object({
 });
 
 export const updateOrderStatusSchema = z.object({
-  status: z.enum(["OPEN", "VOIDED", "PAID_TO_CASHIER", "TRANSFERRED_TO_OWNER", "OWNER_CONFIRMED", "DISPUTED"]),
+  status: z.enum([
+    "OPEN",
+    "VOIDED",
+    "PAID_TO_CASHIER",
+    "TRANSFERRED_TO_OWNER",
+    "OWNER_CONFIRMED",
+    "DISPUTED",
+  ]),
   paymentMethod: z.enum(["cash", "mobile_banking"]).optional(),
   paymentProofImage: z
     .object({
@@ -130,9 +154,22 @@ export const updateOrderStatusSchema = z.object({
 
 export const createStaffSchema = z
   .object({
-    name: z.string().trim().min(2, "Name must be at least 2 characters").max(100, "Name must be at most 100 characters"),
-    email: z.string().email("Invalid email format").toLowerCase().trim().optional().nullable(),
-    password: z.string().min(6, "Password must be at least 6 characters").optional(),
+    name: z
+      .string()
+      .trim()
+      .min(2, "Name must be at least 2 characters")
+      .max(100, "Name must be at most 100 characters"),
+    email: z
+      .string()
+      .email("Invalid email format")
+      .toLowerCase()
+      .trim()
+      .optional()
+      .nullable(),
+    password: z
+      .string()
+      .min(6, "Password must be at least 6 characters")
+      .optional(),
     phone: phoneSchema.optional().nullable(),
     role: z.enum(["cashier", "waiter", "staff"]),
     salary: z.number().min(0, "Salary must be non-negative"),
@@ -140,7 +177,10 @@ export const createStaffSchema = z
   .refine(
     (data) => {
       // Password is required for cashier and waiter roles
-      if ((data.role === "cashier" || data.role === "waiter") && !data.password) {
+      if (
+        (data.role === "cashier" || data.role === "waiter") &&
+        !data.password
+      ) {
         return false;
       }
       return true;
@@ -153,7 +193,10 @@ export const createStaffSchema = z
   .refine(
     (data) => {
       // Phone is required for cashier and waiter roles
-      if ((data.role === "cashier" || data.role === "waiter") && (!data.phone || !data.phone.trim())) {
+      if (
+        (data.role === "cashier" || data.role === "waiter") &&
+        (!data.phone || !data.phone.trim())
+      ) {
         return false;
       }
       return true;
@@ -205,7 +248,11 @@ export const updateShiftSchema = z.object({
 // ==================== TABLE VALIDATION ====================
 
 export const createTableSchema = z.object({
-  tableNumber: z.string().trim().min(1, "Table number is required").max(20, "Table number must be at most 20 characters"),
+  tableNumber: z
+    .string()
+    .trim()
+    .min(1, "Table number is required")
+    .max(20, "Table number must be at most 20 characters"),
   clientId: z.string().optional(),
 });
 
@@ -215,16 +262,26 @@ export const updateTableSchema = z.object({
 
 // ==================== VALIDATION HELPER FUNCTIONS ====================
 
+interface ValidationErrorDetail {
+  field: string;
+  message: string;
+}
+
 /**
  * Validate data against a schema and return formatted error if validation fails
  */
-export function validate<T>(schema: z.ZodSchema<T>, data: unknown): { success: true; data: T } | { success: false; error: string; details?: any } {
+export function validate<T>(
+  schema: z.ZodSchema<T>,
+  data: unknown
+):
+  | { success: true; data: T }
+  | { success: false; error: string; details?: ValidationErrorDetail[] } {
   try {
     const result = schema.parse(data);
     return { success: true, data: result };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const details = error.errors.map((err) => ({
+      const details: ValidationErrorDetail[] = error.issues.map((err) => ({
         field: err.path.join("."),
         message: err.message,
       }));
@@ -236,9 +293,15 @@ export function validate<T>(schema: z.ZodSchema<T>, data: unknown): { success: t
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown validation error",
+      error:
+        error instanceof Error ? error.message : "Unknown validation error",
     };
   }
+}
+
+interface ValidationError extends Error {
+  status: number;
+  details?: ValidationErrorDetail[];
 }
 
 /**
@@ -247,11 +310,10 @@ export function validate<T>(schema: z.ZodSchema<T>, data: unknown): { success: t
 export function validateOrThrow<T>(schema: z.ZodSchema<T>, data: unknown): T {
   const result = validate(schema, data);
   if (!result.success) {
-    const error: any = new Error(result.error);
+    const error = new Error(result.error) as ValidationError;
     error.status = 400;
     error.details = result.details;
     throw error;
   }
   return result.data;
 }
-

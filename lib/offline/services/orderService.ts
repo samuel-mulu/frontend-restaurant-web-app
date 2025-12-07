@@ -13,6 +13,10 @@ import {
   updateOrderStatusSchema,
 } from "@/lib/offline/validation";
 
+interface ServiceError extends Error {
+  status: number;
+}
+
 export interface CreateOrderInput {
   tableNumber?: string;
   items: Array<{
@@ -61,7 +65,9 @@ function generateOfflineOrderNumber(clientId: string): string {
 /**
  * Create a new order
  */
-export async function createOrder(data: CreateOrderInput): Promise<OrderRecord> {
+export async function createOrder(
+  data: CreateOrderInput
+): Promise<OrderRecord> {
   // Validate input
   const validatedData = validateOrThrow(createOrderSchema, data);
 
@@ -73,14 +79,24 @@ export async function createOrder(data: CreateOrderInput): Promise<OrderRecord> 
     .equals(validatedData.waiterId || "")
     .first();
 
-  if (!waiter || waiter._deleted || waiter.isDeleted || waiter.role !== "waiter") {
-    const error: any = new Error("Invalid waiter ID or user is not a waiter");
+  if (
+    !waiter ||
+    waiter._deleted ||
+    waiter.isDeleted ||
+    waiter.role !== "waiter"
+  ) {
+    const error = new Error(
+      "Invalid waiter ID or user is not a waiter"
+    ) as ServiceError;
     error.status = 400;
     throw error;
   }
 
   // Validate inventory quantities and decrement
-  const inventoryItemsToUpdate: Array<{ inventory: InventoryRecord; qty: number }> = [];
+  const inventoryItemsToUpdate: Array<{
+    inventory: InventoryRecord;
+    qty: number;
+  }> = [];
 
   for (const item of validatedData.items) {
     // Check if this itemId exists in Inventory
@@ -94,9 +110,9 @@ export async function createOrder(data: CreateOrderInput): Promise<OrderRecord> 
     if (inventory && !inventory._deleted) {
       // This is an inventory item - validate quantity
       if (inventory.quantity < item.qty) {
-        const error: any = new Error(
+        const error = new Error(
           `Insufficient quantity for ${inventory.name}. Available: ${inventory.quantity}, Requested: ${item.qty}`
-        );
+        ) as ServiceError;
         error.status = 400;
         throw error;
       }
@@ -113,7 +129,10 @@ export async function createOrder(data: CreateOrderInput): Promise<OrderRecord> 
 
   // Check for idempotency
   if (data.clientId) {
-    const existing = await db.orders.where("clientId").equals(data.clientId).first();
+    const existing = await db.orders
+      .where("clientId")
+      .equals(data.clientId)
+      .first();
     if (existing) {
       return existing;
     }
@@ -187,12 +206,15 @@ export async function createOrder(data: CreateOrderInput): Promise<OrderRecord> 
 /**
  * Update an order
  */
-export async function updateOrder(id: string, data: UpdateOrderInput): Promise<OrderRecord | null> {
+export async function updateOrder(
+  id: string,
+  data: UpdateOrderInput
+): Promise<OrderRecord | null> {
   // Validate input
   const validatedData = validateOrThrow(updateOrderSchema, data);
 
   // Find existing order
-  let order = await db.orders
+  const order = await db.orders
     .where("_id")
     .equals(id)
     .or("clientId")
@@ -200,7 +222,7 @@ export async function updateOrder(id: string, data: UpdateOrderInput): Promise<O
     .first();
 
   if (!order || order._deleted) {
-    const error: any = new Error("Order not found");
+    const error = new Error("Order not found") as ServiceError;
     error.status = 404;
     throw error;
   }
@@ -227,7 +249,8 @@ export async function updateOrder(id: string, data: UpdateOrderInput): Promise<O
   }
 
   if (validatedData.note !== undefined) updates.note = validatedData.note;
-  if (validatedData.tableNumber !== undefined) updates.tableNumber = validatedData.tableNumber;
+  if (validatedData.tableNumber !== undefined)
+    updates.tableNumber = validatedData.tableNumber;
 
   await db.orders.update(order.id!, updates);
 
@@ -264,7 +287,7 @@ export async function updateOrderStatus(
     .first();
 
   if (!order || order._deleted) {
-    const error: any = new Error("Order not found");
+    const error = new Error("Order not found") as ServiceError;
     error.status = 404;
     throw error;
   }
@@ -317,19 +340,26 @@ export async function updateOrderStatus(
 /**
  * Cancel an order
  */
-export async function cancelOrder(id: string, userId?: string): Promise<OrderRecord | null> {
+export async function cancelOrder(
+  id: string,
+  userId?: string
+): Promise<OrderRecord | null> {
   return updateOrderStatus(id, "VOIDED", userId);
 }
 
 /**
  * List orders with filters
  */
-export async function listOrders(filters: ListOrdersFilters = {}): Promise<OrderRecord[]> {
+export async function listOrders(
+  filters: ListOrdersFilters = {}
+): Promise<OrderRecord[]> {
   let query = db.orders.toCollection();
 
   // Apply filters
   if (filters.status) {
-    const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
+    const statuses = Array.isArray(filters.status)
+      ? filters.status
+      : [filters.status];
     query = query.filter((order) => statuses.includes(order.status));
   }
 
@@ -360,7 +390,9 @@ export async function listOrders(filters: ListOrdersFilters = {}): Promise<Order
       (order) =>
         order.orderNumber.toLowerCase().includes(searchLower) ||
         order.tableNumber?.toLowerCase().includes(searchLower) ||
-        order.items.some((item) => item.nameSnapshot.toLowerCase().includes(searchLower))
+        order.items.some((item) =>
+          item.nameSnapshot.toLowerCase().includes(searchLower)
+        )
     );
   }
 
@@ -370,7 +402,7 @@ export async function listOrders(filters: ListOrdersFilters = {}): Promise<Order
   const orders = await query.reverse().sortBy("createdAt");
 
   // Populate relationships
-  return Promise.all(
+  const ordersWithRelations = await Promise.all(
     orders.map(async (order) => {
       const waiter = order.waiterId
         ? await db.staff
@@ -410,7 +442,9 @@ export async function listOrders(filters: ListOrdersFilters = {}): Promise<Order
           : order.cashierId,
       };
     })
-  ) as any;
+  );
+
+  return ordersWithRelations as OrderRecord[];
 }
 
 /**
@@ -467,20 +501,23 @@ export async function getOrderById(id: string): Promise<OrderRecord | null> {
           phone: cashier.phone,
         }
       : order.cashierId,
-  } as any;
+  } as OrderRecord;
 }
 
 /**
  * Get orders by waiter
  */
-export async function getOrdersByWaiter(waiterId: string): Promise<OrderRecord[]> {
+export async function getOrdersByWaiter(
+  waiterId: string
+): Promise<OrderRecord[]> {
   return listOrders({ waiterId });
 }
 
 /**
  * Get orders by cashier
  */
-export async function getOrdersByCashier(cashierId: string): Promise<OrderRecord[]> {
+export async function getOrdersByCashier(
+  cashierId: string
+): Promise<OrderRecord[]> {
   return listOrders({ cashierId });
 }
-

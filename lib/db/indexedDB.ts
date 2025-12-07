@@ -36,7 +36,7 @@ export interface ItemRecord {
   _id?: string;
   clientId: string;
   name: string;
-  price: number; // Stored in cents (backend format)
+  price: number; // Stored as-is (no conversion)
   categoryId: string;
   description?: string;
   image?: { url?: string; publicId?: string };

@@ -12,6 +12,10 @@ import {
   updateItemSchema,
 } from "@/lib/offline/validation";
 
+interface ServiceError extends Error {
+  status: number;
+}
+
 export interface CreateItemInput {
   categoryId: string;
   name: string;
@@ -68,7 +72,7 @@ export async function createItem(
     .first();
 
   if (!category || category._deleted) {
-    const error: any = new Error("Category not found");
+    const error = new Error("Category not found") as ServiceError;
     error.status = 404;
     throw error;
   }
@@ -96,14 +100,12 @@ export async function createItem(
     imageData = validatedData.image;
   }
 
-  // Convert price to cents (backend stores in cents)
-  const priceInCents = Math.round(validatedData.price * 100);
-
+  // Store price as-is (no conversion)
   const item: Omit<ItemRecord, "id"> = {
     _id: undefined,
     clientId,
     name: validatedData.name,
-    price: priceInCents,
+    price: validatedData.price,
     categoryId: validatedData.categoryId,
     description: validatedData.description,
     image: imageData,
@@ -118,13 +120,14 @@ export async function createItem(
 
   const id = await db.items.add(item as ItemRecord);
 
-  // Queue for sync
+  // Queue for sync - send price in DOLLARS (backend model setter will convert to cents)
   await addToSyncQueue({
     clientId,
     type: "item",
     data: {
       ...validatedData,
-      price: priceInCents,
+      // Price should be in dollars for backend (model setter converts to cents)
+      // validatedData.price is already in dollars from the input
       image: imageData,
     },
     timestamp: Date.now(),
@@ -146,7 +149,7 @@ export async function updateItem(
   const validatedData = validateOrThrow(updateItemSchema, data);
 
   // Find existing item
-  let item = await db.items
+  const item = await db.items
     .where("_id")
     .equals(id)
     .or("clientId")
@@ -154,7 +157,7 @@ export async function updateItem(
     .first();
 
   if (!item || item._deleted || item.isDeleted) {
-    const error: any = new Error("Item not found");
+    const error = new Error("Item not found") as ServiceError;
     error.status = 404;
     throw error;
   }
@@ -169,7 +172,7 @@ export async function updateItem(
       .first();
 
     if (!category || category._deleted) {
-      const error: any = new Error("Category not found");
+      const error = new Error("Category not found") as ServiceError;
       error.status = 404;
       throw error;
     }
@@ -197,20 +200,20 @@ export async function updateItem(
     updates.isAvailable = validatedData.isAvailable;
   if (imageData !== undefined) updates.image = imageData;
   if (validatedData.price !== undefined) {
-    updates.price = Math.round(validatedData.price * 100); // Convert to cents
+    // Store price as-is (no conversion)
+    updates.price = validatedData.price;
   }
 
   await db.items.update(item.id!, updates);
 
-  // Queue for sync
+  // Queue for sync - send price in DOLLARS (backend model setter will convert to cents)
   await addToSyncQueue({
     clientId: item.clientId,
     type: "item",
     data: {
       ...validatedData,
-      price: validatedData.price
-        ? Math.round(validatedData.price * 100)
-        : undefined,
+      // Price should be in dollars for backend (model setter converts to cents)
+      // validatedData.price is already in dollars from the form
       image: imageData,
     },
     timestamp: Date.now(),
@@ -232,7 +235,7 @@ export async function deleteItem(id: string): Promise<ItemRecord | null> {
     .first();
 
   if (!item || item._deleted || item.isDeleted) {
-    const error: any = new Error("Item not found");
+    const error = new Error("Item not found") as ServiceError;
     error.status = 404;
     throw error;
   }
@@ -269,7 +272,7 @@ export async function restoreItem(id: string): Promise<ItemRecord | null> {
     .first();
 
   if (!item) {
-    const error: any = new Error("Item not found");
+    const error = new Error("Item not found") as ServiceError;
     error.status = 404;
     throw error;
   }
@@ -306,7 +309,7 @@ export async function permanentDeleteItem(id: string): Promise<void> {
     .first();
 
   if (!item) {
-    const error: any = new Error("Item not found");
+    const error = new Error("Item not found") as ServiceError;
     error.status = 404;
     throw error;
   }
@@ -359,7 +362,7 @@ export async function listItems(
     })
   );
 
-  return itemsWithCategory as any;
+  return itemsWithCategory as ItemRecord[];
 }
 
 /**
@@ -394,7 +397,7 @@ export async function getItemById(id: string): Promise<ItemRecord | null> {
           name: category.name,
         }
       : null,
-  } as any;
+  } as ItemRecord;
 }
 
 /**
@@ -434,7 +437,7 @@ export async function updateAvailability(
     .first();
 
   if (!item || item._deleted || item.isDeleted) {
-    const error: any = new Error("Item not found");
+    const error = new Error("Item not found") as ServiceError;
     error.status = 404;
     throw error;
   }

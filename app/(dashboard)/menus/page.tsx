@@ -796,10 +796,16 @@ function MenuForm({
         <Label htmlFor="menu-price">Price</Label>
         <Input
           id="menu-price"
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
           value={formData.price}
-          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+          onChange={(e) => {
+            const value = e.target.value;
+            // Allow only numbers and one decimal point
+            if (value === "" || /^\d*\.?\d*$/.test(value)) {
+              setFormData({ ...formData, price: value });
+            }
+          }}
           placeholder="Enter price"
           className="mt-2 min-h-[44px]"
         />

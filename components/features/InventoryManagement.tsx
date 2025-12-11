@@ -29,6 +29,7 @@ import {
 import { Edit2, Loader2, Search, X, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 import {
   useListInventoryQuery,
@@ -392,7 +393,7 @@ export function InventoryManagement() {
                     Br {item.price?.toFixed(2) || "0.00"}
                   </span>
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-2 flex items-center gap-2">
                   <span
                     className={cn(
                       "text-xs px-2 py-1 rounded",
@@ -403,6 +404,26 @@ export function InventoryManagement() {
                   >
                     {item.isLowStock ? "⚠ Low Stock" : "✓ In Stock"}
                   </span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs",
+                      item.approvalStatus === "pendingapproval" &&
+                        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                      item.approvalStatus === "approved" &&
+                        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                      item.approvalStatus === "rejected" &&
+                        "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                    )}
+                  >
+                    {item.approvalStatus === "pendingapproval"
+                      ? "Pending"
+                      : item.approvalStatus === "approved"
+                      ? "Approved"
+                      : item.approvalStatus === "rejected"
+                      ? "Rejected"
+                      : "—"}
+                  </Badge>
                 </div>
                 <div className="col-span-2">
                   <span className="text-gray-600 dark:text-gray-400">
@@ -438,7 +459,10 @@ export function InventoryManagement() {
                     Price
                   </TableHead>
                   <TableHead className="w-auto min-w-[100px] pl-1 pr-1 py-2">
-                    Status
+                    Stock Status
+                  </TableHead>
+                  <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
+                    Approval
                   </TableHead>
                   <TableHead className="w-auto min-w-[100px] pl-1 py-2">
                     Actions
@@ -476,6 +500,27 @@ export function InventoryManagement() {
                       >
                         {item.isLowStock ? "⚠ Low Stock" : "✓ In Stock"}
                       </span>
+                    </TableCell>
+                    <TableCell className="py-1.5 pl-1 pr-1">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          item.approvalStatus === "pendingapproval" &&
+                            "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                          item.approvalStatus === "approved" &&
+                            "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                          item.approvalStatus === "rejected" &&
+                            "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                        )}
+                      >
+                        {item.approvalStatus === "pendingapproval"
+                          ? "Pending"
+                          : item.approvalStatus === "approved"
+                          ? "Approved"
+                          : item.approvalStatus === "rejected"
+                          ? "Rejected"
+                          : "—"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="py-1.5 pl-1">
                       <Button

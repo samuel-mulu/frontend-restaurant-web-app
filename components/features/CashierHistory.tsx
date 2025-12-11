@@ -65,6 +65,12 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
 import { OrderDetailsModal } from "@/components/features/OrderDetailsModal";
 import {
+  gregorianToEthiopian,
+  formatEthiopianDate,
+  parseEthiopianDate,
+  ethiopianToGregorian,
+} from "@/lib/utils/ethiopianCalendar";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -112,6 +118,31 @@ const formatDate = (date: string): string => {
 
 const formatDateForInput = (date: Date): string => {
   return date.toISOString().split("T")[0];
+};
+
+// Date conversion helpers for Ethiopian calendar
+const formatDateForDisplay = (date: string, mode: "gregorian" | "ethiopian"): string => {
+  try {
+    const gregorianDate = new Date(date);
+    if (mode === "ethiopian") {
+      const ethiopianDate = gregorianToEthiopian(gregorianDate);
+      return formatEthiopianDate(ethiopianDate);
+    }
+    return formatDate(date);
+  } catch {
+    return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
+  }
+};
+
+// Convert Ethiopian date string back to Gregorian for filtering
+const convertEthiopianToGregorian = (ethiopianDateStr: string): string => {
+  try {
+    const ethDate = parseEthiopianDate(ethiopianDateStr);
+    const gregDate = ethiopianToGregorian(ethDate);
+    return formatDateForInput(gregDate);
+  } catch {
+    return ethiopianDateStr;
+  }
 };
 
 const getDatePresets = () => {
@@ -225,8 +256,14 @@ function transformOrder(order: RTKOrder): DisplayOrder {
   };
 }
 
-const extractDates = (orders: DisplayOrder[]): string[] =>
-  [...new Set(orders.map((o) => formatDate(o.date)))].sort().reverse();
+const extractDates = (orders: DisplayOrder[], calendarMode: "gregorian" | "ethiopian"): string[] => {
+  const dateSet = new Set<string>();
+  orders.forEach((o) => {
+    const dateStr = formatDateForDisplay(o.date, calendarMode);
+    dateSet.add(dateStr);
+  });
+  return [...dateSet].sort().reverse();
+};
 
 // -------------------- Main Component -------------------- //
 export function CashierHistory() {
@@ -239,6 +276,7 @@ export function CashierHistory() {
   const [statusFilter, setStatusFilter] = useState<string>("OPEN");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
+  const [calendarMode, setCalendarMode] = useState<"gregorian" | "ethiopian">("gregorian");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set()
@@ -432,8 +470,13 @@ export function CashierHistory() {
   const filtered = useMemo(() => {
     return orders.filter((o: DisplayOrder) => {
       // Date filter (client-side)
-      if (dateFilter !== "all" && formatDate(o.date) !== dateFilter) {
+      if (dateFilter !== "all") {
+        const orderDateStr = formatDateForDisplay(o.date, calendarMode);
+        // If calendar mode is Ethiopian, compare Ethiopian dates directly
+        // If Gregorian, compare Gregorian dates
+        if (orderDateStr !== dateFilter) {
         return false;
+        }
       }
 
       // Search filter (client-side)
@@ -448,7 +491,7 @@ export function CashierHistory() {
 
       return true;
     });
-  }, [orders, dateFilter, searchQuery]);
+  }, [orders, dateFilter, searchQuery, calendarMode]);
 
   // Pagination info
   const paginationInfo = useMemo(() => {
@@ -829,7 +872,7 @@ export function CashierHistory() {
     return transitions[currentStatus] || [];
   };
 
-  const dates = extractDates(orders);
+  const dates = useMemo(() => extractDates(orders, calendarMode), [orders, calendarMode]);
   const datePresets = getDatePresets();
 
   // Handle date range preset changes
@@ -864,6 +907,11 @@ export function CashierHistory() {
   useEffect(() => {
     setPage(1);
   }, [statusFilter, waiterFilter, dateFilter, searchQuery, dateRangePreset]);
+
+  // Reset date filter when calendar mode changes
+  useEffect(() => {
+    setDateFilter("all");
+  }, [calendarMode]);
 
   // Fetch all waiters from the API
   const { data: waitersData } = useListStaffQuery({
@@ -1269,6 +1317,33 @@ export function CashierHistory() {
                 </SelectContent>
               </Select>
 
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-lg border bg-white dark:bg-slate-800 p-1">
+                  <Button
+                    variant={calendarMode === "gregorian" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCalendarMode("gregorian")}
+                    className={`h-7 px-3 text-xs ${
+                      calendarMode === "gregorian"
+                        ? "bg-blue-600 hover:bg-blue-700 text-white"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    Gregorian
+                  </Button>
+                  <Button
+                    variant={calendarMode === "ethiopian" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCalendarMode("ethiopian")}
+                    className={`h-7 px-3 text-xs ${
+                      calendarMode === "ethiopian"
+                        ? "bg-blue-600 hover:bg-blue-700 text-white"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    Ethiopian
+                  </Button>
+                </div>
               <Select value={dateFilter} onValueChange={setDateFilter}>
                 <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
                   <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
@@ -1283,6 +1358,7 @@ export function CashierHistory() {
                   ))}
                 </SelectContent>
               </Select>
+              </div>
 
               {waiterList.length > 0 && (
                 <Select value={waiterFilter} onValueChange={setWaiterFilter}>
@@ -1467,7 +1543,7 @@ export function CashierHistory() {
                             {getStatusBadgeText(o.backendStatus)}
                           </Badge>
                         </TableCell>
-                        <TableCell>{formatDate(o.date)}</TableCell>
+                        <TableCell>{formatDateForDisplay(o.date, calendarMode)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Button

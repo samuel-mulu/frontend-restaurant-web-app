@@ -26,9 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Edit2, Loader2, Search, X, Filter } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Edit2, Loader2, Search, X, Filter, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 import {
   useListItemsQuery,
@@ -49,6 +51,9 @@ interface MenuFormData {
   price: string;
   description: string;
   available: string;
+  ingredients: string[];
+  mealType: string;
+  special: boolean;
 }
 
 export default function MenuManagement() {
@@ -65,6 +70,9 @@ export default function MenuManagement() {
     price: "",
     description: "",
     available: "true",
+    ingredients: [],
+    mealType: "",
+    special: false,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -90,9 +98,9 @@ export default function MenuManagement() {
   const [createItem, { isLoading: isCreating }] = useCreateItemMutation();
   const [updateItem, { isLoading: isUpdating }] = useUpdateItemMutation();
   const [deleteItem] = useDeleteItemMutation();
-  const [updateAvailability] = useUpdateItemAvailabilityMutation();
+  const [updateAvailability, { isLoading: isUpdatingAvailability }] = useUpdateItemAvailabilityMutation();
 
-  const isSubmitting = isCreating || isUpdating;
+  const isSubmitting = isCreating || isUpdating || isUpdatingAvailability;
   const isLoading = isLoadingItems || isLoadingCategories;
   const error =
     itemsError && "data" in itemsError
@@ -184,6 +192,9 @@ export default function MenuManagement() {
         price,
         isAvailable: formData.available === "true",
         image: imageFile || undefined,
+        ingredients: formData.ingredients.length > 0 ? formData.ingredients : undefined,
+        mealType: formData.mealType || undefined,
+        special: formData.special || undefined,
       }).unwrap();
 
       resetForm();
@@ -205,8 +216,11 @@ export default function MenuManagement() {
         categoryId: menu.category,
         name: menu.name,
         price: menu.price.toString(),
-        description: menu.description,
+        description: menu.description || "",
         available: menu.available ? "true" : "false",
+        ingredients: menu.ingredients || [],
+        mealType: menu.mealType || "",
+        special: menu.special || false,
       });
       setImagePreview(menu.imageUrl || null);
       setIsEditOpen(true);
@@ -242,6 +256,9 @@ export default function MenuManagement() {
           price,
           isAvailable: formData.available === "true",
           image: imageFile || undefined,
+          ingredients: formData.ingredients.length > 0 ? formData.ingredients : undefined,
+          mealType: formData.mealType || undefined,
+          special: formData.special || undefined,
         },
       }).unwrap();
 
@@ -340,6 +357,9 @@ export default function MenuManagement() {
       price: "",
       description: "",
       available: "true",
+      ingredients: [],
+      mealType: "",
+      special: false,
     });
     clearImage();
   };
@@ -483,8 +503,12 @@ export default function MenuManagement() {
               description?: string;
               price: number;
               available: boolean;
+              approvalStatus?: "pendingapproval" | "approved" | "rejected";
               updatedAt?: string;
               imageUrl?: string;
+              ingredients?: string[];
+              mealType?: "breakfast" | "lunch" | "dinner" | "treats";
+              special?: boolean;
             }) => (
               <div
                 key={menu.id}
@@ -492,15 +516,32 @@ export default function MenuManagement() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                      {menu.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                        {menu.name}
+                      </h3>
+                      {menu.special && (
+                        <Badge variant="default" className="bg-amber-500 text-white">
+                          ⭐ Special
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Category: {getCategoryName(menu.category)}
                     </p>
+                    {menu.mealType && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        Meal Type: <span className="capitalize">{menu.mealType}</span>
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                       {menu.description}
                     </p>
+                    {menu.ingredients && menu.ingredients.length > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Ingredients: {menu.ingredients.join(", ")}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -534,6 +575,26 @@ export default function MenuManagement() {
                     >
                       {menu.available ? "Available" : "Unavailable"}
                     </span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "ml-2 text-xs",
+                        menu.approvalStatus === "pendingapproval" &&
+                          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                        menu.approvalStatus === "approved" &&
+                          "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                        menu.approvalStatus === "rejected" &&
+                          "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                      )}
+                    >
+                      {menu.approvalStatus === "pendingapproval"
+                        ? "Pending"
+                        : menu.approvalStatus === "approved"
+                        ? "Approved"
+                        : menu.approvalStatus === "rejected"
+                        ? "Rejected"
+                        : "—"}
+                    </Badge>
                   </div>
                   <Button
                     variant="outline"
@@ -569,8 +630,20 @@ export default function MenuManagement() {
                   <TableHead className="w-auto min-w-[80px] pl-1 pr-1 py-2">
                     Price
                   </TableHead>
+                  <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
+                    Meal Type
+                  </TableHead>
                   <TableHead className="w-auto min-w-[100px] pl-1 pr-1 py-2">
-                    Status
+                    Special
+                  </TableHead>
+                  <TableHead className="w-auto min-w-[150px] pl-1 pr-1 py-2">
+                    Ingredients
+                  </TableHead>
+                  <TableHead className="w-auto min-w-[100px] pl-1 pr-1 py-2">
+                    Availability
+                  </TableHead>
+                  <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
+                    Approval
                   </TableHead>
                   <TableHead className="w-auto min-w-[100px] pl-1 py-2">
                     Actions
@@ -586,15 +659,26 @@ export default function MenuManagement() {
                     description?: string;
                     price: number;
                     available: boolean;
+                    approvalStatus?: "pendingapproval" | "approved" | "rejected";
                     updatedAt?: string;
                     imageUrl?: string;
+                    ingredients?: string[];
+                    mealType?: "breakfast" | "lunch" | "dinner" | "treats";
+                    special?: boolean;
                   }) => (
                     <TableRow
                       key={menu.id}
                       className="hover:bg-gray-50 dark:hover:bg-slate-700"
                     >
                       <TableCell className="font-medium py-1.5 pl-3 pr-0">
-                        {menu.name}
+                        <div className="flex items-center gap-2">
+                          {menu.name}
+                          {menu.special && (
+                            <Badge variant="default" className="bg-amber-500 text-white text-xs">
+                              ⭐
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="py-1.5 pl-1 pr-1">
                         {getCategoryName(menu.category)}
@@ -603,16 +687,88 @@ export default function MenuManagement() {
                         {menu.price.toFixed(2)} ብር
                       </TableCell>
                       <TableCell className="py-1.5 pl-1 pr-1">
-                        <span
-                          className={cn(
-                            "text-xs px-2 py-0.5 rounded",
+                        {menu.mealType ? (
+                          <Badge variant="outline" className="capitalize">
+                            {menu.mealType}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 pl-1 pr-1">
+                        {menu.special ? (
+                          <Badge variant="default" className="bg-amber-500 text-white">
+                            Special
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 pl-1 pr-1">
+                        {menu.ingredients && menu.ingredients.length > 0 ? (
+                          <span className="text-sm text-gray-600 dark:text-gray-400" title={menu.ingredients.join(", ")}>
+                            {menu.ingredients.length > 2
+                              ? `${menu.ingredients.slice(0, 2).join(", ")}...`
+                              : menu.ingredients.join(", ")}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5 pl-1 pr-1">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 rounded-lg border bg-white dark:bg-slate-800 p-0.5">
+                            <Button
+                              type="button"
+                              variant={menu.available ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => toggleAvailability(menu.id)}
+                              disabled={isSubmitting}
+                              className={`h-7 px-3 text-xs ${
                             menu.available
-                              ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                              : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                                  ? "bg-green-600 hover:bg-green-700 text-white"
+                                  : "text-gray-600 dark:text-gray-400"
+                              }`}
+                            >
+                              Available
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={!menu.available ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => toggleAvailability(menu.id)}
+                              disabled={isSubmitting}
+                              className={`h-7 px-3 text-xs ${
+                                !menu.available
+                                  ? "bg-red-600 hover:bg-red-700 text-white"
+                                  : "text-gray-600 dark:text-gray-400"
+                              }`}
+                            >
+                              Unavailable
+                            </Button>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1.5 pl-1 pr-1">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            menu.approvalStatus === "pendingapproval" &&
+                              "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                            menu.approvalStatus === "approved" &&
+                              "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                            menu.approvalStatus === "rejected" &&
+                              "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                           )}
                         >
-                          {menu.available ? "Available" : "Unavailable"}
-                        </span>
+                          {menu.approvalStatus === "pendingapproval"
+                            ? "Pending"
+                            : menu.approvalStatus === "approved"
+                            ? "Approved"
+                            : menu.approvalStatus === "rejected"
+                            ? "Rejected"
+                            : "—"}
+                        </Badge>
                       </TableCell>
                       <TableCell className="py-1.5 pl-1">
                         <div className="flex gap-2">
@@ -823,19 +979,143 @@ function MenuForm({
         />
       </div>
       <div>
-        <Label htmlFor="menu-available">Availability</Label>
+        <Label htmlFor="menu-ingredients">Ingredients (Optional)</Label>
+        <div className="mt-2 space-y-2">
+          <div className="flex gap-2">
+            <Input
+              id="menu-ingredients"
+              placeholder="Enter ingredient"
+              className="min-h-[44px]"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const input = e.currentTarget;
+                  const value = input.value.trim();
+                  if (value && !formData.ingredients.includes(value)) {
+                    setFormData({
+                      ...formData,
+                      ingredients: [...formData.ingredients, value],
+                    });
+                    input.value = "";
+                  }
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="min-h-[44px] min-w-[44px]"
+              onClick={() => {
+                const input = document.getElementById(
+                  "menu-ingredients"
+                ) as HTMLInputElement;
+                const value = input?.value.trim();
+                if (value && !formData.ingredients.includes(value)) {
+                  setFormData({
+                    ...formData,
+                    ingredients: [...formData.ingredients, value],
+                  });
+                  input.value = "";
+                }
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          {formData.ingredients.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {formData.ingredients.map((ingredient, index) => (
+                <Badge
+                  key={index}
+                  variant="secondary"
+                  className="flex items-center gap-1 px-2 py-1"
+                >
+                  {ingredient}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({
+                        ...formData,
+                        ingredients: formData.ingredients.filter(
+                          (_, i) => i !== index
+                        ),
+                      });
+                    }}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="menu-meal-type">Meal Type (Optional)</Label>
         <Select
-          value={formData.available}
-          onValueChange={(val) => setFormData({ ...formData, available: val })}
+          value={formData.mealType || undefined}
+          onValueChange={(val) => setFormData({ ...formData, mealType: val })}
         >
           <SelectTrigger className="mt-2 min-h-[44px]">
-            <SelectValue placeholder="Select availability" />
+            <SelectValue placeholder="Select meal type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="true">Available</SelectItem>
-            <SelectItem value="false">Unavailable</SelectItem>
+            <SelectItem value="breakfast">Breakfast</SelectItem>
+            <SelectItem value="lunch">Lunch</SelectItem>
+            <SelectItem value="dinner">Dinner</SelectItem>
+            <SelectItem value="treats">Treats</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="menu-special"
+          checked={formData.special}
+          onCheckedChange={(checked) =>
+            setFormData({ ...formData, special: checked === true })
+          }
+        />
+        <Label
+          htmlFor="menu-special"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+        >
+          House Special
+        </Label>
+      </div>
+      <div>
+        <Label htmlFor="menu-available">Availability</Label>
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border bg-white dark:bg-slate-800 p-1">
+            <Button
+              type="button"
+              variant={formData.available === "true" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setFormData({ ...formData, available: "true" })}
+              className={`h-9 px-4 text-sm ${
+                formData.available === "true"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "text-gray-600 dark:text-gray-400"
+              }`}
+            >
+              Available
+            </Button>
+            <Button
+              type="button"
+              variant={formData.available === "false" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setFormData({ ...formData, available: "false" })}
+              className={`h-9 px-4 text-sm ${
+                formData.available === "false"
+                  ? "bg-red-600 hover:bg-red-700 text-white"
+                  : "text-gray-600 dark:text-gray-400"
+              }`}
+            >
+              Unavailable
+            </Button>
+          </div>
+        </div>
       </div>
       <div>
         <Label htmlFor="menu-image">Image (Optional)</Label>

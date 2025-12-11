@@ -29,6 +29,7 @@ export interface Inventory {
   price: number;
   description?: string;
   isLowStock?: boolean;
+  approvalStatus?: "pendingapproval" | "approved" | "rejected";
   updatedAt: string;
 }
 

@@ -51,18 +51,21 @@ export function gregorianToEthiopian(date: Date): EthiopianDate {
   const gregorianMonth = date.getMonth() + 1;
   const gregorianDay = date.getDate();
 
-  const epoch = new Date(8, 8, 11); // September 11, 8 CE
-  const diffTime = date.getTime() - epoch.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-  let ethiopianYear = gregorianYear - 8;
-
+  // Ethiopian calendar is approximately 7-8 years behind Gregorian
+  // Ethiopian New Year is September 11
+  // For dates on or after September 11: Ethiopian Year = Gregorian Year - 7
+  // For dates before September 11: Ethiopian Year = Gregorian Year - 8
+  
+  let ethiopianYear = gregorianYear - 7;
+  
+  // If before September 11, subtract one more year
   if (gregorianMonth < 9 || (gregorianMonth === 9 && gregorianDay < 11)) {
-    ethiopianYear--;
+    ethiopianYear = gregorianYear - 8;
   }
 
-  let daysIntoYear = diffDays;
-  const newYearDate = new Date(gregorianYear, 8, 11);
+  // Calculate days into the Ethiopian year
+  const newYearDate = new Date(gregorianYear, 8, 11); // September 11 (month is 0-indexed)
+  let daysIntoYear: number;
 
   if (date < newYearDate) {
     const prevNewYear = new Date(gregorianYear - 1, 8, 11);
@@ -129,9 +132,10 @@ export function ethiopianToGregorian(ethiopianDate: EthiopianDate): Date {
   totalDays += day - 1;
 
   // Use a known modern reference point to avoid Date constructor issues
-  // Ethiopian year 2016, Meskerem 1 (month 1, day 1) = Gregorian September 11, 2023
-  const referenceEthYear = 2016;
-  const referenceGregDate = new Date(2023, 8, 11); // September 11, 2023 (month is 0-indexed)
+  // Ethiopian year 2018, Meskerem 1 (month 1, day 1) = Gregorian September 11, 2024
+  // Ethiopian calendar is approximately 7-8 years behind Gregorian
+  const referenceEthYear = 2018;
+  const referenceGregDate = new Date(2024, 8, 11); // September 11, 2024 (month is 0-indexed)
   referenceGregDate.setHours(0, 0, 0, 0);
 
   // Calculate days from reference point (Meskerem 1, 2016)

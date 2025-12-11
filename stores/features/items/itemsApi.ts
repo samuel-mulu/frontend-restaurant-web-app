@@ -23,6 +23,13 @@ export interface ItemResponse {
   price: number;
   image?: ImageInfo;
   isAvailable: boolean;
+  approvalStatus?: "pendingapproval" | "approved" | "rejected";
+  approvedBy?: string;
+  approvedAt?: string;
+  ingredients?: string[];
+  mealType?: "breakfast" | "lunch" | "dinner" | "treats";
+  comments?: string[];
+  special?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -45,6 +52,9 @@ export interface CreateItemInput {
   price: number;
   isAvailable?: boolean;
   image?: File;
+  ingredients?: string[];
+  mealType?: "breakfast" | "lunch" | "dinner" | "treats";
+  special?: boolean;
 }
 
 export interface UpdateItemInput {
@@ -54,6 +64,9 @@ export interface UpdateItemInput {
   price?: number;
   isAvailable?: boolean;
   image?: File;
+  ingredients?: string[];
+  mealType?: "breakfast" | "lunch" | "dinner" | "treats";
+  special?: boolean;
 }
 
 export interface UpdateAvailabilityInput {
@@ -77,6 +90,9 @@ function transformItem(item: ItemResponse): Menu {
     description: item.description || "",
     imageUrl: item.image?.url,
     available: item.isAvailable,
+    ingredients: item.ingredients,
+    mealType: item.mealType,
+    special: item.special,
     updatedAt: item.updatedAt
       ? new Date(item.updatedAt).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],
@@ -173,6 +189,17 @@ export const itemsApi = createApiEndpoints({
               : true
             ).toString()
           );
+          if (body.ingredients && body.ingredients.length > 0) {
+            body.ingredients.forEach((ingredient) => {
+              formData.append("ingredients[]", ingredient);
+            });
+          }
+          if (body.mealType) {
+            formData.append("mealType", body.mealType);
+          }
+          if (body.special !== undefined) {
+            formData.append("special", body.special.toString());
+          }
           formData.append("image", body.image);
           formData.append("clientId", clientId);
 
@@ -194,6 +221,9 @@ export const itemsApi = createApiEndpoints({
             price: body.price,
             isAvailable:
               body.isAvailable !== undefined ? body.isAvailable : true,
+            ingredients: body.ingredients,
+            mealType: body.mealType,
+            special: body.special,
             clientId,
           },
         };
@@ -230,6 +260,22 @@ export const itemsApi = createApiEndpoints({
           if (data.isAvailable !== undefined) {
             formData.append("isAvailable", data.isAvailable.toString());
           }
+          if (data.ingredients !== undefined) {
+            if (data.ingredients.length > 0) {
+              data.ingredients.forEach((ingredient) => {
+                formData.append("ingredients[]", ingredient);
+              });
+            } else {
+              // Send empty array by appending empty string
+              formData.append("ingredients[]", "");
+            }
+          }
+          if (data.mealType !== undefined) {
+            formData.append("mealType", data.mealType);
+          }
+          if (data.special !== undefined) {
+            formData.append("special", data.special.toString());
+          }
           formData.append("image", data.image);
 
           return {
@@ -249,6 +295,10 @@ export const itemsApi = createApiEndpoints({
         if (data.price !== undefined) updateData.price = data.price;
         if (data.isAvailable !== undefined)
           updateData.isAvailable = data.isAvailable;
+        if (data.ingredients !== undefined)
+          updateData.ingredients = data.ingredients;
+        if (data.mealType !== undefined) updateData.mealType = data.mealType;
+        if (data.special !== undefined) updateData.special = data.special;
 
         return {
           url: `/items/${id}`,
@@ -346,6 +396,88 @@ export const itemsApi = createApiEndpoints({
         { type: "Item", id: "UNAVAILABLE" },
       ],
     }),
+
+    listPendingApprovals: build.query<ItemResponse[], void>({
+      query: () => ({
+        url: "/items/pending-approvals",
+        method: "GET",
+      }),
+      transformResponse: (response: any) => {
+        // Handle different response formats
+        // Backend returns: { success: true, data: [...], message: "..." }
+        // RTK Query's fetchBaseQuery returns the response as-is from response.json()
+        console.log("[listPendingApprovals] Raw response:", response);
+        
+        if (Array.isArray(response)) {
+          console.log("[listPendingApprovals] Response is array, length:", response.length);
+          return response;
+        }
+        if (response && typeof response === "object") {
+          // Handle wrapped response: { success: true, data: [...] }
+          if (response.data !== undefined) {
+            const data = Array.isArray(response.data) ? response.data : [];
+            console.log("[listPendingApprovals] Extracted data array, length:", data.length);
+            return data;
+          }
+        }
+        // Fallback: return empty array if response format is unexpected
+        console.warn("[listPendingApprovals] Unexpected response format:", response);
+        return [];
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map((i) => ({ type: "Item" as const, id: i.id })),
+              { type: "Item" as const, id: "PENDING_APPROVALS" },
+            ]
+          : [{ type: "Item" as const, id: "PENDING_APPROVALS" }],
+    }),
+
+    approveItem: build.mutation<ItemResponse, string>({
+      query: (id) => ({
+        url: `/items/${id}/approve`,
+        method: "PATCH",
+      }),
+      transformResponse: (
+        response: ApiResponse<ItemResponse> | ItemResponse
+      ) => {
+        const itemData =
+          (response as ApiResponse<ItemResponse>).data ||
+          (response as ItemResponse);
+        if (!itemData) {
+          throw new Error("Invalid response: item data is missing");
+        }
+        return itemData;
+      },
+      invalidatesTags: (result, _error, id) => [
+        { type: "Item", id },
+        { type: "Item", id: "LIST" },
+        { type: "Item", id: "PENDING_APPROVALS" },
+      ],
+    }),
+
+    rejectItem: build.mutation<ItemResponse, string>({
+      query: (id) => ({
+        url: `/items/${id}/reject`,
+        method: "PATCH",
+      }),
+      transformResponse: (
+        response: ApiResponse<ItemResponse> | ItemResponse
+      ) => {
+        const itemData =
+          (response as ApiResponse<ItemResponse>).data ||
+          (response as ItemResponse);
+        if (!itemData) {
+          throw new Error("Invalid response: item data is missing");
+        }
+        return itemData;
+      },
+      invalidatesTags: (result, _error, id) => [
+        { type: "Item", id },
+        { type: "Item", id: "LIST" },
+        { type: "Item", id: "PENDING_APPROVALS" },
+      ],
+    }),
   }),
 });
 
@@ -360,4 +492,7 @@ export const {
   useRestoreItemMutation,
   usePermanentDeleteItemMutation,
   useUpdateItemAvailabilityMutation,
+  useListPendingApprovalsQuery,
+  useApproveItemMutation,
+  useRejectItemMutation,
 } = itemsApi;

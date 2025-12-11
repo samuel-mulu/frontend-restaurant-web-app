@@ -406,7 +406,8 @@ export function createOfflineBaseQuery(
     const isMutation = method !== "GET";
 
     // For GET queries when offline: serve from cache
-    if (!isOnline && !isMutation) {
+    // Skip caching for pending-approvals endpoints (they need real-time data)
+    if (!isOnline && !isMutation && !url.includes("/pending-approvals")) {
       const cachedData = await getCachedData(url);
       if (cachedData) {
         return {
@@ -419,6 +420,16 @@ export function createOfflineBaseQuery(
         error: {
           status: "CACHE_ERROR",
           data: { message: "No cached data available" },
+        },
+      } as any;
+    }
+
+    // For pending-approvals endpoints when offline, return error (need online)
+    if (!isOnline && !isMutation && url.includes("/pending-approvals")) {
+      return {
+        error: {
+          status: "FETCH_ERROR",
+          data: { message: "Pending approvals require an online connection" },
         },
       } as any;
     }

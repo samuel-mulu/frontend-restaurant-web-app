@@ -12,6 +12,9 @@ export interface InventoryResponse {
   price: number;
   isLowStock?: boolean;
   stockStatus?: "low" | "normal";
+  approvalStatus?: "pendingapproval" | "approved" | "rejected";
+  approvedBy?: string;
+  approvedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -75,6 +78,7 @@ function transformInventory(item: any): Inventory {
     price: item.price ?? 0, // Fallback for migration period only
     description: item.description,
     isLowStock,
+    approvalStatus: item.approvalStatus,
     updatedAt,
   };
 }
@@ -190,6 +194,86 @@ export const inventoryApi = createApiEndpoints({
         { type: "Inventory", id: "LOW_STOCK" },
       ],
     }),
+
+    listPendingApprovals: build.query<InventoryResponse[], void>({
+      query: () => ({
+        url: "/inventory/pending-approvals",
+        method: "GET",
+      }),
+      transformResponse: (response: any) => {
+        // Handle different response formats
+        // Backend returns: { success: true, data: [...], message: "..." }
+        // RTK Query's fetchBaseQuery returns the response as-is from response.json()
+        if (Array.isArray(response)) {
+          return response;
+        }
+        if (response && typeof response === "object") {
+          // Handle wrapped response: { success: true, data: [...] }
+          if (response.data !== undefined) {
+            return Array.isArray(response.data) ? response.data : [];
+          }
+        }
+        // Fallback: return empty array if response format is unexpected
+        console.warn("Unexpected response format for pending approvals:", response);
+        return [];
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map((i) => ({
+                type: "Inventory" as const,
+                id: i.id,
+              })),
+              { type: "Inventory" as const, id: "PENDING_APPROVALS" },
+            ]
+          : [{ type: "Inventory" as const, id: "PENDING_APPROVALS" }],
+    }),
+
+    approveInventory: build.mutation<InventoryResponse, string>({
+      query: (id) => ({
+        url: `/inventory/${id}/approve`,
+        method: "PATCH",
+      }),
+      transformResponse: (
+        response: ApiResponse<InventoryResponse> | InventoryResponse
+      ) => {
+        const itemData =
+          (response as ApiResponse<InventoryResponse>).data ||
+          (response as InventoryResponse);
+        if (!itemData) {
+          throw new Error("Invalid response: inventory data is missing");
+        }
+        return itemData;
+      },
+      invalidatesTags: (result, _error, id) => [
+        { type: "Inventory", id },
+        { type: "Inventory", id: "LIST" },
+        { type: "Inventory", id: "PENDING_APPROVALS" },
+      ],
+    }),
+
+    rejectInventory: build.mutation<InventoryResponse, string>({
+      query: (id) => ({
+        url: `/inventory/${id}/reject`,
+        method: "PATCH",
+      }),
+      transformResponse: (
+        response: ApiResponse<InventoryResponse> | InventoryResponse
+      ) => {
+        const itemData =
+          (response as ApiResponse<InventoryResponse>).data ||
+          (response as InventoryResponse);
+        if (!itemData) {
+          throw new Error("Invalid response: inventory data is missing");
+        }
+        return itemData;
+      },
+      invalidatesTags: (result, _error, id) => [
+        { type: "Inventory", id },
+        { type: "Inventory", id: "LIST" },
+        { type: "Inventory", id: "PENDING_APPROVALS" },
+      ],
+    }),
   }),
 });
 
@@ -199,4 +283,7 @@ export const {
   useGetLowStockInventoryQuery,
   useCreateInventoryMutation,
   useUpdateInventoryMutation,
+  useListPendingApprovalsQuery,
+  useApproveInventoryMutation,
+  useRejectInventoryMutation,
 } = inventoryApi;

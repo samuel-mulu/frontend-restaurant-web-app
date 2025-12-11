@@ -69,6 +69,10 @@ import {
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import {
+  gregorianToEthiopian,
+  formatEthiopianDate,
+} from "@/lib/utils/ethiopianCalendar";
 
 // -------------------- Constants & Mappings -------------------- //
 
@@ -160,6 +164,21 @@ type StaffOption = {
 const formatDate = (date?: string) => {
   if (!date) return "—";
   return new Date(date).toISOString().split("T")[0];
+};
+
+// Date conversion helper for Ethiopian calendar
+const formatDateForDisplay = (date: string | undefined, mode: "gregorian" | "ethiopian"): string => {
+  if (!date) return "—";
+  try {
+    const gregorianDate = new Date(date);
+    if (mode === "ethiopian") {
+      const ethiopianDate = gregorianToEthiopian(gregorianDate);
+      return formatEthiopianDate(ethiopianDate);
+    }
+    return formatDate(date);
+  } catch {
+    return formatDate(date);
+  }
 };
 
 const getDateRange = () => {
@@ -254,6 +273,7 @@ export function OwnerHistory() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [calendarMode, setCalendarMode] = useState<"gregorian" | "ethiopian">("gregorian");
   const prevFiltersRef = useRef({
     statusFilter,
     cashierFilter,
@@ -670,22 +690,50 @@ export function OwnerHistory() {
             ))}
           </div>
 
-          <Select
-            value={dateRangePreset}
-            onValueChange={handleDateRangePresetChange}
-          >
-            <SelectTrigger className="w-48">
-              <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="thisWeek">This Week</SelectItem>
-              <SelectItem value="thisMonth">This Month</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border bg-white dark:bg-slate-800 p-1">
+              <Button
+                variant={calendarMode === "gregorian" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCalendarMode("gregorian")}
+                className={`h-7 px-3 text-xs ${
+                  calendarMode === "gregorian"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "text-gray-600 dark:text-gray-400"
+                }`}
+              >
+                Gregorian
+              </Button>
+              <Button
+                variant={calendarMode === "ethiopian" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCalendarMode("ethiopian")}
+                className={`h-7 px-3 text-xs ${
+                  calendarMode === "ethiopian"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "text-gray-600 dark:text-gray-400"
+                }`}
+              >
+                Ethiopian
+              </Button>
+            </div>
+            <Select
+              value={dateRangePreset}
+              onValueChange={handleDateRangePresetChange}
+            >
+              <SelectTrigger className="w-48">
+                <Calendar className="h-4 w-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="thisWeek">This Week</SelectItem>
+                <SelectItem value="thisMonth">This Month</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {dateRangePreset === "custom" && (
             <div className="flex gap-2">
@@ -955,7 +1003,7 @@ export function OwnerHistory() {
                             <span className="ml-1">{o.statusText}</span>
                           </Badge>
                         </TableCell>
-                        <TableCell>{formatDate(o.date)}</TableCell>
+                        <TableCell>{formatDateForDisplay(o.date, calendarMode)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Button
@@ -1119,7 +1167,9 @@ export function OwnerHistory() {
                     #{detailOrder.orderNumber || detailOrder.id.slice(-6)}
                   </DialogTitle>
                   <DialogDescription>
-                    {formatDateTime(detailOrder.date)}
+                    {calendarMode === "ethiopian" 
+                      ? formatDateForDisplay(detailOrder.date, calendarMode)
+                      : formatDateTime(detailOrder.date)}
                   </DialogDescription>
                   <p className="text-xs">
                     <span className="font-bold">Table </span> -{" "}

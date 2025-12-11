@@ -943,11 +943,11 @@ export default function SalaryManagementPage() {
 
                     return (
                       <TableRow key={salaryId}>
-                        <TableCell className="font-medium">
-                          {getStaffName(salary)}
-                        </TableCell>
-                        <TableCell>{salary.amount.toFixed(2)} Br</TableCell>
-                        <TableCell>
+                      <TableCell className="font-medium">
+                        {getStaffName(salary)}
+                      </TableCell>
+                      <TableCell>{salary.amount.toFixed(2)} Br</TableCell>
+                      <TableCell>
                           <span
                             className={cn(
                               "font-medium",
@@ -963,7 +963,7 @@ export default function SalaryManagementPage() {
                                 (-{salary.totalWithdrawals.toFixed(2)})
                               </span>
                             )}
-                        </TableCell>
+                      </TableCell>
                         <TableCell>
                           {salary.registeredDate ? (
                             <span className="text-sm font-medium">
@@ -991,29 +991,29 @@ export default function SalaryManagementPage() {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              salary.status === "paid"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                                : "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
-                            }
-                          >
-                            {salary.status === "paid" ? "Paid" : "Pending"}
-                          </Badge>
-                        </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            salary.status === "paid"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+                          }
+                        >
+                          {salary.status === "paid" ? "Paid" : "Pending"}
+                        </Badge>
+                      </TableCell>
                         <TableCell className="w-48">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(salary)}
-                              className="h-8 w-8"
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(salary)}
+                          className="h-8 w-8"
                               disabled={isSubmitting}
                               title="Edit salary"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
                             <Button
                               variant={isSelected ? "default" : "outline"}
                               size="sm"
@@ -1038,8 +1038,8 @@ export default function SalaryManagementPage() {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                      </TableCell>
+                    </TableRow>
                     );
                   })}
                 </TableBody>
@@ -1180,7 +1180,7 @@ export default function SalaryManagementPage() {
                       Next Payment (Ethiopian):{" "}
                       {countdown.nextPaymentDate.ethiopian}
                     </p>
-                  </div>
+    </div>
                 </div>
               )}
 

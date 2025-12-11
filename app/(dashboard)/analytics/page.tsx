@@ -12,11 +12,11 @@ import {
   TrendingUp,
   AlertTriangle,
   Calendar,
-  BarChart3,
   ArrowUpRight,
   ArrowDownRight,
   Package,
   Clock,
+  Download,
 } from "lucide-react";
 import { useGetComprehensiveAnalyticsQuery } from "@/stores/features/statistics/statisticsApi";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -71,6 +71,11 @@ export default function AnalyticsPage() {
     setEndDate(end.toISOString().split("T")[0]);
   };
 
+  const handleQuickRangeWithState = (days: number) => {
+    setActiveQuickRange(days);
+    handleQuickRange(days);
+  };
+
   if (isLoading) {
     return <LoadingState message="Loading analytics..." />;
   }
@@ -88,532 +93,225 @@ export default function AnalyticsPage() {
     return <LoadingState message="No data available" />;
   }
 
-  const handleQuickRangeWithState = (days: number) => {
-    setActiveQuickRange(days);
-    handleQuickRange(days);
-  };
-
   return (
-    <div className="flex flex-col gap-6 min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-      {/* Modern Header with Gradient */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 p-8 shadow-xl">
-        <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,white,transparent)]" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-              <BarChart3 className="h-8 w-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-1">
-                Analytics Dashboard
-              </h1>
-              <p className="text-blue-100 text-sm">
-                Comprehensive insights into your restaurant performance
-              </p>
-            </div>
-          </div>
+    <div className="flex flex-col gap-6 min-h-screen bg-slate-50/50 dark:bg-slate-950 p-6">
+      {/* Professional Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+            Analytics Overview
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Monitor your restaurant&apos;s performance metrics and trends.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-9 gap-2">
+            <Download className="h-4 w-4" />
+            Export Report
+          </Button>
         </div>
       </div>
 
-      {/* Modern Date Range Picker */}
-      <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-        <div className="p-6">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <Label className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Date Range
-                </Label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Select a time period to analyze
-                </p>
-              </div>
+      {/* Date Range Control Bar */}
+      <Card className="border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
+        <div className="p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-slate-100 dark:bg-slate-800">
+              <Calendar className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Date Range
+              </Label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Filter data by time period
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+            <div className="flex items-center gap-2 flex-1 sm:flex-initial bg-slate-50 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setActiveQuickRange(null);
+                }}
+                className="h-9 border-0 bg-transparent focus-visible:ring-0 w-auto text-sm"
+              />
+              <span className="text-slate-400 text-xs font-medium px-1">
+                TO
+              </span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setActiveQuickRange(null);
+                }}
+                className="h-9 border-0 bg-transparent focus-visible:ring-0 w-auto text-sm"
+              />
             </div>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
-              <div className="flex items-center gap-3 flex-1 sm:flex-initial">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setActiveQuickRange(null);
-                  }}
-                  className="h-11 border-2 border-slate-200 dark:border-slate-700 focus:border-blue-500 dark:focus:border-blue-500 rounded-lg font-medium"
-                />
-                <span className="text-gray-400 dark:text-gray-500 font-medium">
-                  to
-                </span>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setActiveQuickRange(null);
-                  }}
-                  className="h-11 border-2 border-slate-200 dark:border-slate-700 focus:border-blue-500 dark:focus:border-blue-500 rounded-lg font-medium"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant={activeQuickRange === 7 ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleQuickRangeWithState(7)}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+              {[7, 30, 90].map((days) => (
+                <button
+                  key={days}
+                  onClick={() => handleQuickRangeWithState(days)}
                   className={cn(
-                    "h-11 px-4 rounded-lg font-medium transition-all",
-                    activeQuickRange === 7
-                      ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                    "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                    activeQuickRange === days
+                      ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                   )}
                 >
-                  Last 7 Days
-                </Button>
-                <Button
-                  variant={activeQuickRange === 30 ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleQuickRangeWithState(30)}
-                  className={cn(
-                    "h-11 px-4 rounded-lg font-medium transition-all",
-                    activeQuickRange === 30
-                      ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-800"
-                  )}
-                >
-                  Last 30 Days
-                </Button>
-                <Button
-                  variant={activeQuickRange === 90 ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleQuickRangeWithState(90)}
-                  className={cn(
-                    "h-11 px-4 rounded-lg font-medium transition-all",
-                    activeQuickRange === 90
-                      ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-800"
-                  )}
-                >
-                  Last 90 Days
-                </Button>
-              </div>
+                  {days}D
+                </button>
+              ))}
             </div>
           </div>
         </div>
       </Card>
 
-      {/* Enhanced Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Revenue Card */}
-        <Card className="group relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-emerald-500 to-teal-600 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                <DollarSign className="h-6 w-6 text-white" />
-              </div>
-              <div className="p-1.5 rounded-full bg-white/20">
-                <ArrowUpRight className="h-4 w-4 text-white" />
-              </div>
-            </div>
-            <div>
-              <p className="text-emerald-100 text-sm font-medium mb-1">
-                Total Revenue
-              </p>
-              <p className="text-3xl font-bold text-white mb-2">
-                {formatCurrency(analytics.summary?.totalRevenue || 0)}
-              </p>
-              <p className="text-emerald-100/80 text-xs">All time revenue</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Orders Card */}
-        <Card className="group relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-blue-500 to-indigo-600 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                <ShoppingCart className="h-6 w-6 text-white" />
-              </div>
-              <div className="p-1.5 rounded-full bg-white/20">
-                <ArrowUpRight className="h-4 w-4 text-white" />
-              </div>
-            </div>
-            <div>
-              <p className="text-blue-100 text-sm font-medium mb-1">
-                Total Orders
-              </p>
-              <p className="text-3xl font-bold text-white mb-2">
-                {analytics.summary?.totalOrders || 0}
-              </p>
-              <p className="text-blue-100/80 text-xs">Orders processed</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Average Order Value Card */}
-        <Card className="group relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-purple-500 to-pink-600 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                <TrendingUp className="h-6 w-6 text-white" />
-              </div>
-              <div className="p-1.5 rounded-full bg-white/20">
-                <ArrowUpRight className="h-4 w-4 text-white" />
-              </div>
-            </div>
-            <div>
-              <p className="text-purple-100 text-sm font-medium mb-1">
-                Avg Order Value
-              </p>
-              <p className="text-3xl font-bold text-white mb-2">
-                {formatCurrency(analytics.summary?.averageOrderValue || 0)}
-              </p>
-              <p className="text-purple-100/80 text-xs">Per order average</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Low Stock Card */}
-        <Card className="group relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-rose-500 to-red-600 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-          <div className="absolute inset-0 bg-gradient-to-br from-rose-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                <AlertTriangle className="h-6 w-6 text-white" />
-              </div>
-              <div className="p-1.5 rounded-full bg-white/20">
-                <AlertTriangle className="h-4 w-4 text-white" />
-              </div>
-            </div>
-            <div>
-              <p className="text-rose-100 text-sm font-medium mb-1">
-                Low Stock Items
-              </p>
-              <p className="text-3xl font-bold text-white mb-2">
-                {analytics.summary?.lowStockItemsCount || 0}
-              </p>
-              <p className="text-rose-100/80 text-xs">Requires attention</p>
-            </div>
-          </div>
-        </Card>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard
+          title="Total Revenue"
+          value={formatCurrency(analytics.summary?.totalRevenue || 0)}
+          subtext="Gross revenue for selected period"
+          icon={DollarSign}
+          trend="up"
+          accentColor="emerald"
+        />
+        <KPICard
+          title="Total Orders"
+          value={analytics.summary?.totalOrders?.toString() || "0"}
+          subtext="Total processed orders"
+          icon={ShoppingCart}
+          trend="up"
+          accentColor="blue"
+        />
+        <KPICard
+          title="Avg Order Value"
+          value={formatCurrency(analytics.summary?.averageOrderValue || 0)}
+          subtext="Revenue per order"
+          icon={TrendingUp}
+          trend="neutral"
+          accentColor="purple"
+        />
+        <KPICard
+          title="Low Stock Items"
+          value={analytics.summary?.lowStockItemsCount?.toString() || "0"}
+          subtext="Items below threshold"
+          icon={AlertTriangle}
+          trend="down" // down is bad contextually, but functionally we use red for alert
+          accentColor="rose"
+          isAlert={true}
+        />
       </div>
 
-      {/* Enhanced Analytics Tabs */}
-      <Tabs defaultValue="cashflow" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-0 shadow-lg rounded-xl p-1.5">
-          <TabsTrigger
-            value="cashflow"
-            className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-semibold"
-          >
-            <DollarSign className="h-4 w-4 mr-2" />
-            Cash Flow
-          </TabsTrigger>
-          <TabsTrigger
+      {/* Main Content Tabs */}
+      <Tabs defaultValue="cashflow" className="w-full space-y-6">
+        <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none space-x-6">
+          <TabTrigger value="cashflow" icon={DollarSign} label="Cash Flow" />
+          <TabTrigger
             value="menu"
-            className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-semibold"
-          >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Menu Items
-          </TabsTrigger>
-          <TabsTrigger
-            value="inventory"
-            className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-semibold"
-          >
-            <Package className="h-4 w-4 mr-2" />
-            Inventory
-          </TabsTrigger>
-          <TabsTrigger
-            value="orders"
-            className="rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-amber-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all font-semibold"
-          >
-            <Clock className="h-4 w-4 mr-2" />
-            Orders
-          </TabsTrigger>
+            icon={ShoppingCart}
+            label="Menu Performance"
+          />
+          <TabTrigger value="inventory" icon={Package} label="Inventory" />
+          <TabTrigger value="orders" icon={Clock} label="Order Activity" />
         </TabsList>
 
-        {/* Cash Flow Tab */}
-        <TabsContent value="cashflow" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                    <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Revenue Trend
-                  </h3>
-                </div>
-                <RevenueTrendChart
-                  data={analytics.cashFlow?.revenueTrend || []}
-                />
-              </div>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                    <DollarSign className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Payment Method Breakdown
-                  </h3>
-                </div>
-                <PaymentMethodChart
-                  data={analytics.cashFlow?.paymentMethodBreakdown || []}
-                />
-              </div>
-            </Card>
-          </div>
-
-          <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-                  <BarChart3 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  Revenue Comparison
-                </h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                    Today
-                  </p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                    {formatCurrency(
-                      analytics.cashFlow?.revenueComparison?.today || 0
-                    )}
-                  </p>
-                  {(analytics.cashFlow?.revenueComparison?.yesterday || 0) >
-                    0 && (
-                    <div
-                      className={cn(
-                        "flex items-center gap-1 text-xs font-semibold",
-                        (analytics.cashFlow?.revenueComparison?.today || 0) >=
-                          (analytics.cashFlow?.revenueComparison?.yesterday ||
-                            0)
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-red-600 dark:text-red-400"
-                      )}
-                    >
-                      {(analytics.cashFlow?.revenueComparison?.today || 0) >=
-                      (analytics.cashFlow?.revenueComparison?.yesterday ||
-                        0) ? (
-                        <ArrowUpRight className="h-3 w-3" />
-                      ) : (
-                        <ArrowDownRight className="h-3 w-3" />
-                      )}
-                      {Math.abs(
-                        (((analytics.cashFlow?.revenueComparison?.today || 0) -
-                          (analytics.cashFlow?.revenueComparison?.yesterday ||
-                            0)) /
-                          (analytics.cashFlow?.revenueComparison?.yesterday ||
-                            1)) *
-                          100
-                      ).toFixed(1)}
-                      % vs Yesterday
-                    </div>
-                  )}
-                </div>
-                <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                    This Week
-                  </p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                    {formatCurrency(
-                      analytics.cashFlow?.revenueComparison?.thisWeek || 0
-                    )}
-                  </p>
-                  {(analytics.cashFlow?.revenueComparison?.lastWeek || 0) >
-                    0 && (
-                    <div
-                      className={cn(
-                        "flex items-center gap-1 text-xs font-semibold",
-                        (analytics.cashFlow?.revenueComparison?.thisWeek ||
-                          0) >=
-                          (analytics.cashFlow?.revenueComparison?.lastWeek || 0)
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-red-600 dark:text-red-400"
-                      )}
-                    >
-                      {(analytics.cashFlow?.revenueComparison?.thisWeek || 0) >=
-                      (analytics.cashFlow?.revenueComparison?.lastWeek || 0) ? (
-                        <ArrowUpRight className="h-3 w-3" />
-                      ) : (
-                        <ArrowDownRight className="h-3 w-3" />
-                      )}
-                      {Math.abs(
-                        (((analytics.cashFlow?.revenueComparison?.thisWeek ||
-                          0) -
-                          (analytics.cashFlow?.revenueComparison?.lastWeek ||
-                            0)) /
-                          (analytics.cashFlow?.revenueComparison?.lastWeek ||
-                            1)) *
-                          100
-                      ).toFixed(1)}
-                      % vs Last Week
-                    </div>
-                  )}
-                </div>
-                <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                    This Month
-                  </p>
-                  <p className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                    {formatCurrency(
-                      analytics.cashFlow?.revenueComparison?.thisMonth || 0
-                    )}
-                  </p>
-                  {(analytics.cashFlow?.revenueComparison?.lastMonth || 0) >
-                    0 && (
-                    <div
-                      className={cn(
-                        "flex items-center gap-1 text-xs font-semibold",
-                        (analytics.cashFlow?.revenueComparison?.thisMonth ||
-                          0) >=
-                          (analytics.cashFlow?.revenueComparison?.lastMonth ||
-                            0)
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-red-600 dark:text-red-400"
-                      )}
-                    >
-                      {(analytics.cashFlow?.revenueComparison?.thisMonth ||
-                        0) >=
-                      (analytics.cashFlow?.revenueComparison?.lastMonth ||
-                        0) ? (
-                        <ArrowUpRight className="h-3 w-3" />
-                      ) : (
-                        <ArrowDownRight className="h-3 w-3" />
-                      )}
-                      {Math.abs(
-                        (((analytics.cashFlow?.revenueComparison?.thisMonth ||
-                          0) -
-                          (analytics.cashFlow?.revenueComparison?.lastMonth ||
-                            0)) /
-                          (analytics.cashFlow?.revenueComparison?.lastMonth ||
-                            1)) *
-                          100
-                      ).toFixed(1)}
-                      % vs Last Month
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        {/* Menu Items Tab */}
-        <TabsContent value="menu" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                    <ShoppingCart className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Top Selling Items (Quantity)
-                  </h3>
-                </div>
-                <TopSellingItemsChart
-                  data={analytics.menu?.topSellingItems || []}
-                  type="quantity"
-                />
-              </div>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-pink-100 dark:bg-pink-900/30">
-                    <DollarSign className="h-5 w-5 text-pink-600 dark:text-pink-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Top Selling Items (Revenue)
-                  </h3>
-                </div>
-                <TopSellingItemsChart
-                  data={analytics.menu?.topSellingItems || []}
-                  type="revenue"
-                />
-              </div>
-            </Card>
-          </div>
-
-          <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-                  <BarChart3 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  Revenue by Category
-                </h3>
-              </div>
-              <CategoryRevenueChart
-                data={analytics.menu?.revenueByCategory || []}
+        <TabsContent value="cashflow" className="space-y-6 pt-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <ChartCard title="Revenue Trend" className="lg:col-span-2">
+              <RevenueTrendChart
+                data={analytics.cashFlow?.revenueTrend || []}
               />
-            </div>
-          </Card>
+            </ChartCard>
+            <ChartCard title="Payment Methods">
+              <PaymentMethodChart
+                data={analytics.cashFlow?.paymentMethodBreakdown || []}
+              />
+            </ChartCard>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <ComparisonCard
+              title="Today"
+              current={analytics.cashFlow?.revenueComparison?.today || 0}
+              previous={analytics.cashFlow?.revenueComparison?.yesterday || 0}
+              periodLabel="Yesterday"
+              formatCurrency={formatCurrency}
+            />
+            <ComparisonCard
+              title="This Week"
+              current={analytics.cashFlow?.revenueComparison?.thisWeek || 0}
+              previous={analytics.cashFlow?.revenueComparison?.lastWeek || 0}
+              periodLabel="Last Week"
+              formatCurrency={formatCurrency}
+            />
+            <ComparisonCard
+              title="This Month"
+              current={analytics.cashFlow?.revenueComparison?.thisMonth || 0}
+              previous={analytics.cashFlow?.revenueComparison?.lastMonth || 0}
+              periodLabel="Last Month"
+              formatCurrency={formatCurrency}
+            />
+          </div>
         </TabsContent>
 
-        {/* Inventory Tab */}
-        <TabsContent value="inventory" className="space-y-6 mt-6">
+        <TabsContent value="menu" className="space-y-6 pt-2">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                    <Package className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Top Inventory Items (Quantity)
-                  </h3>
-                </div>
-                <InventoryTrendChart
-                  data={analytics.inventory?.topSelling || []}
-                  type="quantity"
-                />
-              </div>
-            </Card>
+            <ChartCard title="Top Selling (Quantity)">
+              <TopSellingItemsChart
+                data={analytics.menu?.topSellingItems || []}
+                type="quantity"
+              />
+            </ChartCard>
+            <ChartCard title="Top Selling (Revenue)">
+              <TopSellingItemsChart
+                data={analytics.menu?.topSellingItems || []}
+                type="revenue"
+              />
+            </ChartCard>
+          </div>
+          <ChartCard title="Revenue by Category">
+            <CategoryRevenueChart
+              data={analytics.menu?.revenueByCategory || []}
+            />
+          </ChartCard>
+        </TabsContent>
 
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-teal-100 dark:bg-teal-900/30">
-                    <DollarSign className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Top Inventory Items (Value)
-                  </h3>
-                </div>
-                <InventoryTrendChart
-                  data={analytics.inventory?.topSelling || []}
-                  type="value"
-                />
-              </div>
-            </Card>
+        <TabsContent value="inventory" className="space-y-6 pt-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard title="Top Inventory (Quantity)">
+              <InventoryTrendChart
+                data={analytics.inventory?.topSelling || []}
+                type="quantity"
+              />
+            </ChartCard>
+            <ChartCard title="Top Inventory (Value)">
+              <InventoryTrendChart
+                data={analytics.inventory?.topSelling || []}
+                type="value"
+              />
+            </ChartCard>
           </div>
 
           {analytics.inventory?.lowStockItems &&
             analytics.inventory.lowStockItems.length > 0 && (
-              <Card className="shadow-lg bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30 border-2 border-red-200 dark:border-red-800">
+              <Card className="border border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/20 shadow-sm">
                 <div className="p-6">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/50">
-                      <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <div className="p-2 rounded-full bg-rose-100 dark:bg-rose-900/50">
+                      <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                      Low Stock Items
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                      Low Stock Alerts
                     </h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -626,14 +324,14 @@ export default function AnalyticsPage() {
                       }) => (
                         <div
                           key={item.inventoryId}
-                          className="p-4 rounded-xl border-2 border-red-200 dark:border-red-800 bg-white dark:bg-slate-800/50 hover:shadow-md transition-shadow"
+                          className="flex justify-between items-center p-4 rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900"
                         >
-                          <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">
+                          <span className="font-medium text-slate-700 dark:text-slate-200">
                             {item.inventoryName}
-                          </p>
-                          <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                          </span>
+                          <span className="text-sm font-bold text-rose-600 dark:text-rose-400">
                             {item.quantity} {item.unit}
-                          </p>
+                          </span>
                         </div>
                       )
                     )}
@@ -642,81 +340,198 @@ export default function AnalyticsPage() {
               </Card>
             )}
 
-          <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-6 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                    Total Inventory Value
-                  </p>
-                  <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                    {formatCurrency(analytics.inventory?.inventoryValue || 0)}
-                  </p>
-                </div>
-                <div className="p-6 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                    Total Items
-                  </p>
-                  <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">
-                    {analytics.inventory?.totalItems || 0}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <StatCard
+              label="Total Inventory Value"
+              value={formatCurrency(analytics.inventory?.inventoryValue || 0)}
+            />
+            <StatCard
+              label="Total Inventory Items"
+              value={analytics.inventory?.totalItems?.toString() || "0"}
+            />
+          </div>
         </TabsContent>
 
-        {/* Orders Tab */}
-        <TabsContent value="orders" className="space-y-6 mt-6">
+        <TabsContent value="orders" className="space-y-6 pt-2">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-                    <TrendingUp className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Order Volume Trend
-                  </h3>
-                </div>
-                <OrderVolumeChart
-                  data={analytics.orders?.orderVolumeTrend || []}
-                />
-              </div>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm hover:shadow-xl transition-shadow">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                    <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                    Peak Hours
-                  </h3>
-                </div>
-                <PeakHoursChart data={analytics.orders?.peakHours || []} />
-              </div>
-            </Card>
-          </div>
-
-          <Card className="border-0 shadow-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-                  <BarChart3 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  Orders by Status
-                </h3>
-              </div>
-              <OrdersByStatusChart
-                data={analytics.orders?.ordersByStatus || {}}
+            <ChartCard title="Order Volume Trend">
+              <OrderVolumeChart
+                data={analytics.orders?.orderVolumeTrend || []}
               />
-            </div>
-          </Card>
+            </ChartCard>
+            <ChartCard title="Peak Hours">
+              <PeakHoursChart data={analytics.orders?.peakHours || []} />
+            </ChartCard>
+          </div>
+          <ChartCard title="Order Status Distribution">
+            <OrdersByStatusChart
+              data={analytics.orders?.ordersByStatus || {}}
+            />
+          </ChartCard>
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// Subcomponents for cleaner code
+function KPICard({
+  title,
+  value,
+  subtext,
+  icon: Icon,
+  accentColor,
+  isAlert,
+}: {
+  title: string;
+  value: string;
+  subtext: string;
+  icon: React.ElementType;
+  trend: "up" | "down" | "neutral";
+  accentColor: "emerald" | "blue" | "purple" | "rose";
+  isAlert?: boolean;
+}) {
+  const colors = {
+    emerald:
+      "text-emerald-600 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/30",
+    blue: "text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30",
+    purple:
+      "text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30",
+    rose: "text-rose-600 bg-rose-100 dark:text-rose-400 dark:bg-rose-900/30",
+  };
+
+  return (
+    <Card className="p-6 border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 hover:shadow-md transition-shadow">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+            {title}
+          </p>
+          <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">
+            {value}
+          </h3>
+        </div>
+        <div className={cn("p-2 rounded-lg", colors[accentColor])}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <div className="mt-4 flex items-center text-xs">
+        {isAlert ? (
+          <span className="text-rose-600 font-medium flex items-center gap-1">
+            Requires Attention
+          </span>
+        ) : (
+          <span className="text-slate-400">{subtext}</span>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function TabTrigger({
+  value,
+  icon: Icon,
+  label,
+}: {
+  value: string;
+  icon: React.ElementType;
+  label: string;
+}) {
+  return (
+    <TabsTrigger
+      value={value}
+      className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-4 py-3 text-slate-600 dark:text-slate-400 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 transition-all gap-2"
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </TabsTrigger>
+  );
+}
+
+function ChartCard({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card
+      className={cn(
+        "border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 overflow-hidden",
+        className
+      )}
+    >
+      <div className="border-b border-slate-100 dark:border-slate-800 px-6 py-4">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+          {title}
+        </h3>
+      </div>
+      <div className="p-6">{children}</div>
+    </Card>
+  );
+}
+
+function ComparisonCard({
+  title,
+  current,
+  previous,
+  periodLabel,
+  formatCurrency,
+}: {
+  title: string;
+  current: number;
+  previous: number;
+  periodLabel: string;
+  formatCurrency: (val: number) => string;
+}) {
+  const diff = current - previous;
+  const percentage = previous > 0 ? (diff / previous) * 100 : 0;
+  const isPositive = diff >= 0;
+
+  return (
+    <Card className="p-6 border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+        {title}
+      </p>
+      <div className="flex items-baseline gap-2">
+        <h4 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          {formatCurrency(current)}
+        </h4>
+      </div>
+      {previous > 0 && (
+        <div
+          className={cn(
+            "flex items-center gap-1 mt-2 text-xs font-medium",
+            isPositive ? "text-emerald-600" : "text-rose-600"
+          )}
+        >
+          {isPositive ? (
+            <ArrowUpRight className="h-3 w-3" />
+          ) : (
+            <ArrowDownRight className="h-3 w-3" />
+          )}
+          <span>{Math.abs(percentage).toFixed(1)}%</span>
+          <span className="text-slate-400 font-normal ml-1">
+            vs {periodLabel}
+          </span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card className="p-6 border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2">
+        {value}
+      </p>
+    </Card>
   );
 }

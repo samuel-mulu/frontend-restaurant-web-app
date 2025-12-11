@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Users,
   Printer,
+  BarChart3,
 } from "lucide-react";
 
 import {
@@ -54,10 +55,11 @@ const getNavigationItems = (role?: string) => {
     { name: "History", href: "/history", icon: History },
   ];
 
-  // Owner gets Staff Management instead of Create Order
+  // Owner gets Staff Management and Analytics instead of Create Order
   if (role === "owner") {
     return [
       { name: "Staff Management", href: "/staff-management", icon: Users },
+      { name: "Analytics", href: "/analytics", icon: BarChart3 },
       ...baseItems,
     ];
   }

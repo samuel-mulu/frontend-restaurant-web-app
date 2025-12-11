@@ -5,11 +5,78 @@ export interface DateRange {
   endDate?: string;
 }
 
+export interface StaffPerformanceAnalytics {
+  ordersByWaiter: Array<{
+    waiterId: string;
+    waiterName: string;
+    orderCount: number;
+    avgOrderValue: number;
+  }>;
+  ordersByCashier: Array<{
+    cashierId: string;
+    cashierName: string;
+    orderCount: number;
+    totalRevenue: number;
+    avgOrderValue: number;
+  }>;
+  performanceMetrics: {
+    totalOrders: number;
+    totalRevenue: number;
+    avgOrderValue: number;
+    ordersPerDay: number;
+  };
+}
+
+export interface TableAnalytics {
+  salesByTable: Array<{
+    tableNumber: string;
+    orderCount: number;
+    totalRevenue: number;
+    avgOrderValue: number;
+  }>;
+  topTables: Array<{
+    tableNumber: string;
+    totalRevenue: number;
+    orderCount: number;
+  }>;
+}
+
+export interface TimingAnalytics {
+  averageOrderCompletionTime: number;
+  averagePaymentTime: number;
+  averageTimeToCashier: number;
+  orderTimingDistribution: Array<{
+    timeRange: string;
+    count: number;
+  }>;
+}
+
+export interface DayOfWeekAnalytics {
+  salesByDayOfWeek: Array<{
+    dayOfWeek: string;
+    dayNumber: number;
+    totalRevenue: number;
+    orderCount: number;
+    avgOrderValue: number;
+  }>;
+}
+
+export interface VoidAnalytics {
+  voidedOrdersCount: number;
+  voidedOrdersRevenue: number;
+  voidRate: number;
+}
+
 export interface ComprehensiveAnalytics {
   cashFlow: CashFlowAnalytics;
   inventory: InventoryAnalytics;
   menu: MenuAnalytics;
   orders: OrderAnalytics;
+  staff: StaffPerformanceAnalytics;
+  tables: TableAnalytics;
+  timing: TimingAnalytics;
+  dayOfWeek: DayOfWeekAnalytics;
+  voids: VoidAnalytics;
   summary: SummaryStats;
 }
 
@@ -88,6 +155,12 @@ export interface SummaryStats {
   totalOrders: number;
   averageOrderValue: number;
   lowStockItemsCount: number;
+  activeStaffCount: number;
+  voidedOrdersCount: number;
+  averageOrderCompletionTime: number;
+  topSellingCategory: string;
+  busiestDay: string;
+  busiestHour: number;
 }
 
 interface ApiResponse<T> {

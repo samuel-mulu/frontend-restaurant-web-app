@@ -17,6 +17,11 @@ import {
   Package,
   Clock,
   Download,
+  Users,
+  Table,
+  Timer,
+  CalendarDays,
+  XCircle,
 } from "lucide-react";
 import { useGetComprehensiveAnalyticsQuery } from "@/stores/features/statistics/statisticsApi";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -30,6 +35,10 @@ import {
   InventoryTrendChart,
   OrdersByStatusChart,
   PeakHoursChart,
+  StaffPerformanceChart,
+  DayOfWeekChart,
+  TablePerformanceChart,
+  OrderTimingDistributionChart,
 } from "@/components/features/AnalyticsCharts";
 import { cn } from "@/lib/utils";
 
@@ -206,15 +215,53 @@ export default function AnalyticsPage() {
           value={analytics.summary?.lowStockItemsCount?.toString() || "0"}
           subtext="Items below threshold"
           icon={AlertTriangle}
-          trend="down" // down is bad contextually, but functionally we use red for alert
+          trend="down"
           accentColor="rose"
           isAlert={true}
         />
       </div>
 
+      {/* Additional KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard
+          title="Active Staff"
+          value={analytics.summary?.activeStaffCount?.toString() || "0"}
+          subtext="Currently active staff members"
+          icon={Users}
+          trend="neutral"
+          accentColor="blue"
+        />
+        <KPICard
+          title="Voided Orders"
+          value={analytics.summary?.voidedOrdersCount?.toString() || "0"}
+          subtext={`${analytics.voids?.voidRate?.toFixed(1) || "0"}% void rate`}
+          icon={XCircle}
+          trend="down"
+          accentColor="rose"
+        />
+        <KPICard
+          title="Avg Completion Time"
+          value={`${
+            analytics.summary?.averageOrderCompletionTime?.toFixed(1) || "0"
+          } min`}
+          subtext="Average order completion time"
+          icon={Timer}
+          trend="neutral"
+          accentColor="purple"
+        />
+        <KPICard
+          title="Busiest Day"
+          value={analytics.summary?.busiestDay || "N/A"}
+          subtext={`Peak hour: ${analytics.summary?.busiestHour || 0}:00`}
+          icon={CalendarDays}
+          trend="neutral"
+          accentColor="emerald"
+        />
+      </div>
+
       {/* Main Content Tabs */}
       <Tabs defaultValue="cashflow" className="w-full space-y-6">
-        <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none space-x-6">
+        <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none space-x-6 overflow-x-auto">
           <TabTrigger value="cashflow" icon={DollarSign} label="Cash Flow" />
           <TabTrigger
             value="menu"
@@ -223,6 +270,9 @@ export default function AnalyticsPage() {
           />
           <TabTrigger value="inventory" icon={Package} label="Inventory" />
           <TabTrigger value="orders" icon={Clock} label="Order Activity" />
+          <TabTrigger value="staff" icon={Users} label="Staff Performance" />
+          <TabTrigger value="tables" icon={Table} label="Table Analytics" />
+          <TabTrigger value="timing" icon={Timer} label="Timing Metrics" />
         </TabsList>
 
         <TabsContent value="cashflow" className="space-y-6 pt-2">
@@ -262,6 +312,41 @@ export default function AnalyticsPage() {
               formatCurrency={formatCurrency}
             />
           </div>
+
+          {analytics.cashFlow?.salesByCashier &&
+            analytics.cashFlow.salesByCashier.length > 0 && (
+              <ChartCard title="Sales by Cashier">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {analytics.cashFlow.salesByCashier
+                      .slice(0, 6)
+                      .map(
+                        (cashier: {
+                          cashierId: string;
+                          cashierName: string;
+                          total: number;
+                          count: number;
+                        }) => (
+                          <div
+                            key={cashier.cashierId}
+                            className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                          >
+                            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                              {cashier.cashierName}
+                            </p>
+                            <p className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+                              {formatCurrency(cashier.total)}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              {cashier.count} orders
+                            </p>
+                          </div>
+                        )
+                      )}
+                  </div>
+                </div>
+              </ChartCard>
+            )}
         </TabsContent>
 
         <TabsContent value="menu" className="space-y-6 pt-2">
@@ -284,6 +369,30 @@ export default function AnalyticsPage() {
               data={analytics.menu?.revenueByCategory || []}
             />
           </ChartCard>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard
+              label="Top Selling Category"
+              value={analytics.summary?.topSellingCategory || "N/A"}
+            />
+            <StatCard
+              label="Total Menu Items Sold"
+              value={(analytics.menu?.topSellingItems || [])
+                .reduce(
+                  (sum: number, item: { totalQty: number }) =>
+                    sum + item.totalQty,
+                  0
+                )
+                .toString()}
+            />
+            <StatCard
+              label="Top Item Revenue"
+              value={
+                analytics.menu?.topSellingItems?.[0]
+                  ? formatCurrency(analytics.menu.topSellingItems[0].revenue)
+                  : formatCurrency(0)
+              }
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="inventory" className="space-y-6 pt-2">
@@ -368,6 +477,112 @@ export default function AnalyticsPage() {
               data={analytics.orders?.ordersByStatus || {}}
             />
           </ChartCard>
+        </TabsContent>
+
+        <TabsContent value="staff" className="space-y-6 pt-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard title="Waiter Performance">
+              <StaffPerformanceChart
+                data={analytics.staff?.ordersByWaiter || []}
+                type="waiter"
+              />
+            </ChartCard>
+            <ChartCard title="Cashier Performance">
+              <StaffPerformanceChart
+                data={analytics.staff?.ordersByCashier || []}
+                type="cashier"
+              />
+            </ChartCard>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <StatCard
+              label="Total Orders"
+              value={
+                analytics.staff?.performanceMetrics?.totalOrders?.toString() ||
+                "0"
+              }
+            />
+            <StatCard
+              label="Total Revenue"
+              value={formatCurrency(
+                analytics.staff?.performanceMetrics?.totalRevenue || 0
+              )}
+            />
+            <StatCard
+              label="Avg Order Value"
+              value={formatCurrency(
+                analytics.staff?.performanceMetrics?.avgOrderValue || 0
+              )}
+            />
+            <StatCard
+              label="Orders Per Day"
+              value={
+                analytics.staff?.performanceMetrics?.ordersPerDay?.toFixed(1) ||
+                "0"
+              }
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="tables" className="space-y-6 pt-2">
+          <ChartCard title="Table Performance">
+            <TablePerformanceChart data={analytics.tables?.topTables || []} />
+          </ChartCard>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard
+              label="Total Tables"
+              value={analytics.tables?.salesByTable?.length?.toString() || "0"}
+            />
+            <StatCard
+              label="Top Table Revenue"
+              value={
+                analytics.tables?.topTables?.[0]
+                  ? formatCurrency(analytics.tables.topTables[0].totalRevenue)
+                  : formatCurrency(0)
+              }
+            />
+            <StatCard
+              label="Top Table Orders"
+              value={
+                analytics.tables?.topTables?.[0]?.orderCount?.toString() || "0"
+              }
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="timing" className="space-y-6 pt-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard title="Order Timing Distribution">
+              <OrderTimingDistributionChart
+                data={analytics.timing?.orderTimingDistribution || []}
+              />
+            </ChartCard>
+            <ChartCard title="Sales by Day of Week">
+              <DayOfWeekChart
+                data={analytics.dayOfWeek?.salesByDayOfWeek || []}
+              />
+            </ChartCard>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard
+              label="Avg Completion Time"
+              value={`${
+                analytics.timing?.averageOrderCompletionTime?.toFixed(1) || "0"
+              } min`}
+            />
+            <StatCard
+              label="Avg Payment Time"
+              value={`${
+                analytics.timing?.averagePaymentTime?.toFixed(1) || "0"
+              } min`}
+            />
+            <StatCard
+              label="Avg Time to Cashier"
+              value={`${
+                analytics.timing?.averageTimeToCashier?.toFixed(1) || "0"
+              } min`}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

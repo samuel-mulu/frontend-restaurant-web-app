@@ -469,3 +469,219 @@ export function PeakHoursChart({ data }: PeakHoursChartProps) {
   );
 }
 
+interface StaffPerformanceChartProps {
+  data: Array<{
+    waiterId?: string;
+    waiterName?: string;
+    cashierId?: string;
+    cashierName?: string;
+    orderCount: number;
+    totalRevenue?: number;
+    avgOrderValue: number;
+  }>;
+  type?: "waiter" | "cashier";
+}
+
+export function StaffPerformanceChart({
+  data,
+  type = "waiter",
+}: StaffPerformanceChartProps) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
+        No data available
+      </div>
+    );
+  }
+
+  const sortedData = [...data]
+    .sort((a, b) => b.orderCount - a.orderCount)
+    .slice(0, 10);
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={sortedData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+        <XAxis
+          dataKey={type === "waiter" ? "waiterName" : "cashierName"}
+          angle={-45}
+          textAnchor="end"
+          height={100}
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+        />
+        <YAxis
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "0.5rem",
+          }}
+          formatter={(value: number, name: string) => [
+            `${value} ${name === "Orders" ? "orders" : ""}`,
+            name,
+          ]}
+        />
+        <Legend />
+        <Bar dataKey="orderCount" fill={CHART_COLORS[0]} name="Orders" />
+        {type === "cashier" && (
+          <Bar dataKey="totalRevenue" fill={CHART_COLORS[1]} name="Revenue" />
+        )}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+interface DayOfWeekChartProps {
+  data: Array<{
+    dayOfWeek: string;
+    dayNumber: number;
+    totalRevenue: number;
+    orderCount: number;
+    avgOrderValue: number;
+  }>;
+}
+
+export function DayOfWeekChart({ data }: DayOfWeekChartProps) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
+        No data available
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+        <XAxis
+          dataKey="dayOfWeek"
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+        />
+        <YAxis
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+          tickFormatter={(value) => `Br ${value.toLocaleString()}`}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "0.5rem",
+          }}
+          formatter={(value: number, name: string) => [
+            name === "Revenue" ? `Br ${value.toLocaleString()}` : `${value} orders`,
+            name,
+          ]}
+        />
+        <Legend />
+        <Bar dataKey="totalRevenue" fill={CHART_COLORS[0]} name="Revenue" />
+        <Bar dataKey="orderCount" fill={CHART_COLORS[1]} name="Orders" />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+interface TablePerformanceChartProps {
+  data: Array<{
+    tableNumber: string;
+    orderCount: number;
+    totalRevenue: number;
+    avgOrderValue: number;
+  }>;
+}
+
+export function TablePerformanceChart({ data }: TablePerformanceChartProps) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
+        No data available
+      </div>
+    );
+  }
+
+  const sortedData = [...data].sort((a, b) => b.totalRevenue - a.totalRevenue).slice(0, 10);
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={sortedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+        <XAxis
+          dataKey="tableNumber"
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+        />
+        <YAxis
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+          tickFormatter={(value) => `Br ${value.toLocaleString()}`}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "0.5rem",
+          }}
+          formatter={(value: number, name: string) => [
+            name === "Revenue" ? `Br ${value.toLocaleString()}` : `${value} orders`,
+            name,
+          ]}
+        />
+        <Legend />
+        <Bar dataKey="totalRevenue" fill={CHART_COLORS[0]} name="Revenue" />
+        <Bar dataKey="orderCount" fill={CHART_COLORS[1]} name="Orders" />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+interface OrderTimingDistributionChartProps {
+  data: Array<{
+    timeRange: string;
+    count: number;
+  }>;
+}
+
+export function OrderTimingDistributionChart({
+  data,
+}: OrderTimingDistributionChartProps) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-gray-500 dark:text-gray-400">
+        No data available
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+        <XAxis
+          dataKey="timeRange"
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+        />
+        <YAxis
+          className="text-xs text-gray-600 dark:text-gray-400"
+          tick={{ fill: "currentColor" }}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "0.5rem",
+          }}
+        />
+        <Legend />
+        <Bar dataKey="count" fill={CHART_COLORS[2]} name="Order Count" />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+

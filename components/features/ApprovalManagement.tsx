@@ -152,7 +152,7 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
     if (selectedItems.size === items.length) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(items.map((item) => item.id)));
+      setSelectedItems(new Set(items.map((item: ItemResponse | InventoryResponse) => item.id)));
     }
   };
 

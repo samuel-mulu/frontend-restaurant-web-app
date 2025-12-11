@@ -1,6 +1,7 @@
 # CashierView Component - Flow and Relationships
 
 ## Overview
+
 CashierView is the point-of-sale (POS) interface where cashiers create orders by selecting items from categories and adding them to a cart, then processing payments.
 
 ## Component Structure and Relationships
@@ -58,11 +59,10 @@ CashierView Component
     (Future: Creates Order via POST /api/v1/orders)
 ```
 
-## Detailed Relationship Explanation
-
 ### 1. Category → Item Relationship
 
 **How it works:**
+
 - **Categories** are fetched from `/api/v1/categories` on component mount
 - When a **category button is clicked**, it updates `selectedCategory` state
 - A `useEffect` hook watches `selectedCategory` and automatically fetches items
@@ -70,6 +70,7 @@ CashierView Component
 - Only **available items** (`isAvailable: true`) are displayed
 
 **Code Flow:**
+
 ```typescript
 // 1. User clicks category button
 onClick={() => setSelectedCategory(category.id)}
@@ -89,17 +90,19 @@ setItems(availableItems);
 ### 2. Item → Cart Relationship
 
 **How clicking works:**
+
 - Each item card has **two click handlers**:
   1. **Card click** (entire div): `onClick={() => addToCart(item)}`
   2. **Add button click**: `onClick={(e) => { e.stopPropagation(); addToCart(item); }}`
 
 **addToCart() Logic:**
+
 ```typescript
 const addToCart = (item: MenuItem): void => {
   setCart((prevCart) => {
     // Check if item already exists in cart
     const existingItem = prevCart.find((cartItem) => cartItem.id === item.id);
-    
+
     if (existingItem) {
       // If exists, increase quantity by 1
       return prevCart.map((cartItem) =>
@@ -115,6 +118,7 @@ const addToCart = (item: MenuItem): void => {
 ```
 
 **Visual Feedback:**
+
 - When item is in cart, a **red quantity badge** appears on the item card
 - The badge shows how many of that item are in the cart
 
@@ -123,15 +127,18 @@ const addToCart = (item: MenuItem): void => {
 **Order Summary Components:**
 
 1. **Cart Header:**
+
    - Shows total number of items: `cart.reduce((sum, item) => sum + item.quantity, 0)`
    - Clear cart button (trash icon)
 
 2. **Order Details Section:**
+
    - **Order Type**: "Dine In" or "Delivery"
    - **Waiter**: Selected from dropdown
    - **Table**: Selected from dropdown
 
 3. **Cart Items List:**
+
    - Displays all items in cart with:
      - Item number (1, 2, 3...)
      - Item name and price
@@ -139,6 +146,7 @@ const addToCart = (item: MenuItem): void => {
      - Remove button (trash icon)
 
 4. **Total Calculation:**
+
    ```typescript
    const calculateTotal = (): number => {
      return cart.reduce((total, item) => total + item.price * item.quantity, 0);
@@ -153,17 +161,19 @@ const addToCart = (item: MenuItem): void => {
 ## State Management
 
 ### State Variables:
+
 ```typescript
-const [categories, setCategories] = useState<Category[]>([]);      // All categories
-const [items, setItems] = useState<Menu[]>([]);                     // Items for selected category
+const [categories, setCategories] = useState<Category[]>([]); // All categories
+const [items, setItems] = useState<Menu[]>([]); // Items for selected category
 const [selectedCategory, setSelectedCategory] = useState<string>(""); // Currently selected category
-const [cart, setCart] = useState<CartItem[]>([]);                   // Shopping cart items
-const [orderType, setOrderType] = useState<string>("home");         // "home" or "delivery"
-const [selectedWaiter, setSelectedWaiter] = useState<string>("");    // Selected waiter name
-const [selectedTable, setSelectedTable] = useState<string>("");    // Selected table name
+const [cart, setCart] = useState<CartItem[]>([]); // Shopping cart items
+const [orderType, setOrderType] = useState<string>("home"); // "home" or "delivery"
+const [selectedWaiter, setSelectedWaiter] = useState<string>(""); // Selected waiter name
+const [selectedTable, setSelectedTable] = useState<string>(""); // Selected table name
 ```
 
 ### State Dependencies:
+
 - `selectedCategory` → Triggers `fetchItems()` → Updates `items`
 - `items` → Filtered to `currentItems` → Displayed in Items Section
 - User clicks item → `addToCart()` → Updates `cart`
@@ -172,6 +182,7 @@ const [selectedTable, setSelectedTable] = useState<string>("");    // Selected t
 ## Click Event Flow
 
 ### Category Selection:
+
 ```
 User clicks category button
   ↓
@@ -189,6 +200,7 @@ Items displayed in left panel
 ```
 
 ### Adding Item to Cart:
+
 ```
 User clicks item card OR "Add" button
   ↓
@@ -207,6 +219,7 @@ Quantity badge appears on item card
 ```
 
 ### Cart Management:
+
 ```
 User clicks "+" button
   ↓
@@ -230,6 +243,7 @@ Item removed from cart
 ```
 
 ### Processing Payment:
+
 ```
 User clicks "Process Payment"
   ↓
@@ -253,6 +267,7 @@ If valid:
 ## Data Transformation
 
 ### Menu → MenuItem:
+
 ```typescript
 // Backend returns Menu format
 Menu {
@@ -272,6 +287,7 @@ MenuItem {
 ```
 
 ### CartItem Structure:
+
 ```typescript
 CartItem {
   id: string        // Item ID
@@ -284,11 +300,13 @@ CartItem {
 ## Current vs Future Implementation
 
 ### Current (Mock):
+
 - `handleProcessPayment()` only shows toast
 - No actual order creation
 - Cart cleared locally
 
 ### Future (API Integration):
+
 - `handleProcessPayment()` will call `POST /api/v1/orders`
 - Order created in backend with:
   - `tableNumber`: Extracted from selectedTable
@@ -301,18 +319,20 @@ CartItem {
 ## Key Relationships Summary
 
 1. **Category → Items**: One-to-Many
+
    - One category has many items
    - Selecting category filters items
 
 2. **Item → Cart**: Many-to-Many (with quantity)
+
    - One item can be added multiple times (quantity increases)
    - Multiple items can be in cart
 
 3. **Cart → Order Summary**: One-to-One
+
    - Cart state directly drives Order Summary display
    - Total calculated from cart items
 
 4. **Order Summary → Order**: One-to-One (Future)
    - Order Summary data will be sent to backend
    - Creates one order record in database
-

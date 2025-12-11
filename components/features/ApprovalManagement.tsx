@@ -67,8 +67,7 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
   const [rejectInventoryItem, { isLoading: isRejectingInventory }] =
     useRejectInventoryMutation();
 
-  const isLoading =
-    type === "menu" ? isLoadingMenu : isLoadingInventory;
+  const isLoading = type === "menu" ? isLoadingMenu : isLoadingInventory;
   const error = type === "menu" ? menuError : inventoryError;
   const items = type === "menu" ? menuItems : inventoryItems;
   const isApproving = type === "menu" ? isApprovingMenu : isApprovingInventory;
@@ -124,7 +123,9 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
 
     try {
       const promises = Array.from(selectedItems).map((id) =>
-        type === "menu" ? approveMenuItem(id).unwrap() : approveInventoryItem(id).unwrap()
+        type === "menu"
+          ? approveMenuItem(id).unwrap()
+          : approveInventoryItem(id).unwrap()
       );
       await Promise.all(promises);
       toast.success(`${selectedItems.size} item(s) approved successfully`);
@@ -152,7 +153,9 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
     if (selectedItems.size === items.length) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(items.map((item: ItemResponse | InventoryResponse) => item.id)));
+      setSelectedItems(
+        new Set(items.map((item: ItemResponse | InventoryResponse) => item.id))
+      );
     }
   };
 
@@ -162,12 +165,13 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
 
   if (error) {
     let errorMessage = "An error occurred";
-    
+
     if (error && "data" in error) {
       const errorData = error.data as { message?: string };
       errorMessage = errorData?.message || "An error occurred";
     } else if (error && "status" in error && error.status === "FETCH_ERROR") {
-      errorMessage = "Network request failed. Please check your connection and try again.";
+      errorMessage =
+        "Network request failed. Please check your connection and try again.";
     } else if (typeof error === "string") {
       errorMessage = error;
     }
@@ -189,7 +193,9 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
   if (items.length === 0) {
     return (
       <EmptyState
-        message={`No pending ${type === "menu" ? "menu" : "inventory"} items to approve`}
+        message={`No pending ${
+          type === "menu" ? "menu" : "inventory"
+        } items to approve`}
       />
     );
   }
@@ -230,7 +236,9 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
                 <TableHead className="w-12">
                   <input
                     type="checkbox"
-                    checked={selectedItems.size === items.length && items.length > 0}
+                    checked={
+                      selectedItems.size === items.length && items.length > 0
+                    }
                     onChange={toggleSelectAll}
                     className="rounded border-gray-300"
                   />
@@ -253,7 +261,8 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
             <TableBody>
               {items.map((item: ItemResponse | InventoryResponse) => {
                 const isSelected = selectedItems.has(item.id);
-                const menuItem = type === "menu" ? (item as ItemResponse) : null;
+                const menuItem =
+                  type === "menu" ? (item as ItemResponse) : null;
                 const inventoryItem =
                   type === "inventory" ? (item as InventoryResponse) : null;
 
@@ -276,15 +285,15 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
                     <TableCell className="font-medium">{item.name}</TableCell>
                     {type === "menu" && menuItem && (
                       <TableCell>
-                        {menuItem.category?.name || menuItem.categoryId || "N/A"}
+                        {menuItem.category?.name ||
+                          menuItem.categoryId ||
+                          "N/A"}
                       </TableCell>
                     )}
                     <TableCell className="max-w-xs truncate">
                       {item.description || "—"}
                     </TableCell>
-                    <TableCell>
-                      {item.price?.toFixed(2) || "0.00"} ብር
-                    </TableCell>
+                    <TableCell>{item.price?.toFixed(2) || "0.00"} ብር</TableCell>
                     {type === "inventory" && inventoryItem && (
                       <>
                         <TableCell>{inventoryItem.quantity}</TableCell>
@@ -349,4 +358,3 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
     </div>
   );
 }
-

@@ -14,8 +14,8 @@ export interface Salary {
         role: string;
       };
   amount: number;
-  month: string; // YYYY-MM format
-  year: number;
+  month: string; // YYYY-MM format (Gregorian)
+  year: number; // Gregorian year
   paymentDate: string;
   status: "pending" | "paid";
   remarks?: string;
@@ -27,6 +27,16 @@ export interface Salary {
         name: string;
         email?: string;
       };
+  // Ethiopian calendar fields
+  ethiopianMonth?: number;
+  ethiopianYear?: number;
+  ethiopianPaymentDate?: string;
+  registeredDate?: string;
+  salaryPeriod?: "monthly" | "per_month";
+  // Withdrawal and payment tracking
+  netAmount?: number;
+  totalWithdrawals?: number;
+  totalPayments?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -53,12 +63,15 @@ export interface SalaryListQuery {
 export interface CreateSalaryInput {
   staffId: string;
   amount: number;
-  month: string; // YYYY-MM format
-  year: number;
-  paymentDate: string; // ISO date string
+  month?: string; // YYYY-MM format (Gregorian) - auto-calculated
+  year?: number; // Gregorian year - auto-calculated
+  paymentDate?: string; // ISO date string (Gregorian) - auto-calculated
   status?: "pending" | "paid";
   remarks?: string;
   clientId?: string; // For offline sync idempotency
+  // Ethiopian calendar fields (simplified - only registeredDate required)
+  registeredDate: string; // YYYY-MM-DD (Ethiopian) - required
+  salaryPeriod?: "monthly" | "per_month";
 }
 
 export interface UpdateSalaryInput {
@@ -66,6 +79,77 @@ export interface UpdateSalaryInput {
   status?: "pending" | "paid";
   paymentDate?: string; // ISO date string
   remarks?: string;
+  ethiopianPaymentDate?: string;
+  registeredDate?: string; // YYYY-MM-DD (Ethiopian)
+  salaryPeriod?: "monthly" | "per_month";
+}
+
+export interface Withdrawal {
+  _id?: string;
+  id: string;
+  salaryId: string;
+  amount: number;
+  reason:
+    | "cash"
+    | "broke_products"
+    | "advance"
+    | "deduction"
+    | "loan"
+    | "other";
+  description?: string;
+  createdAt: string;
+  createdBy?: {
+    _id: string;
+    name: string;
+    email?: string;
+  };
+}
+
+export interface Payment {
+  _id?: string;
+  id: string;
+  salaryId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod?: "cash" | "bank_transfer" | "check" | "mobile_money" | "other";
+  remarks?: string;
+  createdAt: string;
+  createdBy?: {
+    _id: string;
+    name: string;
+    email?: string;
+  };
+}
+
+export interface CreateWithdrawalInput {
+  amount: number;
+  reason:
+    | "cash"
+    | "broke_products"
+    | "advance"
+    | "deduction"
+    | "loan"
+    | "other";
+  description?: string;
+}
+
+export interface CreatePaymentInput {
+  amount: number;
+  paymentDate?: string; // ISO date string
+  paymentMethod?: "cash" | "bank_transfer" | "check" | "mobile_money" | "other";
+  remarks?: string;
+}
+
+export interface CountdownResponse {
+  daysUntil: number;
+  totalDays: number; // Total countdown period (30 days)
+  nextPaymentDate: {
+    ethiopian: string;
+    gregorian: string;
+  };
+  registeredDate: string;
+  registeredDateGregorian?: string;
+  salaryPeriod?: "monthly" | "per_month";
 }
 
 export interface SalarySummaryResponse {
@@ -167,6 +251,21 @@ export const salaryApi = createApiEndpoints({
       ],
     }),
 
+    deleteSalary: build.mutation<{ success: boolean; message: string }, string>(
+      {
+        query: (id) => ({
+          url: `/salary/${id}`,
+          method: "DELETE",
+        }),
+        invalidatesTags: (result, _error, id) => [
+          { type: "Salary", id },
+          { type: "Salary", id: "LIST" },
+          { type: "Withdrawal" as const },
+          { type: "Payment" as const },
+        ],
+      }
+    ),
+
     getSalarySummary: build.query<
       { success: boolean; data: SalarySummaryResponse },
       { month?: string; year?: number }
@@ -210,6 +309,151 @@ export const salaryApi = createApiEndpoints({
         { type: "Salary" as const, id: `STAFF_${staffId}` },
       ],
     }),
+
+    // Withdrawal endpoints
+    listWithdrawals: build.query<
+      { success: boolean; data: Withdrawal[] },
+      string
+    >({
+      query: (salaryId) => ({
+        url: `/salary/${salaryId}/withdrawals`,
+        method: "GET",
+      }),
+      transformResponse: (response: unknown) => {
+        const apiResponse = response as {
+          success: boolean;
+          data: Withdrawal[];
+        };
+        return apiResponse;
+      },
+      providesTags: (result, _error, salaryId) => [
+        { type: "Salary" as const, id: salaryId },
+        { type: "Withdrawal" as const, id: `SALARY_${salaryId}` },
+      ],
+    }),
+
+    createWithdrawal: build.mutation<
+      { success: boolean; message: string; data: Withdrawal },
+      { salaryId: string; data: CreateWithdrawalInput }
+    >({
+      query: ({ salaryId, data }) => ({
+        url: `/salary/${salaryId}/withdrawals`,
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: (result, _error, { salaryId }) => [
+        { type: "Salary", id: salaryId },
+        { type: "Salary", id: "LIST" },
+        { type: "Withdrawal", id: `SALARY_${salaryId}` },
+      ],
+    }),
+
+    deleteWithdrawal: build.mutation<
+      { success: boolean; message: string },
+      { salaryId: string; withdrawalId: string }
+    >({
+      query: ({ salaryId, withdrawalId }) => ({
+        url: `/salary/${salaryId}/withdrawals/${withdrawalId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (result, _error, { salaryId }) => [
+        { type: "Salary", id: salaryId },
+        { type: "Salary", id: "LIST" },
+        { type: "Withdrawal", id: `SALARY_${salaryId}` },
+      ],
+    }),
+
+    // Payment endpoints
+    listPayments: build.query<{ success: boolean; data: Payment[] }, string>({
+      query: (salaryId) => ({
+        url: `/salary/${salaryId}/payments`,
+        method: "GET",
+      }),
+      transformResponse: (response: unknown) => {
+        const apiResponse = response as {
+          success: boolean;
+          data: Payment[];
+        };
+        return apiResponse;
+      },
+      providesTags: (result, _error, salaryId) => [
+        { type: "Salary" as const, id: salaryId },
+        { type: "Payment" as const, id: `SALARY_${salaryId}` },
+      ],
+    }),
+
+    createPayment: build.mutation<
+      { success: boolean; message: string; data: Payment },
+      { salaryId: string; data: CreatePaymentInput }
+    >({
+      query: ({ salaryId, data }) => ({
+        url: `/salary/${salaryId}/payments`,
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: (result, _error, { salaryId }) => [
+        { type: "Salary", id: salaryId },
+        { type: "Salary", id: "LIST" },
+        { type: "Payment", id: `SALARY_${salaryId}` },
+      ],
+    }),
+
+    deletePayment: build.mutation<
+      { success: boolean; message: string },
+      { salaryId: string; paymentId: string }
+    >({
+      query: ({ salaryId, paymentId }) => ({
+        url: `/salary/${salaryId}/payments/${paymentId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (result, _error, { salaryId }) => [
+        { type: "Salary", id: salaryId },
+        { type: "Salary", id: "LIST" },
+        { type: "Payment", id: `SALARY_${salaryId}` },
+      ],
+    }),
+
+    // Countdown endpoint
+    getCountdown: build.query<
+      { success: boolean; data: CountdownResponse },
+      string
+    >({
+      query: (salaryId) => ({
+        url: `/salary/${salaryId}/countdown`,
+        method: "GET",
+      }),
+      transformResponse: (response: unknown) => {
+        const apiResponse = response as {
+          success: boolean;
+          data: CountdownResponse;
+        };
+        return apiResponse;
+      },
+      providesTags: (result, _error, salaryId) => [
+        { type: "Salary" as const, id: salaryId },
+      ],
+    }),
+
+    // Net amount endpoint
+    getNetAmount: build.query<
+      { success: boolean; data: { netAmount: number } },
+      string
+    >({
+      query: (salaryId) => ({
+        url: `/salary/${salaryId}/net-amount`,
+        method: "GET",
+      }),
+      transformResponse: (response: unknown) => {
+        const apiResponse = response as {
+          success: boolean;
+          data: { netAmount: number };
+        };
+        return apiResponse;
+      },
+      providesTags: (result, _error, salaryId) => [
+        { type: "Salary" as const, id: salaryId },
+      ],
+    }),
   }),
 });
 
@@ -218,6 +462,15 @@ export const {
   useGetSalaryByIdQuery,
   useCreateSalaryMutation,
   useUpdateSalaryMutation,
+  useDeleteSalaryMutation,
   useGetSalarySummaryQuery,
   useGetStaffSalaryHistoryQuery,
+  useListWithdrawalsQuery,
+  useCreateWithdrawalMutation,
+  useDeleteWithdrawalMutation,
+  useListPaymentsQuery,
+  useCreatePaymentMutation,
+  useDeletePaymentMutation,
+  useGetCountdownQuery,
+  useGetNetAmountQuery,
 } = salaryApi;

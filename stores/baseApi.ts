@@ -250,6 +250,8 @@ export const apiSlice = createApi({
     "Item",
     "Inventory",
     "Salary",
+    "Withdrawal",
+    "Payment",
     "Shift",
   ],
   keepUnusedDataFor: 60,

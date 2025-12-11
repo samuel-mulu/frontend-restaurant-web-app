@@ -34,6 +34,14 @@ import {
   useListSalariesQuery,
   useCreateSalaryMutation,
   useUpdateSalaryMutation,
+  useDeleteSalaryMutation,
+  useListWithdrawalsQuery,
+  useCreateWithdrawalMutation,
+  useDeleteWithdrawalMutation,
+  useListPaymentsQuery,
+  useCreatePaymentMutation,
+  useDeletePaymentMutation,
+  useGetCountdownQuery,
   type Salary,
   type CreateSalaryInput,
   type UpdateSalaryInput,
@@ -49,22 +57,36 @@ import {
   Loader2,
   Calendar,
   UserPlus,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { CountdownTimer } from "@/components/features/CountdownTimer";
+import { CountdownProgress } from "@/components/features/CountdownProgress";
+import { WithdrawalDialog } from "@/components/features/WithdrawalDialog";
+import { WithdrawalHistory } from "@/components/features/WithdrawalHistory";
+import { PaymentDialog } from "@/components/features/PaymentDialog";
+import { PaymentHistory } from "@/components/features/PaymentHistory";
+import {
+  getCurrentEthiopianDate,
+  formatEthiopianDate,
+  parseEthiopianDate,
+  formatEthiopianDateReadable,
+  ethiopianToGregorian,
+} from "@/lib/utils/ethiopianCalendar";
 import Link from "next/link";
 
 interface FormData {
   staffId: string;
   amount: string;
-  month: string; // YYYY-MM format
-  year: string;
-  paymentDate: string; // ISO date string
   status: "pending" | "paid" | "";
   remarks: string;
+  // Ethiopian calendar fields (simplified - only registeredDate required)
+  registeredDate: string; // YYYY-MM-DD (Ethiopian) - payment date is 30 days from this
+  salaryPeriod: "monthly" | "per_month";
 }
 
 // Reusable Salary Form Component
@@ -81,6 +103,28 @@ interface SalaryFormProps {
     role?: string;
   }>;
   onStaffChange?: (staffId: string) => void;
+}
+
+// Component to show countdown in table cell
+function SalaryCountdownCell({ salaryId }: { salaryId: string }) {
+  const { data: countdownData } = useGetCountdownQuery(salaryId, {
+    skip: !salaryId,
+    pollingInterval: 60000, // Update every minute
+  });
+
+  if (!countdownData?.data) {
+    return <span className="text-gray-400 text-sm">-</span>;
+  }
+
+  const { daysUntil, totalDays } = countdownData.data;
+
+  return (
+    <CountdownProgress
+      daysUntil={daysUntil}
+      totalDays={totalDays || 30}
+      className="min-w-[200px]"
+    />
+  );
 }
 
 function SalaryForm({
@@ -167,11 +211,15 @@ function SalaryForm({
         <Input
           id="salary-amount"
           name="amount"
-          type="number"
-          step="0.01"
-          min="0"
+          type="text"
+          inputMode="decimal"
           value={formData.amount}
-          onChange={handleChange}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (value === "" || /^\d*\.?\d*$/.test(value)) {
+              handleChange({ name: "amount", value });
+            }
+          }}
           placeholder="Enter salary amount"
           className={cn("mt-2 min-h-[44px]", errors.amount && "border-red-500")}
           disabled={isSubmitting}
@@ -181,79 +229,55 @@ function SalaryForm({
         )}
       </div>
 
-      {/* Month */}
+      {/* Salary Period */}
       <div>
-        <Label htmlFor="salary-month">
-          Month <span className="text-red-500">*</span>
+        <Label htmlFor="salary-period">
+          Salary Period <span className="text-red-500">*</span>
         </Label>
-        <Input
-          id="salary-month"
-          name="month"
-          type="month"
-          value={formData.month || currentMonth}
-          onChange={handleChange}
-          className={cn("mt-2 min-h-[44px]", errors.month && "border-red-500")}
-          disabled={isSubmitting || mode === "edit"}
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          Format: YYYY-MM (e.g., 2024-01)
-        </p>
-        {errors.month && (
-          <p className="text-sm text-red-500 mt-1">{errors.month}</p>
-        )}
-        {mode === "edit" && (
-          <p className="text-xs text-gray-500 mt-1">
-            Month cannot be changed after creation
-          </p>
-        )}
+        <Select
+          value={formData.salaryPeriod}
+          onValueChange={(value) =>
+            handleChange({
+              name: "salaryPeriod",
+              value: value as "monthly" | "per_month",
+            })
+          }
+          disabled={isSubmitting}
+        >
+          <SelectTrigger className="mt-2 min-h-[44px]" id="salary-period">
+            <SelectValue placeholder="Select salary period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="monthly">Monthly (1 month)</SelectItem>
+            <SelectItem value="per_month">Per Month</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Year */}
+      {/* Registered Date (Ethiopian) */}
       <div>
-        <Label htmlFor="salary-year">
-          Year <span className="text-red-500">*</span>
+        <Label htmlFor="registered-date">
+          Registered Date (Ethiopian) <span className="text-red-500">*</span>
         </Label>
         <Input
-          id="salary-year"
-          name="year"
-          type="number"
-          min="2020"
-          max="2100"
-          value={formData.year || currentYear}
+          id="registered-date"
+          name="registeredDate"
+          type="text"
+          value={formData.registeredDate}
           onChange={handleChange}
-          placeholder="Enter year (2020-2100)"
-          className={cn("mt-2 min-h-[44px]", errors.year && "border-red-500")}
-          disabled={isSubmitting || mode === "edit"}
-        />
-        {errors.year && (
-          <p className="text-sm text-red-500 mt-1">{errors.year}</p>
-        )}
-        {mode === "edit" && (
-          <p className="text-xs text-gray-500 mt-1">
-            Year cannot be changed after creation
-          </p>
-        )}
-      </div>
-
-      {/* Payment Date */}
-      <div>
-        <Label htmlFor="salary-payment-date">
-          Payment Date <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="salary-payment-date"
-          name="paymentDate"
-          type="date"
-          value={formData.paymentDate}
-          onChange={handleChange}
+          placeholder="YYYY-MM-DD"
           className={cn(
             "mt-2 min-h-[44px]",
-            errors.paymentDate && "border-red-500"
+            errors.registeredDate && "border-red-500"
           )}
           disabled={isSubmitting}
         />
-        {errors.paymentDate && (
-          <p className="text-sm text-red-500 mt-1">{errors.paymentDate}</p>
+        <p className="text-xs text-gray-500 mt-1">
+          Format: YYYY-MM-DD (e.g., 2016-01-15) - Payment will be due 30 days
+          from this date
+        </p>
+        {errors.registeredDate && (
+          <p className="text-sm text-red-500 mt-1">{errors.registeredDate}</p>
         )}
       </div>
 
@@ -318,16 +342,51 @@ export default function SalaryManagementPage() {
   const [monthFilter, setMonthFilter] = useState<string>("");
   const [yearFilter, setYearFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const currentEthDate = getCurrentEthiopianDate();
   const [formData, setFormData] = useState<FormData>({
     staffId: "",
     amount: "",
-    month: "",
-    year: "",
-    paymentDate: "",
     status: "pending",
     remarks: "",
+    registeredDate: formatEthiopianDate(currentEthDate),
+    salaryPeriod: "monthly",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Withdrawal and payment management
+  const [selectedSalaryId, setSelectedSalaryId] = useState<string | null>(null);
+  const [isWithdrawalDialogOpen, setIsWithdrawalDialogOpen] = useState(false);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+
+  // Delete confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [salaryToDelete, setSalaryToDelete] = useState<Salary | null>(null);
+
+  // API hooks for withdrawals and payments
+  const { data: withdrawalsData, refetch: refetchWithdrawals } =
+    useListWithdrawalsQuery(selectedSalaryId || "", {
+      skip: !selectedSalaryId,
+    });
+  const { data: paymentsData, refetch: refetchPayments } = useListPaymentsQuery(
+    selectedSalaryId || "",
+    { skip: !selectedSalaryId }
+  );
+  const { data: countdownData } = useGetCountdownQuery(selectedSalaryId || "", {
+    skip: !selectedSalaryId,
+  });
+
+  const [createWithdrawal, { isLoading: isCreatingWithdrawal }] =
+    useCreateWithdrawalMutation();
+  const [deleteWithdrawal, { isLoading: isDeletingWithdrawal }] =
+    useDeleteWithdrawalMutation();
+  const [createPayment, { isLoading: isCreatingPayment }] =
+    useCreatePaymentMutation();
+  const [deletePayment, { isLoading: isDeletingPayment }] =
+    useDeletePaymentMutation();
+
+  const withdrawals = withdrawalsData?.data || [];
+  const payments = paymentsData?.data || [];
+  const countdown = countdownData?.data;
 
   // Show loading while checking authorization
   if (auth.isChecking || !auth.hydrated) {
@@ -398,8 +457,9 @@ export default function SalaryManagementPage() {
 
   const [createSalary, { isLoading: isCreating }] = useCreateSalaryMutation();
   const [updateSalary, { isLoading: isUpdating }] = useUpdateSalaryMutation();
+  const [deleteSalary, { isLoading: isDeleting }] = useDeleteSalaryMutation();
 
-  const isSubmitting = isCreating || isUpdating;
+  const isSubmitting = isCreating || isUpdating || isDeleting;
   const salaries = salaryData?.salaries || [];
   const errorMessage =
     error && "data" in error
@@ -467,33 +527,6 @@ export default function SalaryManagementPage() {
       }
     }
 
-    // Month validation
-    if (!formData.month.trim()) {
-      newErrors.month = "Month is required";
-    } else if (!/^\d{4}-\d{2}$/.test(formData.month)) {
-      newErrors.month = "Month must be in YYYY-MM format (e.g., 2024-01)";
-    }
-
-    // Year validation
-    if (!formData.year.trim()) {
-      newErrors.year = "Year is required";
-    } else {
-      const year = parseInt(formData.year);
-      if (isNaN(year) || year < 2020 || year > 2100) {
-        newErrors.year = "Year must be between 2020 and 2100";
-      }
-    }
-
-    // Payment Date validation
-    if (!formData.paymentDate.trim()) {
-      newErrors.paymentDate = "Payment date is required";
-    } else {
-      const date = new Date(formData.paymentDate);
-      if (isNaN(date.getTime())) {
-        newErrors.paymentDate = "Please enter a valid date";
-      }
-    }
-
     // Status validation (optional but must be valid if provided)
     if (
       formData.status &&
@@ -503,25 +536,41 @@ export default function SalaryManagementPage() {
       newErrors.status = "Status must be either 'pending' or 'paid'";
     }
 
+    // Registered date validation (simplified - just check format)
+    if (!formData.registeredDate.trim()) {
+      newErrors.registeredDate = "Registered date is required";
+    } else {
+      // Simple format check - YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.registeredDate.trim())) {
+        newErrors.registeredDate = "Date must be in YYYY-MM-DD format";
+      } else {
+        try {
+          parseEthiopianDate(formData.registeredDate);
+        } catch (e) {
+          newErrors.registeredDate = "Invalid date";
+        }
+      }
+    }
+
+    // Salary period validation
+    if (!formData.salaryPeriod) {
+      newErrors.salaryPeriod = "Salary period is required";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const resetForm = () => {
-    const currentDate = new Date();
-    const currentMonth = `${currentDate.getFullYear()}-${String(
-      currentDate.getMonth() + 1
-    ).padStart(2, "0")}`;
-    const currentYear = currentDate.getFullYear().toString();
+    const currentEthDate = getCurrentEthiopianDate();
 
     setFormData({
       staffId: "",
       amount: "",
-      month: currentMonth,
-      year: currentYear,
-      paymentDate: "",
       status: "pending",
       remarks: "",
+      registeredDate: formatEthiopianDate(currentEthDate),
+      salaryPeriod: "monthly",
     });
     setErrors({});
   };
@@ -532,14 +581,15 @@ export default function SalaryManagementPage() {
     }
 
     try {
+      // Convert Ethiopian dates to Gregorian for backend
+      // Simple payload - backend will calculate payment date as 30 days from registeredDate
       const payload: CreateSalaryInput = {
         staffId: formData.staffId,
         amount: parseFloat(formData.amount),
-        month: formData.month,
-        year: parseInt(formData.year),
-        paymentDate: new Date(formData.paymentDate).toISOString(),
         status: formData.status || "pending",
         remarks: formData.remarks.trim() || undefined,
+        registeredDate: formData.registeredDate,
+        salaryPeriod: formData.salaryPeriod || "monthly",
       };
 
       await createSalary(payload).unwrap();
@@ -571,13 +621,11 @@ export default function SalaryManagementPage() {
     setFormData({
       staffId,
       amount: salary.amount.toString(),
-      month: salary.month,
-      year: salary.year.toString(),
-      paymentDate: salary.paymentDate
-        ? new Date(salary.paymentDate).toISOString().split("T")[0]
-        : "",
       status: salary.status,
       remarks: salary.remarks || "",
+      registeredDate:
+        salary.registeredDate || formatEthiopianDate(getCurrentEthiopianDate()),
+      salaryPeriod: salary.salaryPeriod || "monthly",
     });
     setEditingSalaryId(salary._id || salary.id || "");
     setIsEditOpen(true);
@@ -591,9 +639,10 @@ export default function SalaryManagementPage() {
     try {
       const payload: UpdateSalaryInput = {
         amount: parseFloat(formData.amount),
-        paymentDate: new Date(formData.paymentDate).toISOString(),
         status: formData.status || "pending",
         remarks: formData.remarks.trim() || undefined,
+        registeredDate: formData.registeredDate,
+        salaryPeriod: formData.salaryPeriod,
       };
 
       await updateSalary({ id: editingSalaryId, data: payload }).unwrap();
@@ -622,6 +671,122 @@ export default function SalaryManagementPage() {
     } catch {
       return dateString;
     }
+  };
+
+  // Delete handler
+  const handleDeleteClick = (salary: Salary) => {
+    setSalaryToDelete(salary);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!salaryToDelete) return;
+
+    try {
+      const salaryId = salaryToDelete._id || salaryToDelete.id || "";
+      await deleteSalary(salaryId).unwrap();
+      toast.success("Salary record deleted successfully");
+      setDeleteConfirmOpen(false);
+      setSalaryToDelete(null);
+      refetch();
+    } catch (err: any) {
+      const errorMessage =
+        err?.data?.message || err?.message || "Failed to delete salary record";
+      toast.error(errorMessage);
+    }
+  };
+
+  // Withdrawal handlers
+  const handleCreateWithdrawal = async (data: {
+    amount: number;
+    reason: string;
+    description?: string;
+  }) => {
+    if (!selectedSalaryId) return;
+
+    try {
+      await createWithdrawal({
+        salaryId: selectedSalaryId,
+        data,
+      }).unwrap();
+      toast.success("Withdrawal created successfully");
+      setIsWithdrawalDialogOpen(false);
+      refetchWithdrawals();
+      refetch();
+    } catch (err: any) {
+      const errorMessage =
+        err?.data?.message || err?.message || "Failed to create withdrawal";
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleDeleteWithdrawal = async (withdrawalId: string) => {
+    if (!selectedSalaryId) return;
+
+    try {
+      await deleteWithdrawal({
+        salaryId: selectedSalaryId,
+        withdrawalId,
+      }).unwrap();
+      toast.success("Withdrawal deleted successfully");
+      refetchWithdrawals();
+      refetch();
+    } catch (err: any) {
+      const errorMessage =
+        err?.data?.message || err?.message || "Failed to delete withdrawal";
+      toast.error(errorMessage);
+    }
+  };
+
+  // Payment handlers
+  const handleCreatePayment = async (data: {
+    amount: number;
+    paymentDate?: Date;
+    paymentMethod?: string;
+    remarks?: string;
+  }) => {
+    if (!selectedSalaryId) return;
+
+    try {
+      await createPayment({
+        salaryId: selectedSalaryId,
+        data: {
+          ...data,
+          paymentDate: data.paymentDate?.toISOString(),
+        },
+      }).unwrap();
+      toast.success("Payment recorded successfully");
+      setIsPaymentDialogOpen(false);
+      refetchPayments();
+      refetch();
+    } catch (err: any) {
+      const errorMessage =
+        err?.data?.message || err?.message || "Failed to record payment";
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!selectedSalaryId) return;
+
+    try {
+      await deletePayment({
+        salaryId: selectedSalaryId,
+        paymentId,
+      }).unwrap();
+      toast.success("Payment deleted successfully");
+      refetchPayments();
+      refetch();
+    } catch (err: any) {
+      const errorMessage =
+        err?.data?.message || err?.message || "Failed to delete payment";
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleViewDetails = (salary: Salary) => {
+    const salaryId = salary._id || salary.id || "";
+    setSelectedSalaryId(salaryId);
   };
 
   return (
@@ -762,50 +927,121 @@ export default function SalaryManagementPage() {
                   <TableRow>
                     <TableHead>Staff</TableHead>
                     <TableHead>Amount</TableHead>
-                    <TableHead>Month/Year</TableHead>
-                    <TableHead>Payment Date</TableHead>
+                    <TableHead>Net Amount</TableHead>
+                    <TableHead>Registered Date (Ethiopian)</TableHead>
+                    <TableHead>Payment Date (Ethiopian)</TableHead>
+                    <TableHead>Countdown Progress</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Remarks</TableHead>
-                    <TableHead className="w-32">Actions</TableHead>
+                    <TableHead className="w-48 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredSalaries.map((salary: Salary) => (
-                    <TableRow key={salary._id || salary.id}>
-                      <TableCell className="font-medium">
-                        {getStaffName(salary)}
-                      </TableCell>
-                      <TableCell>{salary.amount.toFixed(2)} Br</TableCell>
-                      <TableCell>
-                        {salary.month} / {salary.year}
-                      </TableCell>
-                      <TableCell>{formatDate(salary.paymentDate)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            salary.status === "paid"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                              : "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
-                          }
-                        >
-                          {salary.status === "paid" ? "Paid" : "Pending"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {salary.remarks || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(salary)}
-                          className="h-8 w-8"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredSalaries.map((salary: Salary) => {
+                    const salaryId = salary._id || salary.id || "";
+                    const netAmount = salary.netAmount ?? salary.amount;
+                    const isSelected = selectedSalaryId === salaryId;
+
+                    return (
+                      <TableRow key={salaryId}>
+                        <TableCell className="font-medium">
+                          {getStaffName(salary)}
+                        </TableCell>
+                        <TableCell>{salary.amount.toFixed(2)} Br</TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              "font-medium",
+                              netAmount < salary.amount &&
+                                "text-orange-600 dark:text-orange-400"
+                            )}
+                          >
+                            {netAmount.toFixed(2)} Br
+                          </span>
+                          {salary.totalWithdrawals &&
+                            salary.totalWithdrawals > 0 && (
+                              <span className="text-xs text-red-600 dark:text-red-400 ml-1">
+                                (-{salary.totalWithdrawals.toFixed(2)})
+                              </span>
+                            )}
+                        </TableCell>
+                        <TableCell>
+                          {salary.registeredDate ? (
+                            <span className="text-sm font-medium">
+                              {salary.registeredDate}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {salary.ethiopianPaymentDate ? (
+                            <span className="text-sm font-medium">
+                              {salary.ethiopianPaymentDate}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {salary.registeredDate && salary.salaryPeriod ? (
+                            <SalaryCountdownCell salaryId={salaryId} />
+                          ) : (
+                            <span className="text-gray-400 text-sm">
+                              Not registered
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              salary.status === "paid"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+                            }
+                          >
+                            {salary.status === "paid" ? "Paid" : "Pending"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="w-48">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(salary)}
+                              className="h-8 w-8"
+                              disabled={isSubmitting}
+                              title="Edit salary"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant={isSelected ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleViewDetails(salary)}
+                              className="h-8"
+                              disabled={isSubmitting}
+                              title="View details"
+                            >
+                              Details
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(salary);
+                              }}
+                              className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              disabled={isSubmitting || isDeleting}
+                              title="Delete salary"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -909,6 +1145,196 @@ export default function SalaryManagementPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Salary Details Dialog (Withdrawals & Payments) */}
+      <Dialog
+        open={!!selectedSalaryId}
+        onOpenChange={(open) => !open && setSelectedSalaryId(null)}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Salary Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedSalaryId && (
+            <div className="space-y-6 py-4">
+              {/* Countdown Timer */}
+              {countdown && (
+                <div className="p-4 rounded-lg border bg-gray-50 dark:bg-gray-900">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Next Payment Countdown
+                  </h3>
+                  <CountdownTimer
+                    daysUntil={countdown.daysUntil}
+                    nextPaymentDate={countdown.nextPaymentDate.gregorian}
+                  />
+                  <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    <p>Registered: {countdown.registeredDate}</p>
+                    <p>
+                      Period:{" "}
+                      {countdown.salaryPeriod === "monthly"
+                        ? "Monthly (1 month)"
+                        : "Per Month"}
+                    </p>
+                    <p>
+                      Next Payment (Ethiopian):{" "}
+                      {countdown.nextPaymentDate.ethiopian}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Summary */}
+              {(() => {
+                const selectedSalary = salaries.find(
+                  (s: Salary) => (s._id || s.id) === selectedSalaryId
+                );
+                if (!selectedSalary) return null;
+
+                const netAmount =
+                  selectedSalary.netAmount ?? selectedSalary.amount;
+                const totalWithdrawals = selectedSalary.totalWithdrawals || 0;
+                const totalPayments = selectedSalary.totalPayments || 0;
+                const remainingBalance = netAmount - totalPayments;
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 rounded-lg border">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Total Amount
+                      </p>
+                      <p className="text-xl font-bold">
+                        {selectedSalary.amount.toFixed(2)} Br
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg border">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Net Amount
+                      </p>
+                      <p className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                        {netAmount.toFixed(2)} Br
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg border">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Total Withdrawals
+                      </p>
+                      <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                        {totalWithdrawals.toFixed(2)} Br
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg border">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Remaining Balance
+                      </p>
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                        {remainingBalance.toFixed(2)} Br
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Withdrawals Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Withdrawals</h3>
+                  <Button
+                    onClick={() => setIsWithdrawalDialogOpen(true)}
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Add Withdrawal
+                  </Button>
+                </div>
+                <WithdrawalHistory
+                  withdrawals={withdrawals}
+                  onDelete={handleDeleteWithdrawal}
+                  isLoading={isDeletingWithdrawal}
+                />
+              </div>
+
+              {/* Payments Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Payments</h3>
+                  <Button
+                    onClick={() => setIsPaymentDialogOpen(true)}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Record Payment
+                  </Button>
+                </div>
+                <PaymentHistory
+                  payments={payments}
+                  onDelete={handleDeletePayment}
+                  isLoading={isDeletingPayment}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedSalaryId(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdrawal Dialog */}
+      {selectedSalaryId && (
+        <WithdrawalDialog
+          open={isWithdrawalDialogOpen}
+          onOpenChange={setIsWithdrawalDialogOpen}
+          onSubmit={handleCreateWithdrawal}
+          maxAmount={(() => {
+            const selectedSalary = salaries.find(
+              (s: Salary) => (s._id || s.id) === selectedSalaryId
+            );
+            return selectedSalary
+              ? selectedSalary.netAmount ?? selectedSalary.amount
+              : 0;
+          })()}
+          isLoading={isCreatingWithdrawal}
+        />
+      )}
+
+      {/* Payment Dialog */}
+      {selectedSalaryId && (
+        <PaymentDialog
+          open={isPaymentDialogOpen}
+          onOpenChange={setIsPaymentDialogOpen}
+          onSubmit={handleCreatePayment}
+          maxAmount={(() => {
+            const selectedSalary = salaries.find(
+              (s: Salary) => (s._id || s.id) === selectedSalaryId
+            );
+            if (!selectedSalary) return 0;
+            const netAmount = selectedSalary.netAmount ?? selectedSalary.amount;
+            const totalPayments = selectedSalary.totalPayments || 0;
+            return netAmount - totalPayments;
+          })()}
+          isLoading={isCreatingPayment}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Salary Record"
+        description={
+          salaryToDelete
+            ? `Are you sure you want to delete the salary record for ${getStaffName(
+                salaryToDelete
+              )}? This will also delete all associated withdrawals and payments. This action cannot be undone.`
+            : "Are you sure you want to delete this salary record? This action cannot be undone."
+        }
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

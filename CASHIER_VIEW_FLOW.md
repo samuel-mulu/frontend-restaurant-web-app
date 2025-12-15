@@ -63,8 +63,6 @@ CashierView Component
 
 **How it works:**
 
-- **Categories** are fetched from `/api/v1/categories` on component mount
-- When a **category button is clicked**, it updates `selectedCategory` state
 - A `useEffect` hook watches `selectedCategory` and automatically fetches items
 - **Items** are fetched from `/api/v1/items?categoryId={selectedCategory}`
 - Only **available items** (`isAvailable: true`) are displayed

@@ -6,6 +6,7 @@ export interface CategoryResponse {
   _id?: string;
   id: string;
   name: string;
+  products?: number; // Number of items in this category
   clientId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -33,7 +34,7 @@ function transformCategory(category: CategoryResponse): Category {
   return {
     id: category.id || category._id || "",
     name: category.name,
-    products: 0, // API doesn't provide this
+    products: category.products ?? 0, // Use count from backend, default to 0 if not provided
     updatedAt: category.updatedAt
       ? new Date(category.updatedAt).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],

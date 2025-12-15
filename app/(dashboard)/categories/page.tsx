@@ -150,7 +150,7 @@ export default function CategoryManagement() {
       toast.success(`Category "${categoryName}" deleted successfully`);
     } catch (err: unknown) {
       const error = err as {
-        data?: { message?: string };
+        data?: { message?: string; code?: string };
         message?: string;
         status?: number;
       };
@@ -159,6 +159,12 @@ export default function CategoryManagement() {
       if (error?.status === 404) {
         toast.error("Category not found. It may have already been deleted.");
         refetch();
+      } else if (
+        error?.data?.code === "CATEGORY_HAS_ITEMS" ||
+        error?.status === 409
+      ) {
+        // Show the backend's detailed error message about items in the category
+        toast.error(message);
       } else {
         toast.error(message);
       }

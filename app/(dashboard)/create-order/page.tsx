@@ -916,7 +916,7 @@ export default function OrderPage() {
             </label>
             {markAsPaidToCashier && (
               <p className="text-xs text-muted-foreground mt-1 ml-6">
-                Order will be created with "Paid to Cashier&quot; status
+                Order will be created with &quot;Paid to Cashier&quot; status
               </p>
             )}
           </div>

@@ -69,7 +69,7 @@ const getNavigationItems = (role?: string) => {
   // Cashier and Waiter get Create Order and Printer Management
   if (role === "cashier" || role === "waiter") {
     return [
-      { name: "Create Order", href: "/order", icon: ShoppingCart },
+      { name: "Create Order", href: "/create-order", icon: ShoppingCart },
       { name: "Printer", href: "/printer", icon: Printer },
       ...baseItems,
     ];

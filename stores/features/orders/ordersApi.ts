@@ -109,6 +109,7 @@ export interface CreateOrderInput {
   waiterId: string;
   clientId?: string;
   customerChannel: string; // Required: "web", "pos", "mobile", etc.
+  markAsPaidToCashier?: boolean; // Optional - if true, order starts with PAID_TO_CASHIER status
 }
 
 export interface ListOrdersQuery {

@@ -122,6 +122,7 @@ export const createOrderSchema = z.object({
   waiterId: objectIdSchema.optional(),
   cashierId: objectIdSchema.optional(),
   discount: z.number().min(0).optional(),
+  markAsPaidToCashier: z.boolean().optional(),
 });
 
 export const updateOrderSchema = z.object({

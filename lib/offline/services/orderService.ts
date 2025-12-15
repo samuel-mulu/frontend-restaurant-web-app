@@ -29,6 +29,7 @@ export interface CreateOrderInput {
   waiterId: string;
   cashierId?: string;
   clientId?: string;
+  markAsPaidToCashier?: boolean; // Optional - if true, order starts with PAID_TO_CASHIER status
 }
 
 export interface UpdateOrderInput {
@@ -173,10 +174,11 @@ export async function createOrder(
     })),
     note: validatedData.note,
     totalAmount: subtotal,
-    status: "OPEN",
+    status: validatedData.markAsPaidToCashier ? "PAID_TO_CASHIER" : "OPEN",
     waiterId: validatedData.waiterId,
     cashierId: validatedData.cashierId,
     placedAt: now,
+    paymentReceivedAt: validatedData.markAsPaidToCashier ? now : undefined,
     createdAt: now,
     updatedAt: now,
     syncStatus: "pending",
@@ -193,7 +195,7 @@ export async function createOrder(
       ...validatedData,
       orderNumber,
       totalAmount: subtotal,
-      status: "OPEN",
+      status: validatedData.markAsPaidToCashier ? "PAID_TO_CASHIER" : "OPEN",
       placedAt: now,
     },
     timestamp: Date.now(),

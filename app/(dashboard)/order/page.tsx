@@ -24,6 +24,7 @@ import { Menu } from "@/lib/menu-store";
 import { Category, Inventory } from "@/lib/types";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type MenuCartItem = Menu & { quantity: number; type: "menu" };
 type InventoryCartItem = Inventory & {
@@ -47,6 +48,8 @@ export default function OrderPage() {
     React.useState<string>("all");
   const [activeTab, setActiveTab] = useState<"menu" | "inventory">("menu");
   const [orderNote, setOrderNote] = React.useState<string>("");
+  const [markAsPaidToCashier, setMarkAsPaidToCashier] =
+    React.useState<boolean>(false);
   const [inventoryQuantities, setInventoryQuantities] = useState<
     Record<string, number>
   >({});
@@ -132,7 +135,7 @@ export default function OrderPage() {
 
   const addInventoryItem = (item: Inventory) => {
     const quantity = inventoryQuantities[item.id] || 1;
-    
+
     if (quantity <= 0) {
       toast.error("Please enter a valid quantity");
       return;
@@ -156,7 +159,8 @@ export default function OrderPage() {
         (i) => i.id === itemId && i.type === "inventory"
       );
       if (existingItem) {
-        const newQuantity = (existingItem as InventoryCartItem).quantity + quantity;
+        const newQuantity =
+          (existingItem as InventoryCartItem).quantity + quantity;
         if (newQuantity > item.quantity) {
           toast.error(
             `Cannot add more. Available: ${item.quantity} ${item.unit}`
@@ -169,10 +173,7 @@ export default function OrderPage() {
             : i
         );
       }
-      return [
-        ...c,
-        { ...item, quantity, type: "inventory" as const },
-      ];
+      return [...c, { ...item, quantity, type: "inventory" as const }];
     });
 
     // Reset quantity input
@@ -301,6 +302,7 @@ export default function OrderPage() {
         waiterId: selectedWaiter,
         note: orderNote.trim() || undefined,
         customerChannel: "pos",
+        ...(markAsPaidToCashier && { markAsPaidToCashier: true }),
       };
 
       // Create order
@@ -316,6 +318,7 @@ export default function OrderPage() {
       setSelectedWaiter("");
       setSelectedTable("");
       setOrderNote("");
+      setMarkAsPaidToCashier(false);
       setInventoryQuantities({});
 
       // Refetch inventory to update quantities
@@ -640,6 +643,8 @@ export default function OrderPage() {
                 setCart([]);
                 setSelectedWaiter("");
                 setSelectedTable("");
+                setOrderNote("");
+                setMarkAsPaidToCashier(false);
                 setInventoryQuantities({});
               }}
             >
@@ -897,6 +902,25 @@ export default function OrderPage() {
             />
           </div>
 
+          <div className="mt-3 shrink-0">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={markAsPaidToCashier}
+                onCheckedChange={(checked) =>
+                  setMarkAsPaidToCashier(checked === true)
+                }
+              />
+              <span className="text-sm font-medium text-foreground">
+                Cash Recieved
+              </span>
+            </label>
+            {markAsPaidToCashier && (
+              <p className="text-xs text-muted-foreground mt-1 ml-6">
+                Order will be created with "Paid to Cashier&quot; status
+              </p>
+            )}
+          </div>
+
           <Button
             size={"sm"}
             onClick={handleCreateOrder}
@@ -910,4 +934,3 @@ export default function OrderPage() {
     </div>
   );
 }
-

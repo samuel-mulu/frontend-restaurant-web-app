@@ -55,9 +55,9 @@ export function gregorianToEthiopian(date: Date): EthiopianDate {
   // Ethiopian New Year is September 11
   // For dates on or after September 11: Ethiopian Year = Gregorian Year - 7
   // For dates before September 11: Ethiopian Year = Gregorian Year - 8
-  
+
   let ethiopianYear = gregorianYear - 7;
-  
+
   // If before September 11, subtract one more year
   if (gregorianMonth < 9 || (gregorianMonth === 9 && gregorianDay < 11)) {
     ethiopianYear = gregorianYear - 8;

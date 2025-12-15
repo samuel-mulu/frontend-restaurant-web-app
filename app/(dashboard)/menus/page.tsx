@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Edit2, Loader2, Search, X, Filter, Plus } from "lucide-react";
+import { Edit2, Loader2, Search, X, Filter, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -557,6 +557,15 @@ export default function MenuManagement() {
                       description="This action cannot be undone. This will permanently delete the menu"
                       itemName={menu.name}
                       onConfirm={() => handleDelete(menu.id)}
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      }
                     />
                   </div>
                 </div>
@@ -785,6 +794,15 @@ export default function MenuManagement() {
                             description="This action cannot be undone. This will permanently delete the menu"
                             itemName={menu.name}
                             onConfirm={() => handleDelete(menu.id)}
+                            trigger={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            }
                           />
                         </div>
                       </TableCell>

@@ -133,7 +133,7 @@ export const staffApi = createApiEndpoints({
       {
         success: boolean;
         message: string;
-        data: { id: string; status: string };
+        data: { id: string };
       },
       string
     >({

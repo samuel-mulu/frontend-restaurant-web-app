@@ -76,6 +76,7 @@ import {
   parseEthiopianDate,
   formatEthiopianDateReadable,
   ethiopianToGregorian,
+  addEthiopianMonths,
 } from "@/lib/utils/ethiopianCalendar";
 import Link from "next/link";
 
@@ -84,8 +85,9 @@ interface FormData {
   amount: string;
   status: "pending" | "paid" | "";
   remarks: string;
-  // Ethiopian calendar fields (simplified - only registeredDate required)
-  registeredDate: string; // YYYY-MM-DD (Ethiopian) - payment date is 30 days from this
+  // Ethiopian calendar fields
+  registeredDate: string; // YYYY-MM-DD (Ethiopian)
+  paymentDate: string; // YYYY-MM-DD (Ethiopian) - payment due date
   salaryPeriod: "monthly" | "per_month";
 }
 
@@ -143,6 +145,31 @@ function SalaryForm({
   ) => {
     const name = "name" in e ? e.name : e.target.name;
     const value = "value" in e ? e.value : e.target.value;
+
+    // When Registered Date (Ethiopian) changes, automatically set
+    // Payment Date (Ethiopian) to +1 month by default.
+    if (name === "registeredDate") {
+      try {
+        const ethDate = parseEthiopianDate(value);
+        const paymentEthDate = addEthiopianMonths(ethDate, 1);
+        const paymentDateString = formatEthiopianDate(paymentEthDate);
+
+        setFormData((prev) => ({
+          ...prev,
+          registeredDate: value,
+          paymentDate: paymentDateString,
+        }));
+        return;
+      } catch {
+        // If the registered date is not a valid Ethiopian date yet,
+        // just update the field without touching payment date.
+        setFormData((prev) => ({
+          ...prev,
+          registeredDate: value,
+        }));
+        return;
+      }
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -273,11 +300,36 @@ function SalaryForm({
           disabled={isSubmitting}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Format: YYYY-MM-DD (e.g., 2016-01-15) - Payment will be due 30 days
-          from this date
+          Format: YYYY-MM-DD (e.g., 2016-01-15)
         </p>
         {errors.registeredDate && (
           <p className="text-sm text-red-500 mt-1">{errors.registeredDate}</p>
+        )}
+      </div>
+
+      {/* Payment Date (Ethiopian) */}
+      <div>
+        <Label htmlFor="payment-date">
+          Payment Date (Ethiopian) <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          id="payment-date"
+          name="paymentDate"
+          type="text"
+          value={formData.paymentDate}
+          onChange={handleChange}
+          placeholder="YYYY-MM-DD"
+          className={cn(
+            "mt-2 min-h-[44px]",
+            errors.paymentDate && "border-red-500"
+          )}
+          disabled={isSubmitting}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Format: YYYY-MM-DD (e.g., 2016-02-15) - When payment is due
+        </p>
+        {errors.paymentDate && (
+          <p className="text-sm text-red-500 mt-1">{errors.paymentDate}</p>
         )}
       </div>
 
@@ -343,12 +395,15 @@ export default function SalaryManagementPage() {
   const [yearFilter, setYearFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const currentEthDate = getCurrentEthiopianDate();
+  // Calculate default payment date as 30 days from today (same month/day next month)
+  const defaultPaymentDate = addEthiopianMonths(currentEthDate, 1);
   const [formData, setFormData] = useState<FormData>({
     staffId: "",
     amount: "",
     status: "pending",
     remarks: "",
     registeredDate: formatEthiopianDate(currentEthDate),
+    paymentDate: formatEthiopianDate(defaultPaymentDate),
     salaryPeriod: "monthly",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -552,6 +607,22 @@ export default function SalaryManagementPage() {
       }
     }
 
+    // Payment date validation
+    if (!formData.paymentDate.trim()) {
+      newErrors.paymentDate = "Payment date is required";
+    } else {
+      // Simple format check - YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.paymentDate.trim())) {
+        newErrors.paymentDate = "Date must be in YYYY-MM-DD format";
+      } else {
+        try {
+          parseEthiopianDate(formData.paymentDate);
+        } catch (e) {
+          newErrors.paymentDate = "Invalid date";
+        }
+      }
+    }
+
     // Salary period validation
     if (!formData.salaryPeriod) {
       newErrors.salaryPeriod = "Salary period is required";
@@ -563,13 +634,14 @@ export default function SalaryManagementPage() {
 
   const resetForm = () => {
     const currentEthDate = getCurrentEthiopianDate();
-
+    const defaultPaymentDate = addEthiopianMonths(currentEthDate, 1);
     setFormData({
       staffId: "",
       amount: "",
       status: "pending",
       remarks: "",
       registeredDate: formatEthiopianDate(currentEthDate),
+      paymentDate: formatEthiopianDate(defaultPaymentDate),
       salaryPeriod: "monthly",
     });
     setErrors({});
@@ -581,14 +653,13 @@ export default function SalaryManagementPage() {
     }
 
     try {
-      // Convert Ethiopian dates to Gregorian for backend
-      // Simple payload - backend will calculate payment date as 30 days from registeredDate
       const payload: CreateSalaryInput = {
         staffId: formData.staffId,
         amount: parseFloat(formData.amount),
         status: formData.status || "pending",
         remarks: formData.remarks.trim() || undefined,
         registeredDate: formData.registeredDate,
+        paymentDate: formData.paymentDate,
         salaryPeriod: formData.salaryPeriod || "monthly",
       };
 
@@ -618,13 +689,17 @@ export default function SalaryManagementPage() {
         ? salary.staffId
         : salary.staffId?._id || salary.staffId?.id || "";
 
+    const currentEthDate = getCurrentEthiopianDate();
+    const defaultPaymentDate = addEthiopianMonths(currentEthDate, 1);
     setFormData({
       staffId,
       amount: salary.amount.toString(),
       status: salary.status,
       remarks: salary.remarks || "",
       registeredDate:
-        salary.registeredDate || formatEthiopianDate(getCurrentEthiopianDate()),
+        salary.registeredDate || formatEthiopianDate(currentEthDate),
+      paymentDate:
+        salary.ethiopianPaymentDate || formatEthiopianDate(defaultPaymentDate),
       salaryPeriod: salary.salaryPeriod || "monthly",
     });
     setEditingSalaryId(salary._id || salary.id || "");
@@ -642,6 +717,7 @@ export default function SalaryManagementPage() {
         status: formData.status || "pending",
         remarks: formData.remarks.trim() || undefined,
         registeredDate: formData.registeredDate,
+        ethiopianPaymentDate: formData.paymentDate,
         salaryPeriod: formData.salaryPeriod,
       };
 
@@ -943,11 +1019,11 @@ export default function SalaryManagementPage() {
 
                     return (
                       <TableRow key={salaryId}>
-                      <TableCell className="font-medium">
-                        {getStaffName(salary)}
-                      </TableCell>
-                      <TableCell>{salary.amount.toFixed(2)} Br</TableCell>
-                      <TableCell>
+                        <TableCell className="font-medium">
+                          {getStaffName(salary)}
+                        </TableCell>
+                        <TableCell>{salary.amount.toFixed(2)} Br</TableCell>
+                        <TableCell>
                           <span
                             className={cn(
                               "font-medium",
@@ -963,7 +1039,7 @@ export default function SalaryManagementPage() {
                                 (-{salary.totalWithdrawals.toFixed(2)})
                               </span>
                             )}
-                      </TableCell>
+                        </TableCell>
                         <TableCell>
                           {salary.registeredDate ? (
                             <span className="text-sm font-medium">
@@ -991,29 +1067,29 @@ export default function SalaryManagementPage() {
                             </span>
                           )}
                         </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            salary.status === "paid"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                              : "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
-                          }
-                        >
-                          {salary.status === "paid" ? "Paid" : "Pending"}
-                        </Badge>
-                      </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              salary.status === "paid"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+                            }
+                          >
+                            {salary.status === "paid" ? "Paid" : "Pending"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="w-48">
                           <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(salary)}
-                          className="h-8 w-8"
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(salary)}
+                              className="h-8 w-8"
                               disabled={isSubmitting}
                               title="Edit salary"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant={isSelected ? "default" : "outline"}
                               size="sm"
@@ -1038,8 +1114,8 @@ export default function SalaryManagementPage() {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
                 </TableBody>
@@ -1180,7 +1256,7 @@ export default function SalaryManagementPage() {
                       Next Payment (Ethiopian):{" "}
                       {countdown.nextPaymentDate.ethiopian}
                     </p>
-    </div>
+                  </div>
                 </div>
               )}
 

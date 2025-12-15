@@ -27,7 +27,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Edit2, Loader2, Search, X, Filter, Plus, Trash2 } from "lucide-react";
+import {
+  Edit2,
+  Loader2,
+  Search,
+  X,
+  Filter,
+  Plus,
+  Trash2,
+  MessageCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +85,11 @@ export default function MenuManagement() {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  // Comment modal state
+  const [commentModalItem, setCommentModalItem] = useState<{
+    name: string;
+    comments: string[];
+  } | null>(null);
 
   // Redux Toolkit hooks
   const {
@@ -390,7 +404,7 @@ export default function MenuManagement() {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
@@ -648,6 +662,9 @@ export default function MenuManagement() {
                   <TableHead className="w-auto min-w-[150px] pl-1 pr-1 py-2">
                     Ingredients
                   </TableHead>
+                  <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
+                    Comments
+                  </TableHead>
                   <TableHead className="w-auto min-w-[100px] pl-1 pr-1 py-2">
                     Availability
                   </TableHead>
@@ -674,6 +691,7 @@ export default function MenuManagement() {
                     ingredients?: string[];
                     mealType?: "breakfast" | "lunch" | "dinner" | "treats";
                     special?: boolean;
+                    comments?: string[];
                   }) => (
                     <TableRow
                       key={menu.id}
@@ -715,14 +733,37 @@ export default function MenuManagement() {
                       </TableCell>
                       <TableCell className="py-1.5 pl-1 pr-1">
                         {menu.ingredients && menu.ingredients.length > 0 ? (
-                          <span className="text-sm text-gray-600 dark:text-gray-400" title={menu.ingredients.join(", ")}>
+                          <span
+                            className="text-sm text-gray-600 dark:text-gray-400"
+                            title={menu.ingredients.join(", ")}
+                          >
                             {menu.ingredients.length > 2
                               ? `${menu.ingredients.slice(0, 2).join(", ")}...`
                               : menu.ingredients.join(", ")}
                           </span>
                         ) : (
-                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                          <span className="text-gray-400 dark:text-gray-500">
+                            —
+                          </span>
                         )}
+                      </TableCell>
+                      <TableCell className="py-1.5 pl-1 pr-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center gap-1 px-2 py-1"
+                          onClick={() =>
+                            setCommentModalItem({
+                              name: menu.name,
+                              comments: menu.comments || [],
+                            })
+                          }
+                        >
+                          <MessageCircle className="h-4 w-4 text-slate-500" />
+                          <span className="text-xs text-slate-700 dark:text-slate-300">
+                            {(menu.comments?.length ?? 0).toString()}
+                          </span>
+                        </Button>
                       </TableCell>
                       <TableCell className="py-1.5 pl-1 pr-1">
                         <div className="flex items-center gap-2">
@@ -895,6 +936,47 @@ export default function MenuManagement() {
               ) : (
                 "Update Menu"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Comments Modal */}
+      <Dialog
+        open={!!commentModalItem}
+        onOpenChange={(open) => {
+          if (!open) setCommentModalItem(null);
+        }}
+      >
+        <DialogContent className="max-w-md w-[95vw] max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl">
+          <DialogHeader>
+            <DialogTitle>
+              Comments{commentModalItem ? ` for ${commentModalItem.name}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 space-y-3">
+            {commentModalItem && commentModalItem.comments.length > 0 ? (
+              commentModalItem.comments.map((comment, index) => (
+                <div
+                  key={index}
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 px-3 py-2 text-sm text-slate-800 dark:text-slate-100"
+                >
+                  {comment}
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                No comments for this item yet.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setCommentModalItem(null)}
+              className="min-h-[40px]"
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

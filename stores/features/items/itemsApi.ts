@@ -28,6 +28,7 @@ export interface ItemResponse {
   approvedAt?: string;
   ingredients?: string[];
   mealType?: "breakfast" | "lunch" | "dinner" | "treats";
+  // List of user comments for this item
   comments?: string[];
   special?: boolean;
   createdAt?: string;
@@ -93,6 +94,7 @@ function transformItem(item: ItemResponse): Menu {
     ingredients: item.ingredients,
     mealType: item.mealType,
     special: item.special,
+    comments: item.comments || [],
     updatedAt: item.updatedAt
       ? new Date(item.updatedAt).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],

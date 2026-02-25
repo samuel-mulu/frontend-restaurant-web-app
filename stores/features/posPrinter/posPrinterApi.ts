@@ -1,10 +1,10 @@
 import {
-  POSPrinterHealth,
-  TestPrintResult,
-  PrinterConfiguration,
-  AvailableDevices,
-  TestConnectionResult,
-  ConfigResponse,
+    AvailableDevices,
+    ConfigResponse,
+    POSPrinterHealth,
+    PrinterConfiguration,
+    TestConnectionResult,
+    TestPrintResult,
 } from "@/lib/types";
 
 // POS Printer Service runs on localhost:7777
@@ -36,23 +36,9 @@ export const posPrinterService = {
     }
   },
 
-  // Test print
-  async testPrint(): Promise<TestPrintResult> {
+  // Print arbitrary receipt data
+  async print(data: string): Promise<TestPrintResult> {
     try {
-      const testReceipt = `================================================
-           3T JUICE
-================================================
-
-TEST RECEIPT
-Date: ${new Date().toLocaleString()}
-
-This is a test print from the
-POS Printer Service Dashboard.
-
-================================================
-    Thank you for testing!
-================================================`;
-
       const response = await fetch(`${POS_SERVICE_URL}/print`, {
         method: "POST",
         headers: {
@@ -60,7 +46,7 @@ POS Printer Service Dashboard.
           "X-Print-Key": POS_PRINT_KEY,
         },
         body: JSON.stringify({
-          data: testReceipt,
+          data,
         }),
       });
 
@@ -75,7 +61,7 @@ POS Printer Service Dashboard.
     } catch (error) {
       return {
         success: false,
-        message: "Print test failed",
+        message: "Printing failed",
         error: error instanceof Error ? error.message : String(error),
       };
     }

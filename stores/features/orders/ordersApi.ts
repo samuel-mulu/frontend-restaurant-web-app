@@ -385,7 +385,7 @@ export const ordersApi = createApiEndpoints({
       providesTags: (result, _error, id) => [{ type: "Order" as const, id }],
     }),
 
-    createOrder: build.mutation<Order, CreateOrderInput>({
+    createOrder: build.mutation<Order & { receiptText?: string }, CreateOrderInput>({
       query: (body) => {
         // Generate clientId for offline sync idempotency
         const clientId = (body as any).clientId || uuidv4();

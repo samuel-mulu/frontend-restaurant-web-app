@@ -67,6 +67,25 @@ export const posPrinterService = {
     }
   },
 
+  // Test print
+  async testPrint(): Promise<TestPrintResult> {
+    const testReceipt = `================================================
+           3T JUICE
+================================================
+
+TEST RECEIPT
+Date: ${new Date().toLocaleString()}
+
+This is a test print from the
+POS Printer Service Dashboard.
+
+================================================
+    Thank you for testing!
+================================================`;
+
+    return this.print(testReceipt);
+  },
+
   // Get current configuration
   async getConfig(): Promise<ConfigResponse> {
     try {

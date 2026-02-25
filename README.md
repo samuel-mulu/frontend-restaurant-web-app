@@ -12,7 +12,7 @@ This is a [Next.js](https://nextjs.org) project for managing restaurant menus, c
 ### Installation
 
 ```bash
-npm install
+npm instal
 # or
 yarn install
 # or

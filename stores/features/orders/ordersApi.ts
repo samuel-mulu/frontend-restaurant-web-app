@@ -95,6 +95,7 @@ export interface Order {
       };
   createdAt: string;
   updatedAt: string;
+  receiptText?: string;
 }
 
 export interface CreateOrderInput {
@@ -452,7 +453,7 @@ export const ordersApi = createApiEndpoints({
     bulkUpdateOrderStatus: build.mutation<
       {
         success: boolean;
-        updated: Order[];
+        updated: Array<Order & { receiptText?: string }>;
         failed: Array<{ id: string; reason: string }>;
         message: string;
       },
@@ -466,7 +467,7 @@ export const ordersApi = createApiEndpoints({
       transformResponse: (response: unknown) => {
         return response as {
           success: boolean;
-          updated: Order[];
+          updated: Array<Order & { receiptText?: string }>;
           failed: Array<{ id: string; reason: string }>;
           message: string;
         };

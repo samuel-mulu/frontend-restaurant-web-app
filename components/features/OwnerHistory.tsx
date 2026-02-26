@@ -1,23 +1,10 @@
 "use client";
 
-import {
-  useState,
-  useMemo,
-  useEffect,
-  useRef,
-  startTransition,
-  type ReactNode,
-} from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -27,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -35,44 +23,57 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckSquare,
-  Square,
-  Loader2,
-  Search,
-  X,
-  Filter,
-  Calendar,
-  AlertCircle,
-  CheckCircle2,
-  ArrowRightLeft,
-  ShieldCheck,
-  Ban,
-  Eye,
-  TrendingUp,
-  Users,
-  XCircle,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
+  formatEthiopianDate,
+  gregorianToEthiopian,
+} from "@/lib/utils/ethiopianCalendar";
+import {
+  OrderItem,
+  OrderStatus,
+  PaginatedOrdersResponse,
+  PaginationMeta,
+  Order as RTKOrder,
+  useBulkUpdateOrderStatusMutation,
   useGetOwnerOrdersQuery,
   useUpdateOrderStatusMutation,
-  useBulkUpdateOrderStatusMutation,
-  OrderStatus,
-  Order as RTKOrder,
-  OrderItem,
-  PaginationMeta,
-  PaginatedOrdersResponse,
 } from "@/stores/features/orders/ordersApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
-import { LoadingState } from "@/components/shared/LoadingState";
-import { ErrorState } from "@/components/shared/ErrorState";
 import {
-  gregorianToEthiopian,
-  formatEthiopianDate,
-} from "@/lib/utils/ethiopianCalendar";
+  AlertCircle,
+  ArrowRightLeft,
+  Ban,
+  Calendar,
+  CheckCircle2,
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Filter,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Square,
+  TrendingUp,
+  Users,
+  X,
+  XCircle,
+} from "lucide-react";
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { toast } from "sonner";
 
 // -------------------- Constants & Mappings -------------------- //
 
@@ -331,6 +332,7 @@ export function OwnerHistory() {
   const {
     data: ordersDataConfirmed,
     isLoading: isLoadingConfirmed,
+    isFetching: isFetchingConfirmed,
     error: errorConfirmed,
     refetch: refetchConfirmed,
   } = useGetOwnerOrdersQuery(
@@ -349,6 +351,7 @@ export function OwnerHistory() {
   const {
     data: ordersDataTransferred,
     isLoading: isLoadingTransferred,
+    isFetching: isFetchingTransferred,
     error: errorTransferred,
     refetch: refetchTransferred,
   } = useGetOwnerOrdersQuery(
@@ -368,6 +371,7 @@ export function OwnerHistory() {
   const {
     data: ordersData,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useGetOwnerOrdersQuery(
@@ -376,8 +380,8 @@ export function OwnerHistory() {
         allCashierFilter === "cashier" && statusFilter !== "all"
           ? (statusFilter as OrderStatus)
           : statusFilter !== "all"
-          ? (statusFilter as OrderStatus)
-          : undefined,
+            ? (statusFilter as OrderStatus)
+            : undefined,
       waiterId:
         statusFilter === "OPEN" && staffFilter !== "all"
           ? staffFilter
@@ -457,6 +461,9 @@ export function OwnerHistory() {
   const isLoadingCombined = shouldFetchCashierOnly
     ? isLoadingConfirmed || isLoadingTransferred
     : isLoading;
+  const isFetchingCombined = shouldFetchCashierOnly
+    ? isFetchingConfirmed || isFetchingTransferred
+    : isFetching;
   const errorCombined = shouldFetchCashierOnly
     ? errorConfirmed || errorTransferred
     : error;
@@ -679,11 +686,10 @@ export function OwnerHistory() {
               <button
                 key={tab}
                 onClick={() => setAllCashierFilter(tab)}
-                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
-                  allCashierFilter === tab
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${allCashierFilter === tab
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {tab === "all" ? "All" : "Cashier Only"}
               </button>
@@ -696,11 +702,10 @@ export function OwnerHistory() {
                 variant={calendarMode === "gregorian" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setCalendarMode("gregorian")}
-                className={`h-7 px-3 text-xs ${
-                  calendarMode === "gregorian"
-                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                    : "text-gray-600 dark:text-gray-400"
-                }`}
+                className={`h-7 px-3 text-xs ${calendarMode === "gregorian"
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "text-gray-600 dark:text-gray-400"
+                  }`}
               >
                 Gregorian
               </Button>
@@ -708,11 +713,10 @@ export function OwnerHistory() {
                 variant={calendarMode === "ethiopian" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setCalendarMode("ethiopian")}
-                className={`h-7 px-3 text-xs ${
-                  calendarMode === "ethiopian"
-                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                    : "text-gray-600 dark:text-gray-400"
-                }`}
+                className={`h-7 px-3 text-xs ${calendarMode === "ethiopian"
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "text-gray-600 dark:text-gray-400"
+                  }`}
               >
                 Ethiopian
               </Button>
@@ -940,115 +944,119 @@ export function OwnerHistory() {
 
           {/* Table */}
           <div className="border rounded-xl overflow-hidden bg-background">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12" />
-                  <TableHead>Order #</TableHead>
-                  <TableHead>Waiter</TableHead>
-                  <TableHead>Cashier</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-32">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.length === 0 ? (
+            {isFetchingCombined && !isLoadingCombined ? (
+              <TableSkeleton columnCount={8} rowCount={limit} />
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center py-12 text-muted-foreground"
-                    >
-                      No orders found
-                    </TableCell>
+                    <TableHead className="w-12" />
+                    <TableHead>Order #</TableHead>
+                    <TableHead>Waiter</TableHead>
+                    <TableHead>Cashier</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredOrders.map((o) => {
-                    const selectable =
-                      o.backendStatus === "TRANSFERRED_TO_OWNER";
-                    const selected = selectedIds.has(o.id);
-                    return (
-                      <TableRow key={o.id}>
-                        <TableCell>
-                          <button
-                            onClick={() =>
-                              selectable && toggleSelect(o.id, o.backendStatus)
-                            }
-                            className={
-                              selectable ? "cursor-pointer" : "opacity-30"
-                            }
-                            title={
-                              selectable
-                                ? "Select"
-                                : "Only transferred orders can be confirmed"
-                            }
-                          >
-                            {selected ? (
-                              <CheckSquare className="text-primary" />
-                            ) : (
-                              <Square className="text-muted-foreground" />
-                            )}
-                          </button>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {o.orderNumber}
-                        </TableCell>
-                        <TableCell>{o.waiterName || "—"}</TableCell>
-                        <TableCell>{o.cashierName || "—"}</TableCell>
-                        <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
-                        <TableCell>
-                          <Badge className={o.statusColor}>
-                            {o.statusIcon}{" "}
-                            <span className="ml-1">{o.statusText}</span>
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDateForDisplay(o.date, calendarMode)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleViewDetails(o)}
-                              aria-label="View order details"
+                </TableHeader>
+                <TableBody>
+                  {filteredOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={8}
+                        className="text-center py-12 text-muted-foreground"
+                      >
+                        No orders found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredOrders.map((o) => {
+                      const selectable =
+                        o.backendStatus === "TRANSFERRED_TO_OWNER";
+                      const selected = selectedIds.has(o.id);
+                      return (
+                        <TableRow key={o.id}>
+                          <TableCell>
+                            <button
+                              onClick={() =>
+                                selectable && toggleSelect(o.id, o.backendStatus)
+                              }
+                              className={
+                                selectable ? "cursor-pointer" : "opacity-30"
+                              }
+                              title={
+                                selectable
+                                  ? "Select"
+                                  : "Only transferred orders can be confirmed"
+                              }
                             >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {o.backendStatus === "TRANSFERRED_TO_OWNER" && (
+                              {selected ? (
+                                <CheckSquare className="text-primary" />
+                              ) : (
+                                <Square className="text-muted-foreground" />
+                              )}
+                            </button>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {o.orderNumber}
+                          </TableCell>
+                          <TableCell>{o.waiterName || "—"}</TableCell>
+                          <TableCell>{o.cashierName || "—"}</TableCell>
+                          <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
+                          <TableCell>
+                            <Badge className={o.statusColor}>
+                              {o.statusIcon}{" "}
+                              <span className="ml-1">{o.statusText}</span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatDateForDisplay(o.date, calendarMode)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
                               <Button
-                                size="sm"
-                                onClick={() =>
-                                  updateStatus({
-                                    id: o.id,
-                                    status: "OWNER_CONFIRMED",
-                                  })
-                                    .unwrap()
-                                    .then(() => {
-                                      toast.success("Confirmed");
-                                      handleRefetch();
-                                    })
-                                    .catch(() => toast.error("Failed"))
-                                }
-                                disabled={updating}
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleViewDetails(o)}
+                                aria-label="View order details"
                               >
-                                {updating ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <ShieldCheck className="h-4 w-4 mr-1" />
-                                )}
-                                <span className="hidden sm:inline">
-                                  Confirm
-                                </span>
+                                <Eye className="h-4 w-4" />
                               </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                              {o.backendStatus === "TRANSFERRED_TO_OWNER" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    updateStatus({
+                                      id: o.id,
+                                      status: "OWNER_CONFIRMED",
+                                    })
+                                      .unwrap()
+                                      .then(() => {
+                                        toast.success("Confirmed");
+                                        handleRefetch();
+                                      })
+                                      .catch(() => toast.error("Failed"))
+                                  }
+                                  disabled={updating}
+                                >
+                                  {updating ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <ShieldCheck className="h-4 w-4 mr-1" />
+                                  )}
+                                  <span className="hidden sm:inline">
+                                    Confirm
+                                  </span>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
 
           {/* Pagination Controls */}
@@ -1167,7 +1175,7 @@ export function OwnerHistory() {
                     #{detailOrder.orderNumber || detailOrder.id.slice(-6)}
                   </DialogTitle>
                   <DialogDescription>
-                    {calendarMode === "ethiopian" 
+                    {calendarMode === "ethiopian"
                       ? formatDateForDisplay(detailOrder.date, calendarMode)
                       : formatDateTime(detailOrder.date)}
                   </DialogDescription>

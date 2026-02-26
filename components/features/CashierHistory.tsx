@@ -1,75 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  CheckSquare,
-  Square,
-  Loader2,
-  Search,
-  X,
-  Filter,
-  Calendar,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  ArrowRightLeft,
-  Ban,
-  Eye,
-  Package,
-  DollarSign,
-  Receipt,
-  Wallet,
-  Clock,
-  Download,
-  Image as ImageIcon,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { PaymentMethodSelector, PaymentMethod } from "./PaymentMethodSelector";
-import { PaymentImageModal } from "./PaymentImageModal";
-import { ChevronDown, Smartphone } from "lucide-react";
-import { toast } from "sonner";
-import { useSelector } from "react-redux";
-import { Input } from "@/components/ui/input";
-import {
-  useGetOrdersByCashierQuery,
-  useGetCashierReportQuery,
-  useGetWaiterReportQuery,
-  useGetDateRangeReportQuery,
-  useUpdateOrderStatusMutation,
-  useBulkUpdateOrderStatusMutation,
-  OrderStatus,
-  Order as RTKOrder,
-} from "@/stores/features/orders/ordersApi";
-import { useListStaffQuery } from "@/stores/features/staff/staffApi";
-import { selectUser } from "@/stores/features/auth/authSlice";
-import { LoadingState } from "@/components/shared/LoadingState";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { useOrderSocket } from "@/hooks/useOrderSocket";
 import { OrderDetailsModal } from "@/components/features/OrderDetailsModal";
-import {
-  gregorianToEthiopian,
-  formatEthiopianDate,
-  parseEthiopianDate,
-  ethiopianToGregorian,
-} from "@/lib/utils/ethiopianCalendar";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +14,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -87,6 +23,72 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useOrderSocket } from "@/hooks/useOrderSocket";
+import {
+  ethiopianToGregorian,
+  formatEthiopianDate,
+  gregorianToEthiopian,
+  parseEthiopianDate,
+} from "@/lib/utils/ethiopianCalendar";
+import { selectUser } from "@/stores/features/auth/authSlice";
+import {
+  OrderStatus,
+  Order as RTKOrder,
+  useBulkUpdateOrderStatusMutation,
+  useGetCashierReportQuery,
+  useGetDateRangeReportQuery,
+  useGetOrdersByCashierQuery,
+  useGetWaiterReportQuery,
+  useUpdateOrderStatusMutation,
+} from "@/stores/features/orders/ordersApi";
+import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
+import { useListStaffQuery } from "@/stores/features/staff/staffApi";
+import {
+  AlertCircle,
+  ArrowRightLeft,
+  Ban,
+  Calendar,
+  CheckCircle2,
+  CheckSquare,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  Download,
+  Eye,
+  Filter,
+  Image as ImageIcon,
+  Loader2,
+  Package,
+  Receipt,
+  Search,
+  Smartphone,
+  Square,
+  X,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+import { toast } from "sonner";
+import { PaymentImageModal } from "./PaymentImageModal";
+import { PaymentMethod, PaymentMethodSelector } from "./PaymentMethodSelector";
 
 // -------------------- Types & Utilities -------------------- //
 
@@ -121,7 +123,10 @@ const formatDateForInput = (date: Date): string => {
 };
 
 // Date conversion helpers for Ethiopian calendar
-const formatDateForDisplay = (date: string, mode: "gregorian" | "ethiopian"): string => {
+const formatDateForDisplay = (
+  date: string,
+  mode: "gregorian" | "ethiopian",
+): string => {
   try {
     const gregorianDate = new Date(date);
     if (mode === "ethiopian") {
@@ -256,7 +261,10 @@ function transformOrder(order: RTKOrder): DisplayOrder {
   };
 }
 
-const extractDates = (orders: DisplayOrder[], calendarMode: "gregorian" | "ethiopian"): string[] => {
+const extractDates = (
+  orders: DisplayOrder[],
+  calendarMode: "gregorian" | "ethiopian",
+): string[] => {
   const dateSet = new Set<string>();
   orders.forEach((o) => {
     const dateStr = formatDateForDisplay(o.date, calendarMode);
@@ -271,18 +279,20 @@ export function CashierHistory() {
   const cashierId = user?.id || "";
 
   const [roleView, setRoleView] = useState<"all" | "waiter" | "owner">(
-    "waiter"
+    "waiter",
   );
   const [statusFilter, setStatusFilter] = useState<string>("OPEN");
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
-  const [calendarMode, setCalendarMode] = useState<"gregorian" | "ethiopian">("gregorian");
+  const [calendarMode, setCalendarMode] = useState<"gregorian" | "ethiopian">(
+    "gregorian",
+  );
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [bulkStatusChange, setBulkStatusChange] = useState<OrderStatus | "">(
-    ""
+    "",
   );
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -298,7 +308,7 @@ export function CashierHistory() {
 
   // Void confirmation modal state
   const [voidConfirmOrderId, setVoidConfirmOrderId] = useState<string | null>(
-    null
+    null,
   );
   const [voidConfirmStatus, setVoidConfirmStatus] =
     useState<OrderStatus | null>(null);
@@ -311,7 +321,7 @@ export function CashierHistory() {
 
   // Payment image modal state
   const [paymentImageOrderId, setPaymentImageOrderId] = useState<string | null>(
-    null
+    null,
   );
   const [paymentImageStatus, setPaymentImageStatus] =
     useState<OrderStatus | null>(null);
@@ -366,6 +376,7 @@ export function CashierHistory() {
   const {
     data: ordersData,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useGetOrdersByCashierQuery(
@@ -378,7 +389,7 @@ export function CashierHistory() {
     },
     {
       skip: !cashierId,
-    }
+    },
   );
 
   // Debug logging
@@ -413,7 +424,7 @@ export function CashierHistory() {
     },
     {
       skip: !cashierId,
-    }
+    },
   );
 
   // Fetch waiter report when waiter filter is applied
@@ -425,7 +436,7 @@ export function CashierHistory() {
     },
     {
       skip: waiterFilter === "all" || !waiterFilter,
-    }
+    },
   );
 
   // Fetch date range report when dates are selected
@@ -436,7 +447,7 @@ export function CashierHistory() {
     },
     {
       skip: !startDate || !endDate,
-    }
+    },
   );
 
   const [updateOrderStatus, { isLoading: isUpdating }] =
@@ -447,7 +458,7 @@ export function CashierHistory() {
   // Transform orders to display format
   const orders = useMemo(
     () => (ordersData || []).map(transformOrder),
-    [ordersData]
+    [ordersData],
   );
 
   // Initialize payment methods from orders data
@@ -475,7 +486,7 @@ export function CashierHistory() {
         // If calendar mode is Ethiopian, compare Ethiopian dates directly
         // If Gregorian, compare Gregorian dates
         if (orderDateStr !== dateFilter) {
-        return false;
+          return false;
         }
       }
 
@@ -518,19 +529,19 @@ export function CashierHistory() {
     if (roleView === "owner") {
       // Owner view: Detailed breakdown by status
       const transferredOrders = filtered.filter(
-        (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER"
+        (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER",
       );
       const paidOrders = filtered.filter(
-        (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER"
+        (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER",
       );
 
       const transferredTotal = transferredOrders.reduce(
         (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-        0
+        0,
       );
       const paidFromWaiterTotal = paidOrders.reduce(
         (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-        0
+        0,
       );
       const totalRevenue = transferredTotal + paidFromWaiterTotal;
 
@@ -546,19 +557,19 @@ export function CashierHistory() {
     } else if (roleView === "waiter") {
       // Waiter view: Breakdown by status
       const openOrders = filtered.filter(
-        (o: DisplayOrder) => o.backendStatus === "OPEN"
+        (o: DisplayOrder) => o.backendStatus === "OPEN",
       );
       const paidOrders = filtered.filter(
-        (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER"
+        (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER",
       );
 
       const openTotal = openOrders.reduce(
         (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-        0
+        0,
       );
       const paidTotal = paidOrders.reduce(
         (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-        0
+        0,
       );
       const totalAmount = openTotal + paidTotal;
 
@@ -576,7 +587,7 @@ export function CashierHistory() {
       const statusBreakdown = filtered.reduce(
         (
           acc: Record<OrderStatus, { count: number; total: number }>,
-          o: DisplayOrder
+          o: DisplayOrder,
         ) => {
           const status = o.backendStatus;
           if (!acc[status]) {
@@ -586,25 +597,25 @@ export function CashierHistory() {
           acc[status].total += o.totalPrice || 0;
           return acc;
         },
-        {} as Record<OrderStatus, { count: number; total: number }>
+        {} as Record<OrderStatus, { count: number; total: number }>,
       );
 
       const completedOrders = filtered.filter(
         (o: DisplayOrder) =>
           o.backendStatus === "PAID_TO_CASHIER" ||
-          o.backendStatus === "TRANSFERRED_TO_OWNER"
+          o.backendStatus === "TRANSFERRED_TO_OWNER",
       );
       const pendingOrders = filtered.filter(
-        (o: DisplayOrder) => o.backendStatus === "OPEN"
+        (o: DisplayOrder) => o.backendStatus === "OPEN",
       );
 
       const completedTotal = completedOrders.reduce(
         (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-        0
+        0,
       );
       const pendingTotal = pendingOrders.reduce(
         (sum: number, o: DisplayOrder) => sum + (o.totalPrice || 0),
-        0
+        0,
       );
       const totalRevenue = completedTotal + pendingTotal;
 
@@ -625,12 +636,12 @@ export function CashierHistory() {
   const selectedOrdersStatus = useMemo(() => {
     if (selectedOrderIds.size === 0) return null;
     const selectedOrders = filtered.filter((o: DisplayOrder) =>
-      selectedOrderIds.has(o.id)
+      selectedOrderIds.has(o.id),
     );
     if (selectedOrders.length === 0) return null;
     const firstStatus = selectedOrders[0].backendStatus;
     const allSameStatus = selectedOrders.every(
-      (o: DisplayOrder) => o.backendStatus === firstStatus
+      (o: DisplayOrder) => o.backendStatus === firstStatus,
     );
     return allSameStatus ? firstStatus : null;
   }, [selectedOrderIds, filtered]);
@@ -639,8 +650,8 @@ export function CashierHistory() {
     if (orderStatus === "TRANSFERRED_TO_OWNER" || orderStatus === "VOIDED") {
       toast.error(
         `Orders with ${getStatusBadgeText(
-          orderStatus
-        )} status cannot be changed`
+          orderStatus,
+        )} status cannot be changed`,
       );
       return;
     }
@@ -655,13 +666,13 @@ export function CashierHistory() {
       } else {
         if (s.size > 0) {
           const selectedOrders = filtered.filter((o: DisplayOrder) =>
-            s.has(o.id)
+            s.has(o.id),
           );
           if (selectedOrders.length > 0) {
             const firstStatus = selectedOrders[0].backendStatus;
             if (firstStatus !== orderStatus) {
               toast.error(
-                "You can only select orders with the same status. Please clear selection first."
+                "You can only select orders with the same status. Please clear selection first.",
               );
               return prev;
             }
@@ -679,7 +690,7 @@ export function CashierHistory() {
 
     if (firstStatus === "TRANSFERRED_TO_OWNER" || firstStatus === "VOIDED") {
       toast.error(
-        `Cannot select orders with ${getStatusBadgeText(firstStatus)} status`
+        `Cannot select orders with ${getStatusBadgeText(firstStatus)} status`,
       );
       return;
     }
@@ -688,10 +699,10 @@ export function CashierHistory() {
       (o: DisplayOrder) =>
         o.backendStatus === firstStatus &&
         o.backendStatus !== "TRANSFERRED_TO_OWNER" &&
-        o.backendStatus !== "VOIDED"
+        o.backendStatus !== "VOIDED",
     );
     setSelectedOrderIds(
-      new Set(sameStatusOrders.map((o: DisplayOrder) => o.id))
+      new Set(sameStatusOrders.map((o: DisplayOrder) => o.id)),
     );
   };
 
@@ -724,11 +735,21 @@ export function CashierHistory() {
 
       if (result.failed && result.failed.length > 0) {
         toast.warning(
-          `Updated ${result.updated.length} order(s), ${result.failed.length} failed`
+          `Updated ${result.updated.length} order(s), ${result.failed.length} failed`,
         );
       } else {
         toast.success(`Successfully updated ${result.updated.length} order(s)`);
       }
+
+      // Print receipts for paid orders
+      if (bulkStatusChange === "PAID_TO_CASHIER") {
+        result.updated.forEach((order: RTKOrder & { receiptText?: string }) => {
+          if (order.receiptText) {
+            handlePrintReceipt(order.receiptText, order.orderNumber);
+          }
+        });
+      }
+
       clearSelection();
       refetch();
     } catch (err: unknown) {
@@ -737,7 +758,7 @@ export function CashierHistory() {
         message?: string;
       };
       toast.error(
-        error?.data?.message || error?.message || "Failed to update orders"
+        error?.data?.message || error?.message || "Failed to update orders",
       );
     }
   };
@@ -771,18 +792,24 @@ export function CashierHistory() {
   const executeStatusChange = async (
     orderId: string,
     status: OrderStatus,
-    paymentProofImage?: File
+    paymentProofImage?: File,
   ) => {
     try {
       const paymentMethod = paymentMethods.get(orderId) || "cash";
 
-      await updateOrderStatus({
+      const result = await updateOrderStatus({
         id: orderId,
         status,
         paymentMethod,
         paymentProofImage,
       }).unwrap();
       toast.success("Order status updated successfully");
+
+      // Print receipt if status changed to PAID_TO_CASHIER
+      if (status === "PAID_TO_CASHIER" && result.receiptText) {
+        handlePrintReceipt(result.receiptText, result.orderNumber);
+      }
+
       refetch();
     } catch (err: unknown) {
       const error = err as {
@@ -792,14 +819,14 @@ export function CashierHistory() {
       toast.error(
         error?.data?.message ||
           error?.message ||
-          "Failed to update order status"
+          "Failed to update order status",
       );
     }
   };
 
   const handlePaymentMethodChange = (
     orderId: string,
-    method: PaymentMethod
+    method: PaymentMethod,
   ) => {
     setPaymentMethods((prev) => {
       const newMap = new Map(prev);
@@ -833,7 +860,7 @@ export function CashierHistory() {
 
   const handleDownloadPaymentProof = (
     imageUrl: string,
-    orderNumber: string
+    orderNumber: string,
   ) => {
     // Create a temporary anchor element to trigger download
     const link = document.createElement("a");
@@ -851,9 +878,27 @@ export function CashierHistory() {
     return order?.paymentProofImage;
   };
 
+  const handlePrintReceipt = (receiptText: string, orderNumber: string) => {
+    posPrinterService
+      .print(receiptText)
+      .then((printResult: any) => {
+        if (!printResult.success) {
+          toast.error(`Printer Error (Order #${orderNumber})`, {
+            description:
+              printResult.error || "Could not print receipt locally.",
+          });
+        }
+      })
+      .catch(() => {
+        toast.error("Printer Error", {
+          description: "POS Printer Service is not reachable.",
+        });
+      });
+  };
+
   const getAvailableStatuses = (
     currentStatus: OrderStatus,
-    userRole: string
+    userRole: string,
   ): OrderStatus[] => {
     const transitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
       OPEN: ["PAID_TO_CASHIER", "VOIDED"], // Swapped: Paid first, then Voided
@@ -872,7 +917,10 @@ export function CashierHistory() {
     return transitions[currentStatus] || [];
   };
 
-  const dates = useMemo(() => extractDates(orders, calendarMode), [orders, calendarMode]);
+  const dates = useMemo(
+    () => extractDates(orders, calendarMode),
+    [orders, calendarMode],
+  );
   const datePresets = getDatePresets();
 
   // Handle date range preset changes
@@ -926,7 +974,7 @@ export function CashierHistory() {
       (waiter: { _id?: string; id?: string; name: string }) => ({
         id: waiter._id || waiter.id || "",
         name: waiter.name,
-      })
+      }),
     );
   }, [waitersData]);
 
@@ -936,8 +984,8 @@ export function CashierHistory() {
         (error.data as { message?: string; error?: string })?.error ||
         "An error occurred"
       : error && "error" in error
-      ? (error.error as string) || "An error occurred"
-      : null;
+        ? (error.error as string) || "An error occurred"
+        : null;
 
   // Debug: Log user and cashierId
   useEffect(() => {
@@ -981,8 +1029,8 @@ export function CashierHistory() {
                 {r === "all"
                   ? "All"
                   : r === "waiter"
-                  ? "From Waiters"
-                  : "To Owner"}
+                    ? "From Waiters"
+                    : "To Owner"}
               </button>
             ))}
           </div>
@@ -1119,7 +1167,7 @@ export function CashierHistory() {
                   <EnhancedStatCard
                     label="Transferred"
                     value={`${((summary as any).transferredTotal || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                     icon={<ArrowRightLeft className="h-5 w-5" />}
                     color="purple"
@@ -1130,7 +1178,7 @@ export function CashierHistory() {
                   <EnhancedStatCard
                     label="Pending Transfer"
                     value={`${((summary as any).pendingTransfer || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                     icon={<Clock className="h-5 w-5" />}
                     color="amber"
@@ -1139,7 +1187,7 @@ export function CashierHistory() {
                   <EnhancedStatCard
                     label="Total Revenue"
                     value={`${((summary as any).totalRevenue || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                     icon={<DollarSign className="h-5 w-5" />}
                     color="green"
@@ -1159,7 +1207,7 @@ export function CashierHistory() {
                     icon={<AlertCircle className="h-5 w-5" />}
                     color="amber"
                     subtitle={`${((summary as any).openTotal || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                   />
                   <EnhancedStatCard
@@ -1168,13 +1216,13 @@ export function CashierHistory() {
                     icon={<CheckCircle2 className="h-5 w-5" />}
                     color="green"
                     subtitle={`${((summary as any).paidTotal || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                   />
                   <EnhancedStatCard
                     label="Total Amount"
                     value={`${((summary as any).totalAmount || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                     icon={<Receipt className="h-5 w-5" />}
                     color="emerald"
@@ -1191,7 +1239,7 @@ export function CashierHistory() {
                   <EnhancedStatCard
                     label="Completed"
                     value={`${((summary as any).completedTotal || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                     icon={<CheckCircle2 className="h-5 w-5" />}
                     color="green"
@@ -1200,7 +1248,7 @@ export function CashierHistory() {
                   <EnhancedStatCard
                     label="Pending"
                     value={`${((summary as any).pendingTotal || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                     icon={<Clock className="h-5 w-5" />}
                     color="amber"
@@ -1209,7 +1257,7 @@ export function CashierHistory() {
                   <EnhancedStatCard
                     label="Total Revenue"
                     value={`${((summary as any).totalRevenue || 0).toFixed(
-                      2
+                      2,
                     )} Br`}
                     icon={<DollarSign className="h-5 w-5" />}
                     color="emerald"
@@ -1344,20 +1392,20 @@ export function CashierHistory() {
                     Ethiopian
                   </Button>
                 </div>
-              <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                  <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                  <SelectValue placeholder="Date" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Dates</SelectItem>
-                  {dates.map((d: string) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
+                    <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                    <SelectValue placeholder="Date" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Dates</SelectItem>
+                    {dates.map((d: string) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {waiterList.length > 0 && (
@@ -1392,7 +1440,7 @@ export function CashierHistory() {
                   {selectedOrdersStatus
                     ? filtered.filter(
                         (o: DisplayOrder) =>
-                          o.backendStatus === selectedOrdersStatus
+                          o.backendStatus === selectedOrdersStatus,
                       ).length
                     : filtered.length}
                   )
@@ -1420,7 +1468,7 @@ export function CashierHistory() {
                     <SelectContent>
                       {getAvailableStatuses(
                         selectedOrdersStatus,
-                        user?.role || "cashier"
+                        user?.role || "cashier",
                       ).map((status) => (
                         <SelectItem key={status} value={status}>
                           <div className="flex items-center gap-2">
@@ -1459,198 +1507,211 @@ export function CashierHistory() {
 
           {/* Table */}
           <div className="rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead>Order #</TableHead>
-                  <TableHead>Waiter</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-32">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedOrders.length === 0 ? (
+            {isFetching && !isLoading ? (
+              <TableSkeleton columnCount={7} rowCount={limit} />
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-gray-500 dark:text-gray-400"
-                    >
-                      No orders found
-                    </TableCell>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>Order #</TableHead>
+                    <TableHead>Waiter</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  paginatedOrders.map((o: DisplayOrder) => {
-                    const isTerminalStatus =
-                      o.backendStatus === "TRANSFERRED_TO_OWNER" ||
-                      o.backendStatus === "VOIDED";
-                    const canSelect =
-                      !isTerminalStatus &&
-                      (selectedOrderIds.size === 0 ||
-                        selectedOrdersStatus === o.backendStatus);
-                    return (
-                      <TableRow key={o.id}>
-                        <TableCell>
-                          <button
-                            onClick={() => {
-                              if (canSelect) {
-                                toggleSelect(o.id, o.backendStatus);
-                              } else if (isTerminalStatus) {
-                                toast.error(
-                                  `Orders with ${getStatusBadgeText(
-                                    o.backendStatus
-                                  )} status cannot be changed`
-                                );
-                              } else {
-                                toast.error(
-                                  "You can only select orders with the same status. Current selection: " +
-                                    getStatusBadgeText(selectedOrdersStatus!)
-                                );
-                              }
-                            }}
-                            disabled={!canSelect}
-                            className={`hover:opacity-70 ${
-                              !canSelect ? "opacity-30 cursor-not-allowed" : ""
-                            }`}
-                            title={
-                              isTerminalStatus
-                                ? `Orders with ${getStatusBadgeText(
-                                    o.backendStatus
-                                  )} status cannot be changed`
-                                : !canSelect
-                                ? `Can only select orders with status: ${getStatusBadgeText(
-                                    selectedOrdersStatus!
-                                  )}`
-                                : "Select order"
-                            }
-                          >
-                            {selectedOrderIds.has(o.id) ? (
-                              <CheckSquare className="text-blue-600 dark:text-blue-400" />
-                            ) : (
-                              <Square className="text-gray-400" />
-                            )}
-                          </button>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {o.orderNumber}
-                        </TableCell>
-                        <TableCell>{o.waiterName || "N/A"}</TableCell>
-                        <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(o.status)}>
-                            {getStatusBadgeText(o.backendStatus)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDateForDisplay(o.date, calendarMode)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
+                </TableHeader>
+                <TableBody>
+                  {paginatedOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="text-center py-8 text-gray-500 dark:text-gray-400"
+                      >
+                        No orders found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedOrders.map((o: DisplayOrder) => {
+                      const isTerminalStatus =
+                        o.backendStatus === "TRANSFERRED_TO_OWNER" ||
+                        o.backendStatus === "VOIDED";
+                      const canSelect =
+                        !isTerminalStatus &&
+                        (selectedOrderIds.size === 0 ||
+                          selectedOrdersStatus === o.backendStatus);
+                      return (
+                        <TableRow key={o.id}>
+                          <TableCell>
+                            <button
                               onClick={() => {
-                                setSelectedOrderId(o.id);
-                                setIsModalOpen(true);
-                              }}
-                              title="View Details"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {getAvailableStatuses(
-                              o.backendStatus,
-                              user?.role || "cashier"
-                            ).length > 0 ? (
-                              <div className="flex items-center gap-1">
-                                <Select
-                                  value={o.backendStatus}
-                                  onValueChange={(value) => {
-                                    if (value !== o.backendStatus) {
-                                      handleStatusChange(
-                                        o.id,
-                                        value as OrderStatus
-                                      );
-                                    }
-                                  }}
-                                  disabled={isUpdating}
-                                >
-                                  <SelectTrigger className="w-full min-w-[140px] h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value={o.backendStatus}>
-                                      <div className="flex items-center gap-2">
-                                        {getStatusIcon(o.backendStatus)}
-                                        {getStatusBadgeText(o.backendStatus)}
-                                      </div>
-                                    </SelectItem>
-                                    {getAvailableStatuses(
+                                if (canSelect) {
+                                  toggleSelect(o.id, o.backendStatus);
+                                } else if (isTerminalStatus) {
+                                  toast.error(
+                                    `Orders with ${getStatusBadgeText(
                                       o.backendStatus,
-                                      user?.role || "cashier"
-                                    ).map((status) => (
-                                      <SelectItem key={status} value={status}>
-                                        <div className="flex items-center justify-between gap-2 w-full">
-                                          <div className="flex items-center gap-2">
-                                            {getStatusIcon(status)}
-                                            {getStatusBadgeText(status)}
-                                          </div>
-                                          {status === "PAID_TO_CASHIER" && (
-                                            <div className="shrink-0 flex items-center text-gray-600 dark:text-gray-400">
-                                              {getPaymentMethodIcon(
-                                                paymentMethods.get(o.id) ||
-                                                  "cash"
-                                              )}
-                                            </div>
-                                          )}
+                                    )} status cannot be changed`,
+                                  );
+                                } else {
+                                  toast.error(
+                                    "You can only select orders with the same status. Current selection: " +
+                                      getStatusBadgeText(selectedOrdersStatus!),
+                                  );
+                                }
+                              }}
+                              disabled={!canSelect}
+                              className={`hover:opacity-70 ${
+                                !canSelect
+                                  ? "opacity-30 cursor-not-allowed"
+                                  : ""
+                              }`}
+                              title={
+                                isTerminalStatus
+                                  ? `Orders with ${getStatusBadgeText(
+                                      o.backendStatus,
+                                    )} status cannot be changed`
+                                  : !canSelect
+                                    ? `Can only select orders with status: ${getStatusBadgeText(
+                                        selectedOrdersStatus!,
+                                      )}`
+                                    : "Select order"
+                              }
+                            >
+                              {selectedOrderIds.has(o.id) ? (
+                                <CheckSquare className="text-blue-600 dark:text-blue-400" />
+                              ) : (
+                                <Square className="text-gray-400" />
+                              )}
+                            </button>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {o.orderNumber}
+                          </TableCell>
+                          <TableCell>{o.waiterName || "N/A"}</TableCell>
+                          <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(o.status)}>
+                              {getStatusBadgeText(o.backendStatus)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {formatDateForDisplay(o.date, calendarMode)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                  setSelectedOrderId(o.id);
+                                  setIsModalOpen(true);
+                                }}
+                                title="View Details"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {getAvailableStatuses(
+                                o.backendStatus,
+                                user?.role || "cashier",
+                              ).length > 0 ? (
+                                <div className="flex items-center gap-1">
+                                  <Select
+                                    value={o.backendStatus}
+                                    onValueChange={(value) => {
+                                      if (value !== o.backendStatus) {
+                                        handleStatusChange(
+                                          o.id,
+                                          value as OrderStatus,
+                                        );
+                                      }
+                                    }}
+                                    disabled={isUpdating}
+                                  >
+                                    <SelectTrigger className="w-full min-w-[140px] h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value={o.backendStatus}>
+                                        <div className="flex items-center gap-2">
+                                          {getStatusIcon(o.backendStatus)}
+                                          {getStatusBadgeText(o.backendStatus)}
                                         </div>
                                       </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {o.backendStatus === "OPEN" &&
-                                  getAvailableStatuses(
-                                    o.backendStatus,
-                                    user?.role || "cashier"
-                                  ).includes("PAID_TO_CASHIER") && (
-                                    <PaymentMethodSelector
-                                      value={paymentMethods.get(o.id) || "cash"}
-                                      onChange={(method) => {
-                                        handlePaymentMethodChange(o.id, method);
-                                      }}
-                                      disabled={isUpdating}
-                                    />
-                                  )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400 dark:text-gray-500">
-                                No actions
-                              </span>
-                            )}
-                            {/* Payment Proof Icon - Show when order is paid with mobile banking and has proof */}
-                            {o.backendStatus === "PAID_TO_CASHIER" &&
-                              o.paymentProofImage?.url &&
-                              (o.paymentMethod === "mobile_banking" ||
-                                paymentMethods.get(o.id) ===
-                                  "mobile_banking") && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                  onClick={() => handleViewPaymentProof(o.id)}
-                                  title="View Payment Proof"
-                                >
-                                  <ImageIcon className="h-4 w-4" />
-                                </Button>
+                                      {getAvailableStatuses(
+                                        o.backendStatus,
+                                        user?.role || "cashier",
+                                      ).map((status) => (
+                                        <SelectItem key={status} value={status}>
+                                          <div className="flex items-center justify-between gap-2 w-full">
+                                            <div className="flex items-center gap-2">
+                                              {getStatusIcon(status)}
+                                              {getStatusBadgeText(status)}
+                                            </div>
+                                            {status === "PAID_TO_CASHIER" && (
+                                              <div className="shrink-0 flex items-center text-gray-600 dark:text-gray-400">
+                                                {getPaymentMethodIcon(
+                                                  paymentMethods.get(o.id) ||
+                                                    "cash",
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {o.backendStatus === "OPEN" &&
+                                    getAvailableStatuses(
+                                      o.backendStatus,
+                                      user?.role || "cashier",
+                                    ).includes("PAID_TO_CASHIER") && (
+                                      <PaymentMethodSelector
+                                        value={
+                                          paymentMethods.get(o.id) || "cash"
+                                        }
+                                        onChange={(method) => {
+                                          handlePaymentMethodChange(
+                                            o.id,
+                                            method,
+                                          );
+                                        }}
+                                        disabled={isUpdating}
+                                      />
+                                    )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400 dark:text-gray-500">
+                                  No actions
+                                </span>
                               )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                              {/* Payment Proof Icon - Show when order is paid with mobile banking and has proof */}
+                              {o.backendStatus === "PAID_TO_CASHIER" &&
+                                o.paymentProofImage?.url &&
+                                (o.paymentMethod === "mobile_banking" ||
+                                  paymentMethods.get(o.id) ===
+                                    "mobile_banking") && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                    onClick={() => handleViewPaymentProof(o.id)}
+                                    title="View Payment Proof"
+                                  >
+                                    <ImageIcon className="h-4 w-4" />
+                                  </Button>
+                                )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
 
           {/* Pagination Controls */}
@@ -1661,12 +1722,12 @@ export function CashierHistory() {
                   Showing{" "}
                   {Math.min(
                     (paginationInfo.page - 1) * paginationInfo.limit + 1,
-                    paginationInfo.total
+                    paginationInfo.total,
                   )}{" "}
                   to{" "}
                   {Math.min(
                     paginationInfo.page * paginationInfo.limit,
-                    paginationInfo.total
+                    paginationInfo.total,
                   )}{" "}
                   of {paginationInfo.total} orders
                 </span>
@@ -1734,7 +1795,7 @@ export function CashierHistory() {
                           {pageNum}
                         </Button>
                       );
-                    }
+                    },
                   )}
                 </div>
                 <Button
@@ -1823,13 +1884,13 @@ export function CashierHistory() {
             <DialogDescription className="dark:text-gray-400">
               {viewPaymentProofOrderId &&
                 filtered.find(
-                  (o: DisplayOrder) => o.id === viewPaymentProofOrderId
+                  (o: DisplayOrder) => o.id === viewPaymentProofOrderId,
                 )?.orderNumber && (
                   <span>
                     Order #{" "}
                     {
                       filtered.find(
-                        (o: DisplayOrder) => o.id === viewPaymentProofOrderId
+                        (o: DisplayOrder) => o.id === viewPaymentProofOrderId,
                       )?.orderNumber
                     }
                   </span>
@@ -1852,10 +1913,10 @@ export function CashierHistory() {
                       variant="outline"
                       onClick={() => {
                         const imageUrl = getPaymentProofImage(
-                          viewPaymentProofOrderId
+                          viewPaymentProofOrderId,
                         )?.url;
                         const orderNumber = filtered.find(
-                          (o: DisplayOrder) => o.id === viewPaymentProofOrderId
+                          (o: DisplayOrder) => o.id === viewPaymentProofOrderId,
                         )?.orderNumber;
                         if (imageUrl && orderNumber) {
                           handleDownloadPaymentProof(imageUrl, orderNumber);

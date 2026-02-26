@@ -1,16 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -19,36 +14,42 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckSquare,
-  Square,
-  Loader2,
-  Search,
-  X,
-  Filter,
-  Calendar,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  ArrowRightLeft,
-  ShieldCheck,
-  Ban,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { toast } from "sonner";
-import { useSelector } from "react-redux";
-import { Input } from "@/components/ui/input";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { selectUser } from "@/stores/features/auth/authSlice";
 import {
-  useListOrdersQuery,
-  useUpdateOrderStatusMutation,
-  useBulkUpdateOrderStatusMutation,
   OrderStatus,
   Order as RTKOrder,
+  useBulkUpdateOrderStatusMutation,
+  useListOrdersQuery,
+  useUpdateOrderStatusMutation,
 } from "@/stores/features/orders/ordersApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
-import { selectUser } from "@/stores/features/auth/authSlice";
-import { LoadingState } from "@/components/shared/LoadingState";
-import { ErrorState } from "@/components/shared/ErrorState";
+import {
+  AlertCircle,
+  ArrowRightLeft,
+  Ban,
+  Calendar,
+  CheckCircle2,
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Square,
+  X,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+import { toast } from "sonner";
 
 // -------------------- Types & Utilities -------------------- //
 
@@ -262,6 +263,7 @@ export function OrderHistory() {
   const {
     data: ordersResponse,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useListOrdersQuery(queryParams);
@@ -508,8 +510,8 @@ export function OrderHistory() {
       };
       toast.error(
         error?.data?.message ||
-          error?.message ||
-          "Failed to update order status"
+        error?.message ||
+        "Failed to update order status"
       );
     }
   };
@@ -586,17 +588,16 @@ export function OrderHistory() {
             <button
               key={r}
               onClick={() => setRoleView(r)}
-              className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
-                roleView === r
-                  ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-              }`}
+              className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${roleView === r
+                ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                }`}
             >
               {r === "all"
                 ? "All"
                 : r === "waiter"
-                ? "From Waiters"
-                : "To Owner"}
+                  ? "From Waiters"
+                  : "To Owner"}
             </button>
           ))}
         </div>
@@ -634,7 +635,7 @@ export function OrderHistory() {
             {/* Search Bar */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
-          <Input
+              <Input
                 type="text"
                 placeholder="Search by order number, table, waiter, or cashier..."
                 value={searchQuery}
@@ -733,8 +734,8 @@ export function OrderHistory() {
                   </Select>
                 </>
               )}
-        </div>
-      </div>
+            </div>
+          </div>
 
           {/* Bulk Actions */}
           {selectedOrderIds.size > 0 && (
@@ -748,9 +749,9 @@ export function OrderHistory() {
                   Select All (
                   {selectedOrdersStatus
                     ? filtered.filter(
-                        (o: DisplayOrder) =>
-                          o.backendStatus === selectedOrdersStatus
-                      ).length
+                      (o: DisplayOrder) =>
+                        o.backendStatus === selectedOrdersStatus
+                    ).length
                     : filtered.length}
                   )
                 </Button>
@@ -781,7 +782,7 @@ export function OrderHistory() {
                             <div className="flex items-center gap-2">
                               {getStatusIcon(status)}
                               {getStatusBadgeText(status)}
-            </div>
+                            </div>
                           </SelectItem>
                         )
                       )}
@@ -800,8 +801,8 @@ export function OrderHistory() {
                     ) : (
                       "Update Status"
                     )}
-              </Button>
-            </div>
+                  </Button>
+                </div>
               )}
               <Button
                 variant="ghost"
@@ -810,150 +811,153 @@ export function OrderHistory() {
               >
                 Clear
               </Button>
-          </div>
-        )}
+            </div>
+          )}
 
           {/* Table */}
           <div className="rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead>Order #</TableHead>
-                  <TableHead>Table</TableHead>
-                  <TableHead>Waiter</TableHead>
-                  <TableHead>Total</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
-                  <TableHead className="w-32">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-                {filtered.length === 0 ? (
-              <TableRow>
-                <TableCell
-                      colSpan={8}
-                      className="text-center py-8 text-gray-500 dark:text-gray-400"
-                >
-                  No orders found
-                </TableCell>
-              </TableRow>
+            {isFetching && !isLoading ? (
+              <TableSkeleton columnCount={8} rowCount={limit} />
             ) : (
-                  filtered.map((o: DisplayOrder) => {
-                    const isTerminalStatus =
-                      o.backendStatus === "TRANSFERRED_TO_OWNER" ||
-                      o.backendStatus === "VOIDED" ||
-                      o.backendStatus === "OWNER_CONFIRMED";
-                    const canSelect =
-                      !isTerminalStatus &&
-                      (selectedOrderIds.size === 0 ||
-                        selectedOrdersStatus === o.backendStatus);
-                    return (
-                      <TableRow key={o.id}>
-                  <TableCell>
-                          <button
-                            onClick={() => {
-                              if (canSelect) {
-                                toggleSelect(o.id, o.backendStatus);
-                              } else if (isTerminalStatus) {
-                                toast.error(
-                                  `Orders with ${getStatusBadgeText(
-                                    o.backendStatus
-                                  )} status cannot be changed`
-                                );
-                              } else {
-                                toast.error(
-                                  "You can only select orders with the same status. Current selection: " +
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>Order #</TableHead>
+                    <TableHead>Table</TableHead>
+                    <TableHead>Waiter</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="w-32">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={8}
+                        className="text-center py-8 text-gray-500 dark:text-gray-400"
+                      >
+                        No orders found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filtered.map((o: DisplayOrder) => {
+                      const isTerminalStatus =
+                        o.backendStatus === "TRANSFERRED_TO_OWNER" ||
+                        o.backendStatus === "VOIDED" ||
+                        o.backendStatus === "OWNER_CONFIRMED";
+                      const canSelect =
+                        !isTerminalStatus &&
+                        (selectedOrderIds.size === 0 ||
+                          selectedOrdersStatus === o.backendStatus);
+                      return (
+                        <TableRow key={o.id}>
+                          <TableCell>
+                            <button
+                              onClick={() => {
+                                if (canSelect) {
+                                  toggleSelect(o.id, o.backendStatus);
+                                } else if (isTerminalStatus) {
+                                  toast.error(
+                                    `Orders with ${getStatusBadgeText(
+                                      o.backendStatus
+                                    )} status cannot be changed`
+                                  );
+                                } else {
+                                  toast.error(
+                                    "You can only select orders with the same status. Current selection: " +
                                     getStatusBadgeText(selectedOrdersStatus!)
-                                );
-                              }
-                            }}
-                            disabled={!canSelect}
-                            className={`hover:opacity-70 ${
-                              !canSelect ? "opacity-30 cursor-not-allowed" : ""
-                            }`}
-                            title={
-                              isTerminalStatus
-                                ? `Orders with ${getStatusBadgeText(
-                                    o.backendStatus
-                                  )} status cannot be changed`
-                                : !canSelect
-                                ? `Can only select orders with status: ${getStatusBadgeText(
-                                    selectedOrdersStatus!
-                                  )}`
-                                : "Select order"
-                            }
-                          >
-                            {selectedOrderIds.has(o.id) ? (
-                              <CheckSquare className="text-blue-600 dark:text-blue-400" />
-                            ) : (
-                              <Square className="text-gray-400" />
-                            )}
-                          </button>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {o.orderNumber}
-                        </TableCell>
-                        <TableCell>{o.tableNumber}</TableCell>
-                        <TableCell>{o.waiterName || "N/A"}</TableCell>
-                        <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(o.status)}>
-                            {getStatusBadgeText(o.backendStatus)}
-                    </Badge>
-                  </TableCell>
-                        <TableCell>{formatDate(o.date)}</TableCell>
-                  <TableCell>
-                          {getAvailableStatuses(o.backendStatus, userRole)
-                            .length > 0 ? (
-                            <Select
-                              value={o.backendStatus}
-                              onValueChange={(value) => {
-                                if (value !== o.backendStatus) {
-                                  handleStatusChange(
-                                    o.id,
-                                    value as OrderStatus
                                   );
                                 }
                               }}
-                              disabled={isUpdating}
+                              disabled={!canSelect}
+                              className={`hover:opacity-70 ${!canSelect ? "opacity-30 cursor-not-allowed" : ""
+                                }`}
+                              title={
+                                isTerminalStatus
+                                  ? `Orders with ${getStatusBadgeText(
+                                    o.backendStatus
+                                  )} status cannot be changed`
+                                  : !canSelect
+                                    ? `Can only select orders with status: ${getStatusBadgeText(
+                                      selectedOrdersStatus!
+                                    )}`
+                                    : "Select order"
+                              }
                             >
-                              <SelectTrigger className="w-full min-w-[140px] h-8 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={o.backendStatus}>
-                                  <div className="flex items-center gap-2">
-                                    {getStatusIcon(o.backendStatus)}
-                                    {getStatusBadgeText(o.backendStatus)}
-                                  </div>
-                                </SelectItem>
-                                {getAvailableStatuses(
-                                  o.backendStatus,
-                                  userRole
-                                ).map((status) => (
-                                  <SelectItem key={status} value={status}>
+                              {selectedOrderIds.has(o.id) ? (
+                                <CheckSquare className="text-blue-600 dark:text-blue-400" />
+                              ) : (
+                                <Square className="text-gray-400" />
+                              )}
+                            </button>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {o.orderNumber}
+                          </TableCell>
+                          <TableCell>{o.tableNumber}</TableCell>
+                          <TableCell>{o.waiterName || "N/A"}</TableCell>
+                          <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(o.status)}>
+                              {getStatusBadgeText(o.backendStatus)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(o.date)}</TableCell>
+                          <TableCell>
+                            {getAvailableStatuses(o.backendStatus, userRole)
+                              .length > 0 ? (
+                              <Select
+                                value={o.backendStatus}
+                                onValueChange={(value) => {
+                                  if (value !== o.backendStatus) {
+                                    handleStatusChange(
+                                      o.id,
+                                      value as OrderStatus
+                                    );
+                                  }
+                                }}
+                                disabled={isUpdating}
+                              >
+                                <SelectTrigger className="w-full min-w-[140px] h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={o.backendStatus}>
                                     <div className="flex items-center gap-2">
-                                      {getStatusIcon(status)}
-                                      {getStatusBadgeText(status)}
+                                      {getStatusIcon(o.backendStatus)}
+                                      {getStatusBadgeText(o.backendStatus)}
                                     </div>
                                   </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
-                              No actions
-                            </span>
-                          )}
-                  </TableCell>
-                </TableRow>
-                    );
-                  })
+                                  {getAvailableStatuses(
+                                    o.backendStatus,
+                                    userRole
+                                  ).map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                      <div className="flex items-center gap-2">
+                                        {getStatusIcon(status)}
+                                        {getStatusBadgeText(status)}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
+                                No actions
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
             )}
-          </TableBody>
-        </Table>
-      </div>
+          </div>
 
           {/* Pagination Controls */}
           {pagination && (

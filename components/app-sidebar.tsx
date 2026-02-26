@@ -1,34 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
 import {
-  ShoppingCart,
-  Package,
-  Utensils,
-  List,
-  History,
-  User,
-  LogOut,
   AlertTriangle,
-  Users,
-  Printer,
   BarChart3,
   ClipboardCheck,
+  History,
+  List,
+  LogOut,
+  Package,
+  Printer,
+  ShoppingCart,
+  User,
+  Users,
+  Utensils,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,14 +27,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { useSelector } from "react-redux";
+import { useLogoutMutation } from "@/stores/features/auth/authApi";
 import {
   selectAuthHydrated,
   selectUser,
 } from "@/stores/features/auth/authSlice";
-import { useLogoutMutation } from "@/stores/features/auth/authApi";
+import { useSelector } from "react-redux";
 import { toast } from "sonner";
+
 
 // Navigation items based on role
 const getNavigationItems = (role?: string) => {
@@ -128,10 +129,22 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="w-64 bg-white border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-      <SidebarHeader className="px-6 py-4 h-16 flex items-center justify-between border-b border-[#e5e9f2]/60 bg-white/95 backdrop-blur-md supports-backdrop-filter:bg-white/80 dark:bg-gray-900/95 dark:border-gray-800">
-        <span className="text-gray-900 dark:text-white font-semibold">
-          Logo Restaurant
-        </span>
+      <SidebarHeader className="px-6 py-4 h-20 flex items-center gap-3 border-b border-[#e5e9f2]/60 bg-white/95 backdrop-blur-md supports-backdrop-filter:bg-white/80 dark:bg-gray-900/95 dark:border-gray-800">
+        <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
+          <img
+            src="/logo1.jpg"
+            alt="kandino's kitchen"
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-gray-900 dark:text-white font-bold text-sm leading-tight">
+            kandino's kitchen
+          </span>
+          <span className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold">
+            Management
+          </span>
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-3">

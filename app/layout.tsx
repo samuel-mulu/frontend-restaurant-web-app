@@ -1,9 +1,9 @@
+import ProtectedRoute from "@/components/protected-route";
+import { Providers } from "@/components/providers";
+import { Toaster } from "@/components/ui/toaster";
 import type { Metadata } from "next";
 import { Lato } from "next/font/google";
 import "./globals.css";
-import { Providers } from "@/components/providers";
-import ProtectedRoute from "@/components/protected-route";
-import { Toaster } from "@/components/ui/toaster";
 
 const lato = Lato({
   weight: ["300", "400", "700", "900"],
@@ -13,9 +13,9 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "Restaurant Management System",
+  title: "kandino's kitchen | Management System",
   description:
-    "Modern restaurant management system with POS, inventory, and order tracking",
+    "Professional restaurant management system for kandino's kitchen - POS, inventory, and order tracking",
 };
 
 export default function RootLayout({

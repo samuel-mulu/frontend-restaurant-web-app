@@ -23,7 +23,7 @@ import { useCreateOrderMutation } from "@/stores/features/orders/ordersApi";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { useListTablesQuery } from "@/stores/features/tables/tablesApi";
-import { AlertCircle, Minus, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Minus, Plus, Search, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 import { toast } from "sonner";
 
@@ -54,6 +54,7 @@ export default function OrderPage() {
   const [inventoryQuantities, setInventoryQuantities] = useState<
     Record<string, number>
   >({});
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // All hooks must be called before any conditional returns
   const [createOrder, { isLoading: isCreatingOrder }] =
@@ -380,7 +381,18 @@ export default function OrderPage() {
       <div className="mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6 p-4 lg:p-6">
         <div className="lg:col-span-3 bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 pt-5 pb-3">
-            <h2 className="text-2xl font-semibold mb-4">Create Order</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-2xl font-semibold">Create Order</h2>
+              <div className="relative w-full max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 rounded-full h-10 border-border bg-background focus:ring-primary/20"
+                />
+              </div>
+            </div>
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as "menu" | "inventory")}
@@ -395,8 +407,8 @@ export default function OrderPage() {
                   <button
                     onClick={() => setSelectedCategory("all")}
                     className={`shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${selectedCategory === "all"
-                        ? "text-primary bg-primary/10 border border-primary/20"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      ? "text-primary bg-primary/10 border border-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
                       }`}
                   >
                     All Categories
@@ -417,8 +429,8 @@ export default function OrderPage() {
                               setSelectedCategory(category.id);
                             }}
                             className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${isSelected
-                                ? "text-primary bg-primary/10 border border-primary/20"
-                                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                              ? "text-primary bg-primary/10 border border-primary/20"
+                              : "text-muted-foreground hover:text-foreground hover:bg-accent"
                               }`}
                           >
                             {category.name}
@@ -444,7 +456,10 @@ export default function OrderPage() {
                     </div>
                   ) : (
                     items
-                      .filter((item: Menu) => item.available)
+                      .filter((item: Menu) =>
+                        item.available &&
+                        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
                       .map((item: Menu) => (
                         <div
                           key={item.id}
@@ -485,8 +500,8 @@ export default function OrderPage() {
                   <button
                     onClick={() => setSelectedInventoryCategory("all")}
                     className={`shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${selectedInventoryCategory === "all"
-                        ? "text-primary bg-primary/10 border border-primary/20"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      ? "text-primary bg-primary/10 border border-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
                       }`}
                   >
                     All Categories
@@ -508,8 +523,8 @@ export default function OrderPage() {
                               setSelectedInventoryCategory(category.id);
                             }}
                             className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${isSelected
-                                ? "text-primary bg-primary/10 border border-primary/20"
-                                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                              ? "text-primary bg-primary/10 border border-primary/20"
+                              : "text-muted-foreground hover:text-foreground hover:bg-accent"
                               }`}
                           >
                             {category.name}
@@ -534,106 +549,110 @@ export default function OrderPage() {
                       No inventory items available
                     </div>
                   ) : (
-                    inventoryItems.map((item: Inventory) => {
-                      const currentQuantity = inventoryQuantities[item.id] || 1;
-                      const isLowStock = item.isLowStock || false;
-                      const isOutOfStock = item.quantity === 0;
-                      const maxQuantity = item.quantity;
+                    inventoryItems
+                      .filter((item: Inventory) =>
+                        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((item: Inventory) => {
+                        const currentQuantity = inventoryQuantities[item.id] || 1;
+                        const isLowStock = item.isLowStock || false;
+                        const isOutOfStock = item.quantity === 0;
+                        const maxQuantity = item.quantity;
 
-                      return (
-                        <div
-                          key={item.id}
-                          className="px-6 py-5 flex items-start gap-6 hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className="text-foreground text-lg font-semibold leading-tight">
-                                    {item.name}
-                                  </h4>
-                                  {isLowStock && !isOutOfStock && (
-                                    <Badge
-                                      variant="outline"
-                                      className="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-                                    >
-                                      <AlertCircle className="h-3 w-3 mr-1" />
-                                      Low Stock
-                                    </Badge>
-                                  )}
-                                  {isOutOfStock && (
-                                    <Badge
-                                      variant="outline"
-                                      className="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200 dark:border-red-800"
-                                    >
-                                      Out of Stock
-                                    </Badge>
-                                  )}
-                                </div>
-                                {item.description && (
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    {item.description}
-                                  </p>
-                                )}
-                                <div className="flex items-center gap-4 mt-2">
-                                  <div className="text-sm text-muted-foreground">
-                                    <span className="font-medium">Stock:</span>{" "}
-                                    {item.quantity} {item.unit}
+                        return (
+                          <div
+                            key={item.id}
+                            className="px-6 py-5 flex items-start gap-6 hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="text-foreground text-lg font-semibold leading-tight">
+                                      {item.name}
+                                    </h4>
+                                    {isLowStock && !isOutOfStock && (
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                                      >
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        Low Stock
+                                      </Badge>
+                                    )}
+                                    {isOutOfStock && (
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200 dark:border-red-800"
+                                      >
+                                        Out of Stock
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="text-primary font-semibold text-base">
-                                    Br {item.price.toFixed(2)}
+                                  {item.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {item.description}
+                                    </p>
+                                  )}
+                                  <div className="flex items-center gap-4 mt-2">
+                                    <div className="text-sm text-muted-foreground">
+                                      <span className="font-medium">Stock:</span>{" "}
+                                      {item.quantity} {item.unit}
+                                    </div>
+                                    <div className="text-primary font-semibold text-base">
+                                      Br {item.price.toFixed(2)}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-3">
+                                    <label className="text-sm font-medium text-foreground">
+                                      Quantity:
+                                    </label>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      max={maxQuantity}
+                                      value={currentQuantity}
+                                      onChange={(e) => {
+                                        const qty = parseInt(e.target.value) || 1;
+                                        const clampedQty = Math.max(
+                                          1,
+                                          Math.min(qty, maxQuantity)
+                                        );
+                                        setInventoryQuantities((prev) => ({
+                                          ...prev,
+                                          [item.id]: clampedQty,
+                                        }));
+                                      }}
+                                      className="w-20 h-8 text-sm"
+                                      disabled={isOutOfStock}
+                                    />
+                                    <span className="text-xs text-muted-foreground">
+                                      Max: {maxQuantity}
+                                    </span>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2 mt-3">
-                                  <label className="text-sm font-medium text-foreground">
-                                    Quantity:
-                                  </label>
-                                  <Input
-                                    type="number"
-                                    min="1"
-                                    max={maxQuantity}
-                                    value={currentQuantity}
-                                    onChange={(e) => {
-                                      const qty = parseInt(e.target.value) || 1;
-                                      const clampedQty = Math.max(
-                                        1,
-                                        Math.min(qty, maxQuantity)
-                                      );
-                                      setInventoryQuantities((prev) => ({
-                                        ...prev,
-                                        [item.id]: clampedQty,
-                                      }));
-                                    }}
-                                    className="w-20 h-8 text-sm"
-                                    disabled={isOutOfStock}
-                                  />
-                                  <span className="text-xs text-muted-foreground">
-                                    Max: {maxQuantity}
-                                  </span>
-                                </div>
-                              </div>
 
-                              <div className="flex flex-col items-end gap-4">
-                                <Button
-                                  onClick={() => addInventoryItem(item)}
-                                  size={"sm"}
-                                  className="px-6 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-                                  aria-label={`Add ${item.name}`}
-                                  disabled={
-                                    isOutOfStock ||
-                                    currentQuantity <= 0 ||
-                                    currentQuantity > maxQuantity
-                                  }
-                                >
-                                  <Plus size={16} className="mr-1.5" />
-                                  Add Item
-                                </Button>
+                                <div className="flex flex-col items-end gap-4">
+                                  <Button
+                                    onClick={() => addInventoryItem(item)}
+                                    size={"sm"}
+                                    className="px-6 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                                    aria-label={`Add ${item.name}`}
+                                    disabled={
+                                      isOutOfStock ||
+                                      currentQuantity <= 0 ||
+                                      currentQuantity > maxQuantity
+                                    }
+                                  >
+                                    <Plus size={16} className="mr-1.5" />
+                                    Add Item
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      })
                   )}
                 </div>
               </TabsContent>

@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { ThemeToggle } from "./theme-toggle";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +58,6 @@ const getNavigationItems = (role?: string) => {
     { name: "History", href: "/history", icon: History },
   ];
 
-  // Owner gets Staff Management, Analytics, and Approvals instead of Create Order
   if (role === "owner") {
     return [
       { name: "Staff Management", href: "/staff-management", icon: Users },
@@ -67,7 +67,6 @@ const getNavigationItems = (role?: string) => {
     ];
   }
 
-  // Cashier and Waiter get Create Order and Printer Management
   if (role === "cashier" || role === "waiter") {
     return [
       { name: "Create Order", href: "/create-order", icon: ShoppingCart },
@@ -76,7 +75,6 @@ const getNavigationItems = (role?: string) => {
     ];
   }
 
-  // Staff role or unknown role - no Create Order or Staff Management
   return baseItems;
 };
 
@@ -107,7 +105,6 @@ export function AppSidebar() {
         error?.data?.message || error?.message || "Failed to logout";
       toast.error(message);
       setIsLogoutDialogOpen(false);
-      // Still redirect to login even if logout fails
       router.push("/login");
     }
   };
@@ -185,6 +182,11 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-gray-200 dark:border-gray-800 p-2 space-y-2">
+        {/* Theme Toggle */}
+        <SidebarMenuItem>
+          <ThemeToggle />
+        </SidebarMenuItem>
+
         {/* Profile Link */}
         <SidebarMenuItem>
           <SidebarMenuButton

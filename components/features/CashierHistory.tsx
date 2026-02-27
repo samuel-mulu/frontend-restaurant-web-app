@@ -313,6 +313,7 @@ export function CashierHistory() {
   const [voidConfirmStatus, setVoidConfirmStatus] =
     useState<OrderStatus | null>(null);
   const [isVoidConfirmOpen, setIsVoidConfirmOpen] = useState(false);
+  const [voidPin, setVoidPin] = useState<string>("");
 
   // Payment method state per order
   const [paymentMethods, setPaymentMethods] = useState<
@@ -404,10 +405,10 @@ export function CashierHistory() {
         isLoading,
         error: error
           ? {
-              status: (error as any)?.status,
-              data: (error as any)?.data,
-              message: (error as any)?.message,
-            }
+            status: (error as any)?.status,
+            data: (error as any)?.data,
+            message: (error as any)?.message,
+          }
           : null,
       });
     } else {
@@ -792,7 +793,8 @@ export function CashierHistory() {
   const executeStatusChange = async (
     orderId: string,
     status: OrderStatus,
-    paymentProofImage?: File,
+    paymentProofImage?: File | null,
+    paymentBankName?: string,
   ) => {
     try {
       const paymentMethod = paymentMethods.get(orderId) || "cash";
@@ -801,7 +803,8 @@ export function CashierHistory() {
         id: orderId,
         status,
         paymentMethod,
-        paymentProofImage,
+        paymentProofImage: paymentProofImage ?? undefined,
+        paymentBankName,
       }).unwrap();
       toast.success("Order status updated successfully");
 
@@ -818,8 +821,8 @@ export function CashierHistory() {
       };
       toast.error(
         error?.data?.message ||
-          error?.message ||
-          "Failed to update order status",
+        error?.message ||
+        "Failed to update order status",
       );
     }
   };
@@ -835,9 +838,9 @@ export function CashierHistory() {
     });
   };
 
-  const handlePaymentImageConfirm = async (file: File) => {
+  const handlePaymentImageConfirm = async (file: File | null, bankName?: string) => {
     if (paymentImageOrderId && paymentImageStatus) {
-      await executeStatusChange(paymentImageOrderId, paymentImageStatus, file);
+      await executeStatusChange(paymentImageOrderId, paymentImageStatus, file, bankName);
       setIsPaymentImageModalOpen(false);
       setPaymentImageOrderId(null);
       setPaymentImageStatus(null);
@@ -845,11 +848,17 @@ export function CashierHistory() {
   };
 
   const handleVoidConfirm = async () => {
+    if (voidPin !== "1219") {
+      toast.error("Invalid security PIN");
+      return;
+    }
+
     if (voidConfirmOrderId && voidConfirmStatus) {
       await executeStatusChange(voidConfirmOrderId, voidConfirmStatus);
       setIsVoidConfirmOpen(false);
       setVoidConfirmOrderId(null);
       setVoidConfirmStatus(null);
+      setVoidPin("");
     }
   };
 
@@ -981,8 +990,8 @@ export function CashierHistory() {
   const errorMessage =
     error && "data" in error
       ? (error.data as { message?: string; error?: string })?.message ||
-        (error.data as { message?: string; error?: string })?.error ||
-        "An error occurred"
+      (error.data as { message?: string; error?: string })?.error ||
+      "An error occurred"
       : error && "error" in error
         ? (error.error as string) || "An error occurred"
         : null;
@@ -1010,21 +1019,20 @@ export function CashierHistory() {
   return (
     <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between">
-        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl font-semibold text-foreground">
           Cashier History
         </h1>
         <div className="flex items-start gap-4">
           {/* Cash Flow Switcher - Track cash flow: Waiter (cash to accept) vs Owner (cash to give) */}
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-1 shadow-sm">
             {(["waiter", "owner", "all"] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => handleRoleViewChange(r)}
-                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
-                  roleView === r
-                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-                }`}
+                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${roleView === r
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  }`}
               >
                 {r === "all"
                   ? "All"
@@ -1052,7 +1060,7 @@ export function CashierHistory() {
             {dateRangePreset === "custom" && (
               <div className="flex flex-col items-end gap-2">
                 <div className="flex items-start gap-2">
-                  <span className="text-slate-500">from</span>
+                  <span className="text-muted-foreground">from</span>
                   <Input
                     type="date"
                     value={startDate}
@@ -1061,7 +1069,7 @@ export function CashierHistory() {
                   />
                 </div>
                 <div className="flex items-start gap-2">
-                  <span className="text-slate-500">to</span>
+                  <span className="text-muted-foreground">to</span>
                   <Input
                     type="date"
                     value={endDate}
@@ -1085,7 +1093,7 @@ export function CashierHistory() {
         <>
           {/* Waiter Report */}
           {waiterReport && waiterFilter !== "all" && (
-            <div className="rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700 p-4">
+            <div className="rounded-xl border bg-card p-4">
               <h3 className="text-lg font-semibold mb-3">
                 Waiter Report: {waiterReport.waiterName || "Unknown"}
               </h3>
@@ -1114,7 +1122,7 @@ export function CashierHistory() {
 
           {/* Date Range Report */}
           {dateRangeReport && startDate && endDate && (
-            <div className="rounded-xl border bg-white dark:bg-slate-800 dark:border-slate-700 p-4">
+            <div className="rounded-xl border bg-card p-4">
               <h3 className="text-lg font-semibold mb-3">
                 Date Range Report: {startDate} to {endDate}
               </h3>
@@ -1150,11 +1158,10 @@ export function CashierHistory() {
           {/* Enhanced Summary Cards */}
           {orders.length > 0 && (
             <div
-              className={`grid gap-4 ${
-                roleView === "owner"
-                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-              }`}
+              className={`grid gap-4 ${roleView === "owner"
+                ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+                }`}
             >
               {roleView === "owner" ? (
                 <>
@@ -1171,9 +1178,8 @@ export function CashierHistory() {
                     )} Br`}
                     icon={<ArrowRightLeft className="h-5 w-5" />}
                     color="purple"
-                    subtitle={`${
-                      (summary as any).transferredCount || 0
-                    } orders`}
+                    subtitle={`${(summary as any).transferredCount || 0
+                      } orders`}
                   />
                   <EnhancedStatCard
                     label="Pending Transfer"
@@ -1268,7 +1274,7 @@ export function CashierHistory() {
           )}
 
           {/* Search and Filters */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 p-2 rounded-full border bg-white dark:bg-slate-800">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 p-2 rounded-full border bg-card">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
               <Input
@@ -1366,16 +1372,15 @@ export function CashierHistory() {
               </Select>
 
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 rounded-lg border bg-white dark:bg-slate-800 p-1">
+                <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
                   <Button
                     variant={calendarMode === "gregorian" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCalendarMode("gregorian")}
-                    className={`h-7 px-3 text-xs ${
-                      calendarMode === "gregorian"
-                        ? "bg-blue-600 hover:bg-blue-700 text-white"
-                        : "text-gray-600 dark:text-gray-400"
-                    }`}
+                    className={`h-7 px-3 text-xs ${calendarMode === "gregorian"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
+                      }`}
                   >
                     Gregorian
                   </Button>
@@ -1383,11 +1388,10 @@ export function CashierHistory() {
                     variant={calendarMode === "ethiopian" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCalendarMode("ethiopian")}
-                    className={`h-7 px-3 text-xs ${
-                      calendarMode === "ethiopian"
-                        ? "bg-blue-600 hover:bg-blue-700 text-white"
-                        : "text-gray-600 dark:text-gray-400"
-                    }`}
+                    className={`h-7 px-3 text-xs ${calendarMode === "ethiopian"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
+                      }`}
                   >
                     Ethiopian
                   </Button>
@@ -1429,7 +1433,7 @@ export function CashierHistory() {
 
           {/* Bulk Actions */}
           {selectedOrderIds.size > 0 && (
-            <div className="flex items-center gap-3 p-4 rounded-xl border bg-white dark:bg-slate-800">
+            <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
@@ -1439,9 +1443,9 @@ export function CashierHistory() {
                   Select All (
                   {selectedOrdersStatus
                     ? filtered.filter(
-                        (o: DisplayOrder) =>
-                          o.backendStatus === selectedOrdersStatus,
-                      ).length
+                      (o: DisplayOrder) =>
+                        o.backendStatus === selectedOrdersStatus,
+                    ).length
                     : filtered.length}
                   )
                 </Button>
@@ -1506,7 +1510,7 @@ export function CashierHistory() {
           )}
 
           {/* Table */}
-          <div className="rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700 overflow-hidden">
+          <div className="rounded-xl bg-card border overflow-hidden">
             {isFetching && !isLoading ? (
               <TableSkeleton columnCount={7} rowCount={limit} />
             ) : (
@@ -1557,25 +1561,24 @@ export function CashierHistory() {
                                 } else {
                                   toast.error(
                                     "You can only select orders with the same status. Current selection: " +
-                                      getStatusBadgeText(selectedOrdersStatus!),
+                                    getStatusBadgeText(selectedOrdersStatus!),
                                   );
                                 }
                               }}
                               disabled={!canSelect}
-                              className={`hover:opacity-70 ${
-                                !canSelect
-                                  ? "opacity-30 cursor-not-allowed"
-                                  : ""
-                              }`}
+                              className={`hover:opacity-70 ${!canSelect
+                                ? "opacity-30 cursor-not-allowed"
+                                : ""
+                                }`}
                               title={
                                 isTerminalStatus
                                   ? `Orders with ${getStatusBadgeText(
-                                      o.backendStatus,
-                                    )} status cannot be changed`
+                                    o.backendStatus,
+                                  )} status cannot be changed`
                                   : !canSelect
                                     ? `Can only select orders with status: ${getStatusBadgeText(
-                                        selectedOrdersStatus!,
-                                      )}`
+                                      selectedOrdersStatus!,
+                                    )}`
                                     : "Select order"
                               }
                             >
@@ -1604,7 +1607,7 @@ export function CashierHistory() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
+                                className="h-8 w-8 text-foreground"
                                 onClick={() => {
                                   setSelectedOrderId(o.id);
                                   setIsModalOpen(true);
@@ -1654,7 +1657,7 @@ export function CashierHistory() {
                                               <div className="shrink-0 flex items-center text-gray-600 dark:text-gray-400">
                                                 {getPaymentMethodIcon(
                                                   paymentMethods.get(o.id) ||
-                                                    "cash",
+                                                  "cash",
                                                 )}
                                               </div>
                                             )}
@@ -1692,7 +1695,7 @@ export function CashierHistory() {
                                 o.paymentProofImage?.url &&
                                 (o.paymentMethod === "mobile_banking" ||
                                   paymentMethods.get(o.id) ===
-                                    "mobile_banking") && (
+                                  "mobile_banking") && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -1716,9 +1719,9 @@ export function CashierHistory() {
 
           {/* Pagination Controls */}
           {paginationInfo.totalPages > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-white dark:bg-slate-800">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-card">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-600 dark:text-slate-400">
+                <span className="text-sm text-muted-foreground">
                   Showing{" "}
                   {Math.min(
                     (paginationInfo.page - 1) * paginationInfo.limit + 1,
@@ -1824,34 +1827,47 @@ export function CashierHistory() {
 
       {/* Void Confirmation Modal */}
       <AlertDialog open={isVoidConfirmOpen} onOpenChange={setIsVoidConfirmOpen}>
-        <AlertDialogContent className="bg-white border border-gray-200 shadow-xl dark:bg-slate-800 dark:border-slate-700">
+        <AlertDialogContent className="bg-card border-border shadow-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 dark:text-white">
-              <Ban className="h-5 w-5 text-red-600" />
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Ban className="h-5 w-5 text-destructive" />
               Void Order Confirmation
             </AlertDialogTitle>
-            <AlertDialogDescription className="dark:text-gray-400">
+            <AlertDialogDescription>
               Are you sure you want to void this order? This action cannot be
-              undone. The order will be marked as voided and cannot be changed
-              afterwards.
+              undone. Please enter the security PIN to confirm.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="py-4">
+            <Input
+              type="password"
+              placeholder="Enter 4-digit PIN"
+              value={voidPin}
+              onChange={(e) => setVoidPin(e.target.value)}
+              className="text-center text-2xl tracking-[1em] font-bold h-12"
+              maxLength={4}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel
               onClick={() => {
                 setIsVoidConfirmOpen(false);
                 setVoidConfirmOrderId(null);
                 setVoidConfirmStatus(null);
+                setVoidPin("");
               }}
-              className="dark:bg-slate-700 dark:text-white dark:border-slate-600 dark:hover:bg-slate-600"
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleVoidConfirm}
-              className="bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                handleVoidConfirm();
+              }}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              disabled={voidPin.length !== 4}
             >
-              Void Order
+              Confirm Void
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1865,7 +1881,7 @@ export function CashierHistory() {
         orderNumber={
           paymentImageOrderId
             ? filtered.find((o: DisplayOrder) => o.id === paymentImageOrderId)
-                ?.orderNumber
+              ?.orderNumber
             : undefined
         }
       />
@@ -1875,13 +1891,13 @@ export function CashierHistory() {
         open={isViewPaymentProofModalOpen}
         onOpenChange={setIsViewPaymentProofModalOpen}
       >
-        <DialogContent className="max-w-2xl bg-white dark:bg-slate-800">
+        <DialogContent className="max-w-2xl bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 dark:text-white">
-              <ImageIcon className="h-5 w-5 text-blue-600" />
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-primary" />
               Payment Proof
             </DialogTitle>
-            <DialogDescription className="dark:text-gray-400">
+            <DialogDescription>
               {viewPaymentProofOrderId &&
                 filtered.find(
                   (o: DisplayOrder) => o.id === viewPaymentProofOrderId,
@@ -1960,14 +1976,14 @@ function EnhancedStatCard({
   value: string | number;
   icon: React.ReactNode;
   color?:
-    | "blue"
-    | "green"
-    | "emerald"
-    | "purple"
-    | "indigo"
-    | "amber"
-    | "red"
-    | "orange";
+  | "blue"
+  | "green"
+  | "emerald"
+  | "purple"
+  | "indigo"
+  | "amber"
+  | "red"
+  | "orange";
   subtitle?: string;
 }) {
   const colorClasses = {
@@ -2013,12 +2029,12 @@ function ReportCard({
   value: string;
 }) {
   return (
-    <div className="rounded-lg border bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm">
+    <div className="rounded-lg border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
       </div>
-      <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+      <p className="text-2xl font-semibold text-foreground">
         {value}
       </p>
     </div>

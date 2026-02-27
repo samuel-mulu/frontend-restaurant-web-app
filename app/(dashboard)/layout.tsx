@@ -1,13 +1,13 @@
 "use client";
 
+import { AppSidebar } from "@/components/app-sidebar";
+import { Loading } from "@/components/ui/loading";
 import {
-  SidebarProvider,
   SidebarInset,
+  SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { Loading } from "@/components/ui/loading";
 
 export default function DashboardLayout({
   children,
@@ -30,10 +30,10 @@ export default function DashboardLayout({
   return (
     <SidebarProvider defaultOpen={true}>
       <AppSidebar />
-      <SidebarInset className="h-screen overflow-y-auto bg-slate-50/80">
+      <SidebarInset className="h-screen overflow-y-auto bg-background/80">
         <main className="flex-1 min-h-screen">
           <div className="page-shell">
-            <SidebarTrigger className="rosunded-full border border-slate-200/70 bg-white/80  text-slate-500 shadow-sm backdrop-blur" />
+            <SidebarTrigger className="rounded-full border border-border bg-card/80 text-muted-foreground shadow-sm backdrop-blur" />
             {children}
           </div>
         </main>

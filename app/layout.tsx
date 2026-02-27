@@ -24,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="bg-slate-50">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${lato.variable} antialiased`}>
         <Providers>
           <ProtectedRoute>{children}</ProtectedRoute>

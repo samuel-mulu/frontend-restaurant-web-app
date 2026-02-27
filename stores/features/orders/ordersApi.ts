@@ -65,6 +65,7 @@ export interface Order {
   completedAt?: string;
   paymentMethod?: "cash" | "mobile_banking";
   paymentProofImage?: { url: string; publicId: string };
+  paymentBankName?: string;
   cancelledBy?:
     | string
     | {
@@ -413,15 +414,21 @@ export const ordersApi = createApiEndpoints({
         status: OrderStatus;
         paymentMethod?: "cash" | "mobile_banking";
         paymentProofImage?: File;
+        paymentBankName?: string;
       }
     >({
-      query: ({ id, status, paymentMethod, paymentProofImage }) => {
-        // If payment proof image is provided, use FormData
-        if (paymentProofImage) {
+      query: ({ id, status, paymentMethod, paymentProofImage, paymentBankName }) => {
+        // If payment proof image or bank name is provided, use FormData
+        if (paymentProofImage || paymentBankName) {
           const formData = new FormData();
           formData.append("status", status);
           formData.append("paymentMethod", paymentMethod || "cash");
-          formData.append("paymentProofImage", paymentProofImage);
+          if (paymentProofImage) {
+            formData.append("paymentProofImage", paymentProofImage);
+          }
+          if (paymentBankName) {
+            formData.append("paymentBankName", paymentBankName);
+          }
 
           return {
             url: `/orders/${id}/status`,

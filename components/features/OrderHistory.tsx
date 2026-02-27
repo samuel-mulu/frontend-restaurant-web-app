@@ -579,18 +579,18 @@ export function OrderHistory() {
   return (
     <div className="flex flex-col gap-2">
       <header className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl font-semibold text-foreground">
           Order History
         </h1>
         {/* Cash Flow Switcher - Track cash flow: Waiter (cash to accept) vs Owner (cash to give) */}
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-1 shadow-sm">
           {(["all", "waiter", "owner"] as const).map((r) => (
             <button
               key={r}
               onClick={() => setRoleView(r)}
               className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${roleView === r
-                ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
                 }`}
             >
               {r === "all"
@@ -631,7 +631,7 @@ export function OrderHistory() {
           )}
 
           {/* Search and Filters Container - Always visible when not loading/error */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 p-2 rounded-full border bg-white dark:bg-slate-800">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 p-2 rounded-full border bg-card">
             {/* Search Bar */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
@@ -739,7 +739,7 @@ export function OrderHistory() {
 
           {/* Bulk Actions */}
           {selectedOrderIds.size > 0 && (
-            <div className="flex items-center gap-3 p-4 rounded-xl border bg-white dark:bg-slate-800">
+            <div className="flex items-center gap-3 p-4 rounded-xl border bg-card">
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
@@ -815,7 +815,7 @@ export function OrderHistory() {
           )}
 
           {/* Table */}
-          <div className="rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700 overflow-hidden">
+          <div className="rounded-xl bg-card border overflow-hidden">
             {isFetching && !isLoading ? (
               <TableSkeleton columnCount={8} rowCount={limit} />
             ) : (
@@ -1048,11 +1048,9 @@ export function OrderHistory() {
 // -------------------- Small Components -------------------- //
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border bg-white dark:bg-slate-800 dark:border-slate-700 p-5 shadow-sm">
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-        {value}
-      </p>
+    <div className="rounded-xl border bg-card p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="text-2xl font-bold text-foreground">{value}</p>
     </div>
   );
 }

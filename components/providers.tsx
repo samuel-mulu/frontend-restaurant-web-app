@@ -1,13 +1,21 @@
 "use client";
 
-import { Provider } from "react-redux";
 import { store } from "@/stores";
+import { Provider } from "react-redux";
 import { OfflineProvider } from "./offline/OfflineProvider";
+import { ThemeProvider } from "./theme-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <Provider store={store}>
-      <OfflineProvider>{children}</OfflineProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <OfflineProvider>{children}</OfflineProvider>
+      </ThemeProvider>
     </Provider>
   );
 }

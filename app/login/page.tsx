@@ -102,12 +102,12 @@ export default function LoginPage() {
         className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: 'url("/background.jpg")' }}
       >
-        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-[2px]" />
       </div>
 
       <div className="relative z-10 w-full flex flex-col items-center">
         <div className="mb-8 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-700">
-          <div className="relative w-24 h-24 mb-4 rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-white">
+          <div className="relative w-24 h-24 mb-4 rounded-2xl overflow-hidden shadow-2xl border-4 border-background bg-background">
             <img
               src="/logo1.jpg"
               alt="kandino's kitchen"
@@ -122,21 +122,21 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <Card className="w-full max-w-md border-white/20 shadow-2xl backdrop-blur-md bg-white/90">
+        <Card className="w-full max-w-md border-border/50 shadow-2xl backdrop-blur-md bg-card/90 dark:bg-card/85">
           <CardHeader className="space-y-1 text-center pb-2">
-            <CardTitle className="text-2xl font-bold text-slate-900">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
               {errors.general && (
-                <div className="p-3 text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2">
+                <div className="p-3 text-sm font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
                   {errors.general}
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm font-semibold text-slate-700 font-lato">
+                <Label htmlFor="phone" className="text-sm font-semibold font-lato">
                   Phone Number
                 </Label>
                 <div className="relative">
@@ -148,8 +148,8 @@ export default function LoginPage() {
                     onChange={(e) => setPhone(e.target.value)}
                     disabled={isLoading}
                     className={cn(
-                      "h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all bg-white/50",
-                      errors.phone && "border-red-500 focus:ring-red-500/20"
+                      "h-11 rounded-lg border-border focus:ring-primary/20 transition-all bg-background/50",
+                      errors.phone && "border-destructive focus:ring-destructive/20"
                     )}
                     autoComplete="tel"
                   />
@@ -162,7 +162,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-semibold text-slate-700 font-lato">
+                <Label htmlFor="password" className="text-sm font-semibold font-lato">
                   Password
                 </Label>
                 <div className="relative">
@@ -174,8 +174,8 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
                     className={cn(
-                      "h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all bg-white/50 pr-10",
-                      errors.password && "border-red-500 focus:ring-red-500/20"
+                      "h-11 rounded-lg border-border focus:ring-primary/20 transition-all bg-background/50 pr-10",
+                      errors.password && "border-destructive focus:ring-destructive/20"
                     )}
                     autoComplete="current-password"
                   />

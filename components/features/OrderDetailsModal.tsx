@@ -1,20 +1,13 @@
 "use client";
 
-import React from "react";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import {
-  Order,
-  OrderStatus,
-  OrderItem,
-} from "@/stores/features/orders/ordersApi";
-import { useGetOrderQuery } from "@/stores/features/orders/ordersApi";
 import { Loading } from "@/components/ui/loading";
 import {
   Table,
@@ -25,12 +18,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  CheckCircle2,
-  XCircle,
+  OrderItem,
+  OrderStatus,
+  useGetOrderQuery
+} from "@/stores/features/orders/ordersApi";
+import {
+  AlertCircle,
   ArrowRightLeft,
   Ban,
-  AlertCircle,
+  Banknote,
+  Building2,
+  CheckCircle2,
+  CreditCard,
+  XCircle,
 } from "lucide-react";
+import React from "react";
 
 interface OrderDetailsModalProps {
   orderId: string | null;
@@ -118,7 +120,7 @@ export function OrderDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Order Details</span>
@@ -194,6 +196,53 @@ export function OrderDetailsModal({
                 </p>
               </div>
             </div>
+
+            {/* Payment Info - show for paid orders */}
+            {order.paymentMethod && (
+              <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  {order.paymentMethod === "mobile_banking" ? (
+                    <CreditCard className="h-4 w-4 text-primary" />
+                  ) : (
+                    <Banknote className="h-4 w-4 text-primary" />
+                  )}
+                  Payment Information
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Method</p>
+                    <p className="font-medium capitalize">
+                      {order.paymentMethod === "mobile_banking"
+                        ? "Mobile Banking"
+                        : "Cash"}
+                    </p>
+                  </div>
+                  {order.paymentBankName && (
+                    <div>
+                      <p className="text-muted-foreground flex items-center gap-1">
+                        <Building2 className="h-3 w-3" /> Bank
+                      </p>
+                      <p className="font-medium">{order.paymentBankName}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment proof image */}
+                {order.paymentMethod === "mobile_banking" &&
+                  order.paymentProofImage?.url && (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground text-xs">Payment Proof</p>
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <img
+                          src={order.paymentProofImage.url}
+                          alt="Payment Proof"
+                          className="w-full h-auto max-h-[260px] object-contain bg-background"
+                        />
+                      </div>
+                    </div>
+                  )}
+              </div>
+            )}
 
             {/* Order Items */}
             <div>

@@ -1,58 +1,58 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { Loading } from "@/components/ui/loading";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  useListStaffQuery,
-  useCreateStaffMutation,
-  useUpdateStaffMutation,
-  useDeleteStaffMutation,
-  type Staff,
-} from "@/stores/features/staff/staffApi";
-import { toast } from "sonner";
-import {
-  Eye,
-  EyeOff,
-  UserPlus,
-  Edit2,
-  Search,
-  X,
-  Filter,
-  Loader2,
-  Trash2,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
-import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loading } from "@/components/ui/loading";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { cn } from "@/lib/utils";
+import {
+    useCreateStaffMutation,
+    useDeleteStaffMutation,
+    useListStaffQuery,
+    useUpdateStaffMutation,
+    type Staff,
+} from "@/stores/features/staff/staffApi";
+import {
+    Edit2,
+    Eye,
+    EyeOff,
+    Filter,
+    Loader2,
+    Search,
+    Trash2,
+    UserPlus,
+    X,
+} from "lucide-react";
 import Link from "next/link";
+import React, { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 type StaffRole = "cashier" | "waiter" | "staff";
 
@@ -63,7 +63,22 @@ interface FormData {
   password: string;
   role: StaffRole | "";
   salary: string;
+  color: string;
 }
+
+const STAFF_COLOR_OPTIONS = [
+  { value: "red", label: "Red", className: "bg-red-500" },
+  { value: "orange", label: "Orange", className: "bg-orange-500" },
+  { value: "amber", label: "Amber", className: "bg-amber-500" },
+  { value: "yellow", label: "Yellow", className: "bg-yellow-500" },
+  { value: "lime", label: "Lime", className: "bg-lime-500" },
+  { value: "green", label: "Green", className: "bg-green-500" },
+  { value: "emerald", label: "Emerald", className: "bg-emerald-500" },
+  { value: "blue", label: "Blue", className: "bg-blue-500" },
+  { value: "indigo", label: "Indigo", className: "bg-indigo-500" },
+  { value: "purple", label: "Purple", className: "bg-purple-500" },
+  { value: "pink", label: "Pink", className: "bg-pink-500" },
+] as const;
 
 // Reusable Staff Form Component
 interface StaffFormProps {
@@ -87,16 +102,23 @@ function StaffForm({
 }: StaffFormProps) {
   const requiresPassword = useMemo(
     () => formData.role === "cashier" || formData.role === "waiter",
-    [formData.role]
+    [formData.role],
   );
 
   const requiresPhone = useMemo(
     () => formData.role === "cashier" || formData.role === "waiter",
-    [formData.role]
+    [formData.role],
   );
 
+  const waiterColorLabel = useMemo(() => {
+    return (
+      STAFF_COLOR_OPTIONS.find((c) => c.value === formData.color)?.label ||
+      "No color"
+    );
+  }, [formData.color]);
+
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement> | { name: string; value: string }
+    e: React.ChangeEvent<HTMLInputElement> | { name: string; value: string },
   ) => {
     const name = "name" in e ? e.name : e.target.name;
     const value = "value" in e ? e.value : e.target.value;
@@ -113,6 +135,7 @@ function StaffForm({
         ...(isStaffRole && mode === "create"
           ? { password: "", phone: "" }
           : {}),
+        ...(newRole !== "waiter" ? { color: "" } : {}),
       }));
     } else {
       setFormData((prev) => ({
@@ -139,7 +162,7 @@ function StaffForm({
               id="staff-role"
               className={cn(
                 "mt-2 min-h-[44px]",
-                errors.role && "border-red-500"
+                errors.role && "border-red-500",
               )}
             >
               <SelectValue placeholder="Select role" />
@@ -169,7 +192,7 @@ function StaffForm({
               id="staff-role"
               className={cn(
                 "mt-2 min-h-[44px]",
-                errors.role && "border-red-500"
+                errors.role && "border-red-500",
               )}
             >
               <SelectValue placeholder="Select role" />
@@ -247,6 +270,59 @@ function StaffForm({
         )}
       </div>
 
+      {/* Waiter Color - Optional */}
+      {formData.role === "waiter" && (
+        <div>
+          <Label htmlFor="staff-color">Waiter Color</Label>
+          <Select
+            value={formData.color || "none"}
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                color: value === "none" ? "" : value,
+              }))
+            }
+            disabled={isSubmitting}
+          >
+            <SelectTrigger id="staff-color" className="mt-2 min-h-[44px]">
+              <SelectValue placeholder="Select color">
+                <div className="flex items-center gap-2">
+                  {formData.color ? (
+                    <span
+                      className={cn(
+                        "h-3 w-3 rounded-full",
+                        STAFF_COLOR_OPTIONS.find(
+                          (c) => c.value === formData.color,
+                        )?.className,
+                      )}
+                    />
+                  ) : (
+                    <span className="h-3 w-3 rounded-full border border-border" />
+                  )}
+                  <span>{waiterColorLabel}</span>
+                </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full border border-border" />
+                  <span>No color</span>
+                </div>
+              </SelectItem>
+              {STAFF_COLOR_OPTIONS.map((c) => (
+                <SelectItem key={c.value} value={c.value}>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("h-3 w-3 rounded-full", c.className)} />
+                    <span>{c.label}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Email Field - Only in create mode */}
       {mode === "create" && (
         <div>
@@ -262,7 +338,7 @@ function StaffForm({
             placeholder="Enter email address"
             className={cn(
               "mt-2 min-h-[44px]",
-              errors.email && "border-red-500"
+              errors.email && "border-red-500",
             )}
             disabled={isSubmitting}
           />
@@ -359,7 +435,7 @@ function StaffForm({
               }
               className={cn(
                 "mt-2 min-h-[44px] pr-10",
-                errors.password && "border-red-500"
+                errors.password && "border-red-500",
               )}
               disabled={isSubmitting || !formData.role}
             />
@@ -404,6 +480,12 @@ export default function StaffManagementPage() {
     redirectTo: "/",
   });
 
+  const shouldSkipApi =
+    auth.isChecking ||
+    !auth.hydrated ||
+    !auth.isAuthenticated ||
+    !auth.isAuthorized;
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
@@ -417,36 +499,30 @@ export default function StaffManagementPage() {
     password: "",
     role: "",
     salary: "",
+    color: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Show loading while checking authorization
-  if (auth.isChecking || !auth.hydrated) {
-    return <Loading fullScreen text="Checking authorization..." size="lg" />;
-  }
-
-  // Don't render if not authorized (redirect handled by useRequireAuth)
-  if (!auth.isAuthenticated || !auth.isAuthorized) {
-    return null;
-  }
-
-  // API hooks
+  // API hooks (must not be conditional)
   const {
     data: staffData,
     isLoading,
     error,
     refetch,
-  } = useListStaffQuery({
-    role: roleFilter !== "all" ? (roleFilter as StaffRole) : undefined,
-    search: searchQuery.trim() || undefined,
-  });
+  } = useListStaffQuery(
+    {
+      role: roleFilter !== "all" ? (roleFilter as StaffRole) : undefined,
+      search: searchQuery.trim() || undefined,
+    },
+    { skip: shouldSkipApi },
+  );
 
   const [createStaff, { isLoading: isCreating }] = useCreateStaffMutation();
   const [updateStaff, { isLoading: isUpdating }] = useUpdateStaffMutation();
   const [deleteStaff] = useDeleteStaffMutation();
 
   const isSubmitting = isCreating || isUpdating;
-  const staff = staffData?.staff || [];
+  const staff = useMemo(() => staffData?.staff || [], [staffData]);
   const errorMessage =
     error && "data" in error
       ? (error.data as { message?: string })?.message || "An error occurred"
@@ -455,12 +531,12 @@ export default function StaffManagementPage() {
   // Determine if password and phone are required based on role
   const requiresPassword = useMemo(
     () => formData.role === "cashier" || formData.role === "waiter",
-    [formData.role]
+    [formData.role],
   );
 
   const requiresPhone = useMemo(
     () => formData.role === "cashier" || formData.role === "waiter",
-    [formData.role]
+    [formData.role],
   );
 
   // Filter staff client-side for search
@@ -476,6 +552,16 @@ export default function StaffManagementPage() {
       );
     });
   }, [staff, searchQuery]);
+
+  // Show loading while checking authorization
+  if (auth.isChecking || !auth.hydrated) {
+    return <Loading fullScreen text="Checking authorization..." size="lg" />;
+  }
+
+  // Don't render if not authorized (redirect handled by useRequireAuth)
+  if (!auth.isAuthenticated || !auth.isAuthorized) {
+    return null;
+  }
 
   const validateForm = (mode: "create" | "edit"): boolean => {
     const newErrors: Record<string, string> = {};
@@ -504,7 +590,7 @@ export default function StaffManagementPage() {
           "Phone number is required for cashier and waiter roles";
       } else if (
         !/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/.test(
-          formData.phone
+          formData.phone,
         )
       ) {
         newErrors.phone = "Please enter a valid phone number";
@@ -512,7 +598,7 @@ export default function StaffManagementPage() {
     } else if (formData.phone.trim()) {
       if (
         !/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/.test(
-          formData.phone
+          formData.phone,
         )
       ) {
         newErrors.phone = "Please enter a valid phone number";
@@ -561,6 +647,7 @@ export default function StaffManagementPage() {
       password: "",
       role: "",
       salary: "",
+      color: "",
     });
     setErrors({});
     setShowPassword(false);
@@ -579,11 +666,16 @@ export default function StaffManagementPage() {
         password?: string;
         role: StaffRole;
         salary: number;
+        color?: string;
       } = {
         name: formData.name.trim(),
         role: formData.role as StaffRole,
         salary: parseFloat(formData.salary),
       };
+
+      if (formData.role === "waiter" && formData.color) {
+        payload.color = formData.color;
+      }
 
       if (formData.email.trim()) {
         payload.email = formData.email.trim().toLowerCase();
@@ -634,7 +726,7 @@ export default function StaffManagementPage() {
               if (detail.field && detail.message) {
                 fieldErrors[detail.field] = detail.message;
               }
-            }
+            },
           );
           if (Object.keys(fieldErrors).length > 0) {
             setErrors(fieldErrors);
@@ -666,6 +758,7 @@ export default function StaffManagementPage() {
         password: "", // Don't pre-fill password
         role: staffMember.role || "",
         salary: staffMember.salary?.toString() || "",
+        color: staffMember.color || "",
       });
       setIsEditOpen(true);
     }
@@ -686,6 +779,7 @@ export default function StaffManagementPage() {
         phone?: string;
         salary?: number;
         role?: StaffRole;
+        color?: string;
       } = {
         salary: parseFloat(formData.salary),
       };
@@ -696,6 +790,10 @@ export default function StaffManagementPage() {
 
       if (formData.role) {
         updatePayload.role = formData.role as StaffRole;
+      }
+
+      if (formData.role === "waiter") {
+        updatePayload.color = formData.color || "";
       }
 
       await updateStaff({
@@ -749,7 +847,7 @@ export default function StaffManagementPage() {
         "Failed to delete staff member";
       if (error?.status === 404) {
         toast.error(
-          "Staff member not found. It may have already been deleted."
+          "Staff member not found. It may have already been deleted.",
         );
         refetch();
       } else {
@@ -783,9 +881,7 @@ export default function StaffManagementPage() {
             Staff Management
           </h1>
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
-            <button
-              className="px-4 py-2 rounded-md text-sm font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
-            >
+            <button className="px-4 py-2 rounded-md text-sm font-medium bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm">
               Staff
             </button>
             <Link
@@ -891,8 +987,8 @@ export default function StaffManagementPage() {
                         staffMember.role === "cashier"
                           ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
                           : staffMember.role === "waiter"
-                          ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                          : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                            ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200",
                       )}
                     >
                       {formatRole(staffMember.role)}
@@ -992,8 +1088,8 @@ export default function StaffManagementPage() {
                           staffMember.role === "cashier"
                             ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
                             : staffMember.role === "waiter"
-                            ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                              ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
+                              : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200",
                         )}
                       >
                         {formatRole(staffMember.role)}
@@ -1023,7 +1119,7 @@ export default function StaffManagementPage() {
                           itemName={staffMember.name}
                           onConfirm={() =>
                             handleDelete(
-                              staffMember._id || staffMember.id || ""
+                              staffMember._id || staffMember.id || "",
                             )
                           }
                           trigger={

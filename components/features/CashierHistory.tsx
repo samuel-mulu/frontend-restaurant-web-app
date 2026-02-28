@@ -1,5 +1,6 @@
 "use client";
 
+import { AddItemsToOrderModal } from "@/components/features/AddItemsToOrderModal";
 import { OrderDetailsModal } from "@/components/features/OrderDetailsModal";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
@@ -77,7 +78,9 @@ import {
   Image as ImageIcon,
   Loader2,
   Package,
+  Plus,
   Receipt,
+  RefreshCw,
   Search,
   Smartphone,
   Square,
@@ -306,6 +309,10 @@ export function CashierHistory() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Add items modal state
+  const [addItemsOrderId, setAddItemsOrderId] = useState<string | null>(null);
+  const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
+
   // Void confirmation modal state
   const [voidConfirmOrderId, setVoidConfirmOrderId] = useState<string | null>(
     null,
@@ -336,7 +343,7 @@ export function CashierHistory() {
     useState(false);
 
   // Real-time updates
-  useOrderSocket();
+  const { isConnected: isRealtimeConnected } = useOrderSocket();
 
   // Determine statuses to fetch based on roleView
   const statusesToFetch = useMemo(() => {
@@ -390,6 +397,8 @@ export function CashierHistory() {
     },
     {
       skip: !cashierId,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
     },
   );
 
@@ -405,10 +414,10 @@ export function CashierHistory() {
         isLoading,
         error: error
           ? {
-            status: (error as any)?.status,
-            data: (error as any)?.data,
-            message: (error as any)?.message,
-          }
+              status: (error as any)?.status,
+              data: (error as any)?.data,
+              message: (error as any)?.message,
+            }
           : null,
       });
     } else {
@@ -821,8 +830,8 @@ export function CashierHistory() {
       };
       toast.error(
         error?.data?.message ||
-        error?.message ||
-        "Failed to update order status",
+          error?.message ||
+          "Failed to update order status",
       );
     }
   };
@@ -838,9 +847,17 @@ export function CashierHistory() {
     });
   };
 
-  const handlePaymentImageConfirm = async (file: File | null, bankName?: string) => {
+  const handlePaymentImageConfirm = async (
+    file: File | null,
+    bankName?: string,
+  ) => {
     if (paymentImageOrderId && paymentImageStatus) {
-      await executeStatusChange(paymentImageOrderId, paymentImageStatus, file, bankName);
+      await executeStatusChange(
+        paymentImageOrderId,
+        paymentImageStatus,
+        file,
+        bankName,
+      );
       setIsPaymentImageModalOpen(false);
       setPaymentImageOrderId(null);
       setPaymentImageStatus(null);
@@ -990,8 +1007,8 @@ export function CashierHistory() {
   const errorMessage =
     error && "data" in error
       ? (error.data as { message?: string; error?: string })?.message ||
-      (error.data as { message?: string; error?: string })?.error ||
-      "An error occurred"
+        (error.data as { message?: string; error?: string })?.error ||
+        "An error occurred"
       : error && "error" in error
         ? (error.error as string) || "An error occurred"
         : null;
@@ -1019,9 +1036,22 @@ export function CashierHistory() {
   return (
     <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between">
-        <h1 className="text-3xl font-semibold text-foreground">
-          Cashier History
-        </h1>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-semibold text-foreground">
+            Cashier History
+          </h1>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                isRealtimeConnected ? "bg-emerald-500" : "bg-muted-foreground"
+              }`}
+            />
+            <span>
+              Realtime: {isRealtimeConnected ? "Connected" : "Disconnected"}
+            </span>
+            {isFetching && <span>· Syncing…</span>}
+          </div>
+        </div>
         <div className="flex items-start gap-4">
           {/* Cash Flow Switcher - Track cash flow: Waiter (cash to accept) vs Owner (cash to give) */}
           <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-1 shadow-sm">
@@ -1029,10 +1059,11 @@ export function CashierHistory() {
               <button
                 key={r}
                 onClick={() => handleRoleViewChange(r)}
-                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${roleView === r
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                  }`}
+                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
+                  roleView === r
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
               >
                 {r === "all"
                   ? "All"
@@ -1158,10 +1189,11 @@ export function CashierHistory() {
           {/* Enhanced Summary Cards */}
           {orders.length > 0 && (
             <div
-              className={`grid gap-4 ${roleView === "owner"
-                ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-                }`}
+              className={`grid gap-4 ${
+                roleView === "owner"
+                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+              }`}
             >
               {roleView === "owner" ? (
                 <>
@@ -1178,8 +1210,9 @@ export function CashierHistory() {
                     )} Br`}
                     icon={<ArrowRightLeft className="h-5 w-5" />}
                     color="purple"
-                    subtitle={`${(summary as any).transferredCount || 0
-                      } orders`}
+                    subtitle={`${
+                      (summary as any).transferredCount || 0
+                    } orders`}
                   />
                   <EnhancedStatCard
                     label="Pending Transfer"
@@ -1377,10 +1410,11 @@ export function CashierHistory() {
                     variant={calendarMode === "gregorian" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCalendarMode("gregorian")}
-                    className={`h-7 px-3 text-xs ${calendarMode === "gregorian"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground"
-                      }`}
+                    className={`h-7 px-3 text-xs ${
+                      calendarMode === "gregorian"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground"
+                    }`}
                   >
                     Gregorian
                   </Button>
@@ -1388,10 +1422,11 @@ export function CashierHistory() {
                     variant={calendarMode === "ethiopian" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCalendarMode("ethiopian")}
-                    className={`h-7 px-3 text-xs ${calendarMode === "ethiopian"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground"
-                      }`}
+                    className={`h-7 px-3 text-xs ${
+                      calendarMode === "ethiopian"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground"
+                    }`}
                   >
                     Ethiopian
                   </Button>
@@ -1443,9 +1478,9 @@ export function CashierHistory() {
                   Select All (
                   {selectedOrdersStatus
                     ? filtered.filter(
-                      (o: DisplayOrder) =>
-                        o.backendStatus === selectedOrdersStatus,
-                    ).length
+                        (o: DisplayOrder) =>
+                          o.backendStatus === selectedOrdersStatus,
+                      ).length
                     : filtered.length}
                   )
                 </Button>
@@ -1511,6 +1546,20 @@ export function CashierHistory() {
 
           {/* Table */}
           <div className="rounded-xl bg-card border overflow-hidden">
+            <div className="flex items-center justify-end gap-2 px-3 py-2 border-b bg-card">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                aria-label="Refresh orders"
+                title="Refresh"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
+                />
+              </Button>
+            </div>
             {isFetching && !isLoading ? (
               <TableSkeleton columnCount={7} rowCount={limit} />
             ) : (
@@ -1561,24 +1610,25 @@ export function CashierHistory() {
                                 } else {
                                   toast.error(
                                     "You can only select orders with the same status. Current selection: " +
-                                    getStatusBadgeText(selectedOrdersStatus!),
+                                      getStatusBadgeText(selectedOrdersStatus!),
                                   );
                                 }
                               }}
                               disabled={!canSelect}
-                              className={`hover:opacity-70 ${!canSelect
-                                ? "opacity-30 cursor-not-allowed"
-                                : ""
-                                }`}
+                              className={`hover:opacity-70 ${
+                                !canSelect
+                                  ? "opacity-30 cursor-not-allowed"
+                                  : ""
+                              }`}
                               title={
                                 isTerminalStatus
                                   ? `Orders with ${getStatusBadgeText(
-                                    o.backendStatus,
-                                  )} status cannot be changed`
+                                      o.backendStatus,
+                                    )} status cannot be changed`
                                   : !canSelect
                                     ? `Can only select orders with status: ${getStatusBadgeText(
-                                      selectedOrdersStatus!,
-                                    )}`
+                                        selectedOrdersStatus!,
+                                      )}`
                                     : "Select order"
                               }
                             >
@@ -1616,6 +1666,20 @@ export function CashierHistory() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
+                              {o.backendStatus === "OPEN" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-foreground"
+                                  onClick={() => {
+                                    setAddItemsOrderId(o.id);
+                                    setIsAddItemsOpen(true);
+                                  }}
+                                  title="Add Items"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              )}
                               {getAvailableStatuses(
                                 o.backendStatus,
                                 user?.role || "cashier",
@@ -1657,7 +1721,7 @@ export function CashierHistory() {
                                               <div className="shrink-0 flex items-center text-gray-600 dark:text-gray-400">
                                                 {getPaymentMethodIcon(
                                                   paymentMethods.get(o.id) ||
-                                                  "cash",
+                                                    "cash",
                                                 )}
                                               </div>
                                             )}
@@ -1695,7 +1759,7 @@ export function CashierHistory() {
                                 o.paymentProofImage?.url &&
                                 (o.paymentMethod === "mobile_banking" ||
                                   paymentMethods.get(o.id) ===
-                                  "mobile_banking") && (
+                                    "mobile_banking") && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -1825,6 +1889,15 @@ export function CashierHistory() {
         onOpenChange={setIsModalOpen}
       />
 
+      <AddItemsToOrderModal
+        orderId={addItemsOrderId}
+        open={isAddItemsOpen}
+        onOpenChange={setIsAddItemsOpen}
+        onSuccess={() => {
+          refetch();
+        }}
+      />
+
       {/* Void Confirmation Modal */}
       <AlertDialog open={isVoidConfirmOpen} onOpenChange={setIsVoidConfirmOpen}>
         <AlertDialogContent className="bg-card border-border shadow-xl">
@@ -1881,7 +1954,7 @@ export function CashierHistory() {
         orderNumber={
           paymentImageOrderId
             ? filtered.find((o: DisplayOrder) => o.id === paymentImageOrderId)
-              ?.orderNumber
+                ?.orderNumber
             : undefined
         }
       />
@@ -1976,14 +2049,14 @@ function EnhancedStatCard({
   value: string | number;
   icon: React.ReactNode;
   color?:
-  | "blue"
-  | "green"
-  | "emerald"
-  | "purple"
-  | "indigo"
-  | "amber"
-  | "red"
-  | "orange";
+    | "blue"
+    | "green"
+    | "emerald"
+    | "purple"
+    | "indigo"
+    | "amber"
+    | "red"
+    | "orange";
   subtitle?: string;
 }) {
   const colorClasses = {
@@ -2034,9 +2107,7 @@ function ReportCard({
         {icon}
         <p className="text-xs text-muted-foreground">{label}</p>
       </div>
-      <p className="text-2xl font-semibold text-foreground">
-        {value}
-      </p>
+      <p className="text-2xl font-semibold text-foreground">{value}</p>
     </div>
   );
 }

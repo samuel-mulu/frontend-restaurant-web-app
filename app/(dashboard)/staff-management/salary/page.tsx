@@ -1,84 +1,80 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { Loading } from "@/components/ui/loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Loading } from "@/components/ui/loading";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import React, { useEffect, useMemo, useState } from "react";
 // Textarea component - using Input for now, can be replaced with proper Textarea component
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  useListSalariesQuery,
-  useCreateSalaryMutation,
-  useUpdateSalaryMutation,
-  useDeleteSalaryMutation,
-  useListWithdrawalsQuery,
-  useCreateWithdrawalMutation,
-  useDeleteWithdrawalMutation,
-  useListPaymentsQuery,
-  useCreatePaymentMutation,
-  useDeletePaymentMutation,
-  useGetCountdownQuery,
-  type Salary,
-  type CreateSalaryInput,
-  type UpdateSalaryInput,
-} from "@/stores/features/salary/salaryApi";
-import { useListStaffQuery } from "@/stores/features/staff/staffApi";
-import { toast } from "sonner";
-import {
-  DollarSign,
-  Edit2,
-  Search,
-  X,
-  Filter,
-  Loader2,
-  Calendar,
-  UserPlus,
-  Trash2,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
-import { LoadingState } from "@/components/shared/LoadingState";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { CountdownTimer } from "@/components/features/CountdownTimer";
 import { CountdownProgress } from "@/components/features/CountdownProgress";
-import { WithdrawalDialog } from "@/components/features/WithdrawalDialog";
-import { WithdrawalHistory } from "@/components/features/WithdrawalHistory";
+import { CountdownTimer } from "@/components/features/CountdownTimer";
 import { PaymentDialog } from "@/components/features/PaymentDialog";
 import { PaymentHistory } from "@/components/features/PaymentHistory";
+import { WithdrawalDialog } from "@/components/features/WithdrawalDialog";
+import { WithdrawalHistory } from "@/components/features/WithdrawalHistory";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { Badge } from "@/components/ui/badge";
 import {
-  getCurrentEthiopianDate,
-  formatEthiopianDate,
-  parseEthiopianDate,
-  formatEthiopianDateReadable,
-  ethiopianToGregorian,
-  addEthiopianMonths,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import {
+    addEthiopianMonths,
+    formatEthiopianDate,
+    getCurrentEthiopianDate,
+    parseEthiopianDate,
 } from "@/lib/utils/ethiopianCalendar";
+import {
+    useCreatePaymentMutation,
+    useCreateSalaryMutation,
+    useCreateWithdrawalMutation,
+    useDeletePaymentMutation,
+    useDeleteSalaryMutation,
+    useDeleteWithdrawalMutation,
+    useGetCountdownQuery,
+    useListPaymentsQuery,
+    useListSalariesQuery,
+    useListWithdrawalsQuery,
+    useUpdateSalaryMutation,
+    type CreateSalaryInput,
+    type Salary,
+    type UpdateSalaryInput,
+} from "@/stores/features/salary/salaryApi";
+import { useListStaffQuery } from "@/stores/features/staff/staffApi";
+import {
+    Edit2,
+    Filter,
+    Loader2,
+    Search,
+    Trash2,
+    UserPlus,
+    X,
+} from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface FormData {
   staffId: string;
@@ -141,7 +137,7 @@ function SalaryForm({
   const handleChange = (
     e:
       | React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-      | { name: string; value: string }
+      | { name: string; value: string },
   ) => {
     const name = "name" in e ? e.name : e.target.name;
     const value = "value" in e ? e.value : e.target.value;
@@ -180,7 +176,7 @@ function SalaryForm({
   // Get current month/year for default values
   const currentDate = new Date();
   const currentMonth = `${currentDate.getFullYear()}-${String(
-    currentDate.getMonth() + 1
+    currentDate.getMonth() + 1,
   ).padStart(2, "0")}`;
   const currentYear = currentDate.getFullYear().toString();
 
@@ -216,7 +212,7 @@ function SalaryForm({
                 <SelectItem key={staff.id} value={staff.id}>
                   {staff.name} {staff.role ? `(${staff.role})` : ""}
                 </SelectItem>
-              )
+              ),
             )}
           </SelectContent>
         </Select>
@@ -224,7 +220,7 @@ function SalaryForm({
           <p className="text-sm text-red-500 mt-1">{errors.staffId}</p>
         )}
         {mode === "edit" && (
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Staff cannot be changed after creation
           </p>
         )}
@@ -295,11 +291,11 @@ function SalaryForm({
           placeholder="YYYY-MM-DD"
           className={cn(
             "mt-2 min-h-[44px]",
-            errors.registeredDate && "border-red-500"
+            errors.registeredDate && "border-red-500",
           )}
           disabled={isSubmitting}
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Format: YYYY-MM-DD (e.g., 2016-01-15)
         </p>
         {errors.registeredDate && (
@@ -321,11 +317,11 @@ function SalaryForm({
           placeholder="YYYY-MM-DD"
           className={cn(
             "mt-2 min-h-[44px]",
-            errors.paymentDate && "border-red-500"
+            errors.paymentDate && "border-red-500",
           )}
           disabled={isSubmitting}
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           Format: YYYY-MM-DD (e.g., 2016-02-15) - When payment is due
         </p>
         {errors.paymentDate && (
@@ -357,7 +353,8 @@ function SalaryForm({
       {/* Remarks */}
       <div>
         <Label htmlFor="salary-remarks">
-          Remarks <span className="text-gray-500 text-xs">(Optional)</span>
+          Remarks{" "}
+          <span className="text-muted-foreground text-xs">(Optional)</span>
         </Label>
         <Input
           id="salary-remarks"
@@ -367,7 +364,7 @@ function SalaryForm({
           placeholder="Enter any remarks or notes"
           className={cn(
             "mt-2 min-h-[100px]",
-            errors.remarks && "border-red-500"
+            errors.remarks && "border-red-500",
           )}
           disabled={isSubmitting}
         />
@@ -384,6 +381,12 @@ export default function SalaryManagementPage() {
     allowedRoles: ["owner"],
     redirectTo: "/",
   });
+
+  const shouldSkipApi =
+    auth.isChecking ||
+    !auth.hydrated ||
+    !auth.isAuthenticated ||
+    !auth.isAuthorized;
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -424,7 +427,7 @@ export default function SalaryManagementPage() {
     });
   const { data: paymentsData, refetch: refetchPayments } = useListPaymentsQuery(
     selectedSalaryId || "",
-    { skip: !selectedSalaryId }
+    { skip: !selectedSalaryId },
   );
   const { data: countdownData } = useGetCountdownQuery(selectedSalaryId || "", {
     skip: !selectedSalaryId,
@@ -443,25 +446,18 @@ export default function SalaryManagementPage() {
   const payments = paymentsData?.data || [];
   const countdown = countdownData?.data;
 
-  // Show loading while checking authorization
-  if (auth.isChecking || !auth.hydrated) {
-    return <Loading fullScreen text="Checking authorization..." size="lg" />;
-  }
-
-  // Don't render if not authorized (redirect handled by useRequireAuth)
-  if (!auth.isAuthenticated || !auth.isAuthorized) {
-    return null;
-  }
-
   // Fetch staff list for dropdown
-  const { data: staffData } = useListStaffQuery({
-    status: "active",
-    role:
-      roleFilter !== "all"
-        ? (roleFilter as "cashier" | "waiter" | "staff")
-        : undefined,
-    limit: 100,
-  });
+  const { data: staffData } = useListStaffQuery(
+    {
+      status: "active",
+      role:
+        roleFilter !== "all"
+          ? (roleFilter as "cashier" | "waiter" | "staff")
+          : undefined,
+      limit: 100,
+    },
+    { skip: shouldSkipApi },
+  );
 
   const staffList = useMemo(() => {
     if (!staffData?.staff) return [];
@@ -477,7 +473,7 @@ export default function SalaryManagementPage() {
         name: staff.name,
         salary: staff.salary || 0,
         role: staff.role,
-      })
+      }),
     );
   }, [staffData]);
 
@@ -489,7 +485,7 @@ export default function SalaryManagementPage() {
       (staff: { _id?: string; id?: string; salary?: number }) => {
         const id = staff._id || staff.id || "";
         map.set(id, staff);
-      }
+      },
     );
     return map;
   }, [staffData]);
@@ -500,15 +496,20 @@ export default function SalaryManagementPage() {
     isLoading,
     error,
     refetch,
-  } = useListSalariesQuery({
-    staffId: staffFilter !== "all" ? staffFilter : undefined,
-    month: monthFilter || undefined,
-    year: yearFilter ? parseInt(yearFilter) : undefined,
-    status:
-      statusFilter !== "all" ? (statusFilter as "pending" | "paid") : undefined,
-    page: 1,
-    limit: 100,
-  });
+  } = useListSalariesQuery(
+    {
+      staffId: staffFilter !== "all" ? staffFilter : undefined,
+      month: monthFilter || undefined,
+      year: yearFilter ? parseInt(yearFilter) : undefined,
+      status:
+        statusFilter !== "all"
+          ? (statusFilter as "pending" | "paid")
+          : undefined,
+      page: 1,
+      limit: 100,
+    },
+    { skip: shouldSkipApi },
+  );
 
   const [createSalary, { isLoading: isCreating }] = useCreateSalaryMutation();
   const [updateSalary, { isLoading: isUpdating }] = useUpdateSalaryMutation();
@@ -562,6 +563,16 @@ export default function SalaryManagementPage() {
 
     return filtered;
   }, [salaries, searchQuery, roleFilter]);
+
+  // Show loading while checking authorization
+  if (auth.isChecking || !auth.hydrated) {
+    return <Loading fullScreen text="Checking authorization..." size="lg" />;
+  }
+
+  // Don't render if not authorized (redirect handled by useRequireAuth)
+  if (!auth.isAuthenticated || !auth.isAuthorized) {
+    return null;
+  }
 
   const validateForm = (mode: "create" | "edit"): boolean => {
     const newErrors: Record<string, string> = {};
@@ -952,7 +963,7 @@ export default function SalaryManagementPage() {
                       <SelectItem key={staff.id} value={staff.id}>
                         {staff.name} {staff.role ? `(${staff.role})` : ""}
                       </SelectItem>
-                    )
+                    ),
                   )}
                 </SelectContent>
               </Select>
@@ -1028,7 +1039,7 @@ export default function SalaryManagementPage() {
                             className={cn(
                               "font-medium",
                               netAmount < salary.amount &&
-                                "text-orange-600 dark:text-orange-400"
+                                "text-orange-600 dark:text-orange-400",
                             )}
                           >
                             {netAmount.toFixed(2)} Br
@@ -1127,7 +1138,7 @@ export default function SalaryManagementPage() {
 
       {/* Create Salary Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle>Create Salary Record</DialogTitle>
           </DialogHeader>
@@ -1180,7 +1191,7 @@ export default function SalaryManagementPage() {
 
       {/* Edit Salary Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle>Edit Salary Record</DialogTitle>
           </DialogHeader>
@@ -1227,7 +1238,7 @@ export default function SalaryManagementPage() {
         open={!!selectedSalaryId}
         onOpenChange={(open) => !open && setSelectedSalaryId(null)}
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle>Salary Details</DialogTitle>
           </DialogHeader>
@@ -1263,7 +1274,7 @@ export default function SalaryManagementPage() {
               {/* Summary */}
               {(() => {
                 const selectedSalary = salaries.find(
-                  (s: Salary) => (s._id || s.id) === selectedSalaryId
+                  (s: Salary) => (s._id || s.id) === selectedSalaryId,
                 );
                 if (!selectedSalary) return null;
 
@@ -1367,10 +1378,10 @@ export default function SalaryManagementPage() {
           onSubmit={handleCreateWithdrawal}
           maxAmount={(() => {
             const selectedSalary = salaries.find(
-              (s: Salary) => (s._id || s.id) === selectedSalaryId
+              (s: Salary) => (s._id || s.id) === selectedSalaryId,
             );
             return selectedSalary
-              ? selectedSalary.netAmount ?? selectedSalary.amount
+              ? (selectedSalary.netAmount ?? selectedSalary.amount)
               : 0;
           })()}
           isLoading={isCreatingWithdrawal}
@@ -1385,7 +1396,7 @@ export default function SalaryManagementPage() {
           onSubmit={handleCreatePayment}
           maxAmount={(() => {
             const selectedSalary = salaries.find(
-              (s: Salary) => (s._id || s.id) === selectedSalaryId
+              (s: Salary) => (s._id || s.id) === selectedSalaryId,
             );
             if (!selectedSalary) return 0;
             const netAmount = selectedSalary.netAmount ?? selectedSalary.amount;
@@ -1405,7 +1416,7 @@ export default function SalaryManagementPage() {
         description={
           salaryToDelete
             ? `Are you sure you want to delete the salary record for ${getStaffName(
-                salaryToDelete
+                salaryToDelete,
               )}? This will also delete all associated withdrawals and payments. This action cannot be undone.`
             : "Are you sure you want to delete this salary record? This action cannot be undone."
         }

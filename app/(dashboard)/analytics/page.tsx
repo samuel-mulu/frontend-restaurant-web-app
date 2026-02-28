@@ -1,46 +1,46 @@
 "use client";
 
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+    CategoryRevenueChart,
+    DayOfWeekChart,
+    InventoryTrendChart,
+    OrdersByStatusChart,
+    OrderTimingDistributionChart,
+    OrderVolumeChart,
+    PaymentMethodChart,
+    PeakHoursChart,
+    RevenueTrendChart,
+    StaffPerformanceChart,
+    TablePerformanceChart,
+    TopSellingItemsChart,
+} from "@/components/features/AnalyticsCharts";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  DollarSign,
-  ShoppingCart,
-  TrendingUp,
-  AlertTriangle,
-  Calendar,
-  ArrowUpRight,
-  ArrowDownRight,
-  Package,
-  Clock,
-  Download,
-  Users,
-  Table,
-  Timer,
-  CalendarDays,
-  XCircle,
-} from "lucide-react";
-import { useGetComprehensiveAnalyticsQuery } from "@/stores/features/statistics/statisticsApi";
-import { LoadingState } from "@/components/shared/LoadingState";
-import { ErrorState } from "@/components/shared/ErrorState";
-import {
-  RevenueTrendChart,
-  PaymentMethodChart,
-  TopSellingItemsChart,
-  CategoryRevenueChart,
-  OrderVolumeChart,
-  InventoryTrendChart,
-  OrdersByStatusChart,
-  PeakHoursChart,
-  StaffPerformanceChart,
-  DayOfWeekChart,
-  TablePerformanceChart,
-  OrderTimingDistributionChart,
-} from "@/components/features/AnalyticsCharts";
 import { cn } from "@/lib/utils";
+import { useGetComprehensiveAnalyticsQuery } from "@/stores/features/statistics/statisticsApi";
+import {
+    AlertTriangle,
+    ArrowDownRight,
+    ArrowUpRight,
+    Calendar,
+    CalendarDays,
+    Clock,
+    DollarSign,
+    Download,
+    Package,
+    ShoppingCart,
+    Table,
+    Timer,
+    TrendingUp,
+    Users,
+    XCircle,
+} from "lucide-react";
+import { useState } from "react";
 
 export default function AnalyticsPage() {
   const [startDate, setStartDate] = useState(() => {
@@ -173,7 +173,7 @@ export default function AnalyticsPage() {
                     "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
                     activeQuickRange === days
                       ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200",
                   )}
                 >
                   {days}D
@@ -341,7 +341,7 @@ export default function AnalyticsPage() {
                               {cashier.count} orders
                             </p>
                           </div>
-                        )
+                        ),
                       )}
                   </div>
                 </div>
@@ -380,7 +380,7 @@ export default function AnalyticsPage() {
                 .reduce(
                   (sum: number, item: { totalQty: number }) =>
                     sum + item.totalQty,
-                  0
+                  0,
                 )
                 .toString()}
             />
@@ -442,7 +442,7 @@ export default function AnalyticsPage() {
                             {item.quantity} {item.unit}
                           </span>
                         </div>
-                      )
+                      ),
                     )}
                   </div>
                 </div>
@@ -505,13 +505,13 @@ export default function AnalyticsPage() {
             <StatCard
               label="Total Revenue"
               value={formatCurrency(
-                analytics.staff?.performanceMetrics?.totalRevenue || 0
+                analytics.staff?.performanceMetrics?.totalRevenue || 0,
               )}
             />
             <StatCard
               label="Avg Order Value"
               value={formatCurrency(
-                analytics.staff?.performanceMetrics?.avgOrderValue || 0
+                analytics.staff?.performanceMetrics?.avgOrderValue || 0,
               )}
             />
             <StatCard
@@ -676,7 +676,7 @@ function ChartCard({
     <Card
       className={cn(
         "border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 overflow-hidden",
-        className
+        className,
       )}
     >
       <div className="border-b border-slate-100 dark:border-slate-800 px-6 py-4">
@@ -720,7 +720,7 @@ function ComparisonCard({
         <div
           className={cn(
             "flex items-center gap-1 mt-2 text-xs font-medium",
-            isPositive ? "text-emerald-600" : "text-rose-600"
+            isPositive ? "text-emerald-600" : "text-rose-600",
           )}
         >
           {isPositive ? (

@@ -1,18 +1,18 @@
 "use client";
 
 import {
-  AlertTriangle,
-  BarChart3,
-  ClipboardCheck,
-  History,
-  List,
-  LogOut,
-  Package,
-  Printer,
-  ShoppingCart,
-  User,
-  Users,
-  Utensils,
+    AlertTriangle,
+    BarChart3,
+    ClipboardCheck,
+    History,
+    List,
+    LogOut,
+    Package,
+    Printer,
+    ShoppingCart,
+    User,
+    Users,
+    Utensils,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -21,33 +21,32 @@ import { ThemeToggle } from "./theme-toggle";
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { useLogoutMutation } from "@/stores/features/auth/authApi";
 import {
-  selectAuthHydrated,
-  selectUser,
+    selectAuthHydrated,
+    selectUser,
 } from "@/stores/features/auth/authSlice";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
-
 
 // Navigation items based on role
 const getNavigationItems = (role?: string) => {
@@ -160,7 +159,7 @@ export function AppSidebar() {
                         "py-2 px-4 rounded-sm font-lato font-normal leading-[22px] tracking-normal align-middle",
                         isActive
                           ? "bg-primary text-white hover:text-white font-lato font-bold dark:bg-primary dark:text-white"
-                          : "text-gray-600 font-normal hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                          : "text-gray-600 font-normal hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800",
                       )}
                     >
                       <Link
@@ -196,7 +195,7 @@ export function AppSidebar() {
               "py-2 px-4 rounded-sm font-lato font-normal leading-[22px] tracking-normal align-middle w-full",
               isProfileActive
                 ? "bg-primary text-white hover:text-white font-lato font-bold dark:bg-primary dark:text-white"
-                : "text-gray-600 font-normal hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                : "text-gray-600 font-normal hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800",
             )}
           >
             <Link href="/profile" className="flex items-center gap-3">
@@ -215,7 +214,7 @@ export function AppSidebar() {
           disabled={isLoggingOut}
           className={cn(
             "w-full justify-start py-2 px-4 rounded-sm font-lato font-normal leading-[22px] tracking-normal align-middle text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800",
-            isLoggingOut && "opacity-50 cursor-not-allowed"
+            isLoggingOut && "opacity-50 cursor-not-allowed",
           )}
         >
           <LogOut className="h-5 w-5 mr-3" />

@@ -180,10 +180,10 @@ export function OrderHistory() {
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [bulkStatusChange, setBulkStatusChange] = useState<OrderStatus | "">(
-    ""
+    "",
   );
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(10);
@@ -192,7 +192,7 @@ export function OrderHistory() {
   // This is necessary to ensure users start from page 1 when applying new filters
   const filterKey = useMemo(
     () => `${statusFilter}-${searchQuery}-${waiterFilter}-${roleView}`,
-    [statusFilter, searchQuery, waiterFilter, roleView]
+    [statusFilter, searchQuery, waiterFilter, roleView],
   );
 
   // Note: Setting state in useEffect here is intentional - we need to reset pagination
@@ -349,7 +349,7 @@ export function OrderHistory() {
         acc[o.status] += o.totalPrice || 0;
         return acc;
       },
-      { Completed: 0, Pending: 0 }
+      { Completed: 0, Pending: 0 },
     );
 
     const avg = filtered.length > 0 ? totals.Completed / filtered.length : 0;
@@ -365,13 +365,13 @@ export function OrderHistory() {
   const selectedOrdersStatus = useMemo(() => {
     if (selectedOrderIds.size === 0) return null;
     const selectedOrders = filtered.filter((o: DisplayOrder) =>
-      selectedOrderIds.has(o.id)
+      selectedOrderIds.has(o.id),
     );
     if (selectedOrders.length === 0) return null;
     const firstStatus = selectedOrders[0].backendStatus;
     // Check if all selected orders have the same status
     const allSameStatus = selectedOrders.every(
-      (o: DisplayOrder) => o.backendStatus === firstStatus
+      (o: DisplayOrder) => o.backendStatus === firstStatus,
     );
     return allSameStatus ? firstStatus : null;
   }, [selectedOrderIds, filtered]);
@@ -385,8 +385,8 @@ export function OrderHistory() {
     ) {
       toast.error(
         `Orders with ${getStatusBadgeText(
-          orderStatus
-        )} status cannot be changed`
+          orderStatus,
+        )} status cannot be changed`,
       );
       return;
     }
@@ -403,13 +403,13 @@ export function OrderHistory() {
         // If there are already selected orders, check if they have the same status
         if (s.size > 0) {
           const selectedOrders = filtered.filter((o: DisplayOrder) =>
-            s.has(o.id)
+            s.has(o.id),
           );
           if (selectedOrders.length > 0) {
             const firstStatus = selectedOrders[0].backendStatus;
             if (firstStatus !== orderStatus) {
               toast.error(
-                "You can only select orders with the same status. Please clear selection first."
+                "You can only select orders with the same status. Please clear selection first.",
               );
               return prev;
             }
@@ -434,7 +434,7 @@ export function OrderHistory() {
       firstStatus === "OWNER_CONFIRMED"
     ) {
       toast.error(
-        `Cannot select orders with ${getStatusBadgeText(firstStatus)} status`
+        `Cannot select orders with ${getStatusBadgeText(firstStatus)} status`,
       );
       return;
     }
@@ -444,10 +444,10 @@ export function OrderHistory() {
         o.backendStatus === firstStatus &&
         o.backendStatus !== "TRANSFERRED_TO_OWNER" &&
         o.backendStatus !== "VOIDED" &&
-        o.backendStatus !== "OWNER_CONFIRMED"
+        o.backendStatus !== "OWNER_CONFIRMED",
     );
     setSelectedOrderIds(
-      new Set(sameStatusOrders.map((o: DisplayOrder) => o.id))
+      new Set(sameStatusOrders.map((o: DisplayOrder) => o.id)),
     );
   };
 
@@ -480,7 +480,7 @@ export function OrderHistory() {
 
       if (result.failed && result.failed.length > 0) {
         toast.warning(
-          `Updated ${result.updated.length} order(s), ${result.failed.length} failed`
+          `Updated ${result.updated.length} order(s), ${result.failed.length} failed`,
         );
       } else {
         toast.success(`Successfully updated ${result.updated.length} order(s)`);
@@ -493,7 +493,7 @@ export function OrderHistory() {
         message?: string;
       };
       toast.error(
-        error?.data?.message || error?.message || "Failed to update orders"
+        error?.data?.message || error?.message || "Failed to update orders",
       );
     }
   };
@@ -510,15 +510,15 @@ export function OrderHistory() {
       };
       toast.error(
         error?.data?.message ||
-        error?.message ||
-        "Failed to update order status"
+          error?.message ||
+          "Failed to update order status",
       );
     }
   };
 
   const getAvailableStatuses = (
     currentStatus: OrderStatus,
-    userRole: string
+    userRole: string,
   ): OrderStatus[] => {
     // Define valid status transitions based on role
     // TRANSFERRED_TO_OWNER and VOIDED are terminal states - cannot be changed
@@ -556,7 +556,7 @@ export function OrderHistory() {
       (waiter: { _id?: string; id?: string; name: string }) => ({
         id: waiter._id || waiter.id || "",
         name: waiter.name,
-      })
+      }),
     );
   }, [waitersData]);
 
@@ -588,10 +588,11 @@ export function OrderHistory() {
             <button
               key={r}
               onClick={() => setRoleView(r)}
-              className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${roleView === r
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                }`}
+              className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
+                roleView === r
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
             >
               {r === "all"
                 ? "All"
@@ -749,9 +750,9 @@ export function OrderHistory() {
                   Select All (
                   {selectedOrdersStatus
                     ? filtered.filter(
-                      (o: DisplayOrder) =>
-                        o.backendStatus === selectedOrdersStatus
-                    ).length
+                        (o: DisplayOrder) =>
+                          o.backendStatus === selectedOrdersStatus,
+                      ).length
                     : filtered.length}
                   )
                 </Button>
@@ -784,7 +785,7 @@ export function OrderHistory() {
                               {getStatusBadgeText(status)}
                             </div>
                           </SelectItem>
-                        )
+                        ),
                       )}
                     </SelectContent>
                   </Select>
@@ -862,28 +863,31 @@ export function OrderHistory() {
                                 } else if (isTerminalStatus) {
                                   toast.error(
                                     `Orders with ${getStatusBadgeText(
-                                      o.backendStatus
-                                    )} status cannot be changed`
+                                      o.backendStatus,
+                                    )} status cannot be changed`,
                                   );
                                 } else {
                                   toast.error(
                                     "You can only select orders with the same status. Current selection: " +
-                                    getStatusBadgeText(selectedOrdersStatus!)
+                                      getStatusBadgeText(selectedOrdersStatus!),
                                   );
                                 }
                               }}
                               disabled={!canSelect}
-                              className={`hover:opacity-70 ${!canSelect ? "opacity-30 cursor-not-allowed" : ""
-                                }`}
+                              className={`hover:opacity-70 ${
+                                !canSelect
+                                  ? "opacity-30 cursor-not-allowed"
+                                  : ""
+                              }`}
                               title={
                                 isTerminalStatus
                                   ? `Orders with ${getStatusBadgeText(
-                                    o.backendStatus
-                                  )} status cannot be changed`
+                                      o.backendStatus,
+                                    )} status cannot be changed`
                                   : !canSelect
                                     ? `Can only select orders with status: ${getStatusBadgeText(
-                                      selectedOrdersStatus!
-                                    )}`
+                                        selectedOrdersStatus!,
+                                      )}`
                                     : "Select order"
                               }
                             >
@@ -915,7 +919,7 @@ export function OrderHistory() {
                                   if (value !== o.backendStatus) {
                                     handleStatusChange(
                                       o.id,
-                                      value as OrderStatus
+                                      value as OrderStatus,
                                     );
                                   }
                                 }}
@@ -933,7 +937,7 @@ export function OrderHistory() {
                                   </SelectItem>
                                   {getAvailableStatuses(
                                     o.backendStatus,
-                                    userRole
+                                    userRole,
                                   ).map((status) => (
                                     <SelectItem key={status} value={status}>
                                       <div className="flex items-center gap-2">
@@ -999,7 +1003,7 @@ export function OrderHistory() {
                   to{" "}
                   {Math.min(
                     pagination.page * pagination.limit,
-                    pagination.total
+                    pagination.total,
                   )}{" "}
                   of {pagination.total} orders
                 </span>
@@ -1026,7 +1030,7 @@ export function OrderHistory() {
                     size="sm"
                     onClick={() =>
                       setPage((p) =>
-                        Math.min(pagination.totalPages || 1, p + 1)
+                        Math.min(pagination.totalPages || 1, p + 1),
                       )
                     }
                     disabled={!pagination.hasNextPage || isLoading}

@@ -114,6 +114,19 @@ export interface CreateOrderInput {
   markAsPaidToCashier?: boolean; // Optional - if true, order starts with PAID_TO_CASHIER status
 }
 
+export interface UpdateOrderInput {
+  items?: {
+    itemId: string;
+    qty: number;
+    nameSnapshot: string;
+    priceSnapshot: number;
+  }[];
+  note?: string;
+  tableNumber?: string;
+}
+
+type OrderWrappedResponse = { success?: boolean; data?: Order };
+
 export interface ListOrdersQuery {
   status?: OrderStatus;
   waiterId?: string;
@@ -213,7 +226,7 @@ export const ordersApi = createApiEndpoints({
         };
       },
       transformResponse: (
-        response: unknown
+        response: unknown,
       ): PaginatedOrdersResponse | Order[] => {
         // Check if response is paginated (has orders and pagination fields)
         if (
@@ -267,8 +280,8 @@ export const ordersApi = createApiEndpoints({
         const orders = Array.isArray(result)
           ? result
           : "orders" in result
-          ? result.orders
-          : [];
+            ? result.orders
+            : [];
         return orders.length > 0
           ? [
               ...orders.map((order) => ({
@@ -307,7 +320,7 @@ export const ordersApi = createApiEndpoints({
         };
       },
       transformResponse: (
-        response: unknown
+        response: unknown,
       ): PaginatedOrdersResponse | Order[] => {
         // Check if response is paginated (has orders and pagination fields)
         if (
@@ -361,8 +374,8 @@ export const ordersApi = createApiEndpoints({
         const orders = Array.isArray(result)
           ? result
           : "orders" in result
-          ? result.orders
-          : [];
+            ? result.orders
+            : [];
         return orders.length > 0
           ? [
               ...orders.map((order) => ({
@@ -387,10 +400,13 @@ export const ordersApi = createApiEndpoints({
       providesTags: (result, _error, id) => [{ type: "Order" as const, id }],
     }),
 
-    createOrder: build.mutation<Order & { receiptText?: string }, CreateOrderInput>({
+    createOrder: build.mutation<
+      Order & { receiptText?: string },
+      CreateOrderInput
+    >({
       query: (body) => {
         // Generate clientId for offline sync idempotency
-        const clientId = (body as any).clientId || uuidv4();
+        const clientId = body.clientId || uuidv4();
         return {
           url: "/orders",
           method: "POST",
@@ -407,6 +423,35 @@ export const ordersApi = createApiEndpoints({
       invalidatesTags: [{ type: "Order", id: "LIST" }],
     }),
 
+    updateOrder: build.mutation<Order, { id: string; data: UpdateOrderInput }>({
+      query: ({ id, data }) => {
+        const updateData: Record<string, unknown> = {};
+        if (data.items !== undefined) updateData.items = data.items;
+        if (data.note !== undefined) updateData.note = data.note;
+        if (data.tableNumber !== undefined)
+          updateData.tableNumber = data.tableNumber;
+
+        return {
+          url: `/orders/${id}`,
+          method: "PATCH",
+          body: updateData,
+        };
+      },
+      transformResponse: (response: unknown): Order => {
+        // Backend commonly returns { success: true, data: order }
+        if (response && typeof response === "object" && "data" in response) {
+          const wrapped = response as OrderWrappedResponse;
+          if (wrapped.data) return wrapped.data;
+        }
+        return response as Order;
+      },
+      invalidatesTags: (result, _error, { id }) => [
+        { type: "Order", id },
+        { type: "Order", id: "LIST" },
+        { type: "Order", id: "CASHIER_LIST" },
+      ],
+    }),
+
     updateOrderStatus: build.mutation<
       Order,
       {
@@ -417,7 +462,13 @@ export const ordersApi = createApiEndpoints({
         paymentBankName?: string;
       }
     >({
-      query: ({ id, status, paymentMethod, paymentProofImage, paymentBankName }) => {
+      query: ({
+        id,
+        status,
+        paymentMethod,
+        paymentProofImage,
+        paymentBankName,
+      }) => {
         // If payment proof image or bank name is provided, use FormData
         if (paymentProofImage || paymentBankName) {
           const formData = new FormData();
@@ -605,6 +656,7 @@ export const {
   useGetOwnerOrdersQuery,
   useGetOrderQuery,
   useCreateOrderMutation,
+  useUpdateOrderMutation,
   useUpdateOrderStatusMutation,
   useBulkUpdateOrderStatusMutation,
   useGetOrdersByCashierQuery,

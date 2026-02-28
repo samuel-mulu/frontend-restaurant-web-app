@@ -9,6 +9,7 @@ export interface Staff {
   phone?: string;
   role: "cashier" | "waiter" | "staff";
   salary: number;
+  color?: string;
   status?: "active" | "inactive";
   createdAt?: string;
   updatedAt?: string;
@@ -39,6 +40,8 @@ export interface CreateStaffInput {
   phone?: string;
   role: "cashier" | "waiter" | "staff";
   salary: number;
+  color?: string;
+  clientId?: string;
 }
 
 export interface UpdateStaffInput {
@@ -48,6 +51,7 @@ export interface UpdateStaffInput {
   role?: "cashier" | "waiter" | "staff";
   salary?: number;
   status?: "active" | "inactive";
+  color?: string;
 }
 
 export const staffApi = createApiEndpoints({
@@ -101,7 +105,7 @@ export const staffApi = createApiEndpoints({
     >({
       query: (body) => {
         // Generate clientId for offline sync idempotency
-        const clientId = (body as any).clientId || uuidv4();
+        const clientId = body.clientId || uuidv4();
         return {
           url: "/staff",
           method: "POST",

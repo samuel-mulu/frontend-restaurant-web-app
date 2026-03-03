@@ -198,6 +198,21 @@ export interface ReportData {
   };
 }
 
+export interface ReportStaffOrderDetail {
+  _id: string;
+  orderNumber: string;
+  createdAt: string;
+  status: string;
+  paymentMethod?: string;
+  totalAmount: number;
+  tableNumber?: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -277,20 +292,71 @@ export const statisticsApi = createApiEndpoints({
       },
     }),
 
-    getDailyReport: build.query<ReportData, { date: string }>({
-      query: ({ date }) => ({
-        url: `/reports/daily?date=${date}`,
-        method: "GET",
-      }),
+    getDailyReport: build.query<ReportData, { date: string; status?: string }>({
+      query: ({ date, status }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("date", date);
+        if (status) queryParams.append("status", status);
+        return {
+          url: `/reports/daily?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
       transformResponse: (response: ApiResponse<ReportData>) => response.data,
     }),
 
-    getMonthlyReport: build.query<ReportData, { year: number; month: number }>({
-      query: ({ year, month }) => ({
-        url: `/reports/monthly?year=${year}&month=${month}`,
-        method: "GET",
-      }),
+    getMonthlyReport: build.query<
+      ReportData,
+      { year: number; month: number; status?: string }
+    >({
+      query: ({ year, month, status }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("year", String(year));
+        queryParams.append("month", String(month));
+        if (status) queryParams.append("status", status);
+        return {
+          url: `/reports/monthly?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
       transformResponse: (response: ApiResponse<ReportData>) => response.data,
+    }),
+
+    getReportStaffOrders: build.query<
+      ReportStaffOrderDetail[],
+      {
+        staffType: "waiter" | "cashier";
+        staffId: string;
+        startDate: string;
+        endDate: string;
+        status?: string;
+        paymentMethod?: string;
+      }
+    >({
+      query: ({
+        staffType,
+        staffId,
+        startDate,
+        endDate,
+        status,
+        paymentMethod,
+      }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("staffType", staffType);
+        queryParams.append("staffId", staffId);
+        queryParams.append("startDate", startDate);
+        queryParams.append("endDate", endDate);
+        if (status) queryParams.append("status", status);
+        if (paymentMethod && paymentMethod !== "ALL") {
+          queryParams.append("paymentMethod", paymentMethod);
+        }
+        return {
+          url: `/reports/staff-orders?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: ApiResponse<ReportStaffOrderDetail[]>) =>
+        response.data || [],
     }),
 
     createExpense: build.mutation<any, any>({
@@ -317,6 +383,7 @@ export const {
   useGetMenuAnalyticsQuery,
   useGetDailyReportQuery,
   useGetMonthlyReportQuery,
+  useGetReportStaffOrdersQuery,
   useCreateExpenseMutation,
   useDeleteExpenseMutation,
 } = statisticsApi;

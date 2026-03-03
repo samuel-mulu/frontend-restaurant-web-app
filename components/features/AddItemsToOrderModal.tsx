@@ -34,7 +34,10 @@ type CartLine = {
 
 function getOrderItemId(item: OrderItem): string {
   if (typeof item.itemId === "string") return item.itemId;
-  return item.itemId?._id || item.itemId?.id || "";
+  if (!item.itemId) return "";
+  const idValue = (item.itemId as any)._id || (item.itemId as any).id;
+  if (typeof idValue === "string") return idValue;
+  return "";
 }
 
 function toCartLine(item: OrderItem): CartLine {
@@ -82,7 +85,9 @@ function AddItemsToOrderModalBody({
   >({});
 
   const [cart, setCart] = useState<CartLine[]>(() =>
-    (order.items || []).map(toCartLine).filter((line) => !!line.itemId),
+    (order.items || [])
+      .map(toCartLine)
+      .filter((line) => !!line.itemId || !!line.nameSnapshot),
   );
 
   const cartTotal = useMemo(() => {
@@ -247,9 +252,9 @@ function AddItemsToOrderModalBody({
       };
       toast.error(
         e?.data?.message ||
-          e?.data?.error ||
-          e?.message ||
-          "Failed to update order",
+        e?.data?.error ||
+        e?.message ||
+        "Failed to update order",
       );
     }
   };
@@ -436,8 +441,8 @@ function AddItemsToOrderModalBody({
           </div>
         </div>
 
-        <aside className="lg:col-span-2 rounded-lg border bg-card flex flex-col">
-          <div className="p-4 flex flex-col gap-4">
+        <aside className="lg:col-span-2 rounded-lg border bg-card flex flex-col min-h-0">
+          <div className="p-4 flex flex-col gap-4 flex-1 min-h-0">
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold">Order Items</div>
               <div className="text-sm text-muted-foreground">
@@ -449,7 +454,7 @@ function AddItemsToOrderModalBody({
               Total: {formatMoney(cartTotal)}
             </div>
 
-            <div className="border-t pt-3">
+            <div className="border-t pt-3 flex-1 overflow-y-auto min-h-0 pr-1">
               {cart.length === 0 ? (
                 <div className="py-10 text-center text-muted-foreground">
                   No items in this order

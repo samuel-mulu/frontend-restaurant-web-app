@@ -163,6 +163,41 @@ export interface SummaryStats {
   busiestHour: number;
 }
 
+export interface ReportData {
+  orders: Array<{
+    _id: string;
+    count: number;
+    total: number;
+  }>;
+  expenses: Array<{
+    _id: string;
+    total: number;
+    items: any[];
+  }>;
+  salesByPaymentMethod: Array<{
+    _id: {
+      method: string;
+      bank: string;
+    };
+    total: number;
+    count: number;
+  }>;
+  staffPerformance: {
+    byWaiter: Array<{
+      _id: string;
+      name: string;
+      count: number;
+      total: number;
+    }>;
+    byCashier: Array<{
+      _id: string;
+      name: string;
+      count: number;
+      total: number;
+    }>;
+  };
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -241,6 +276,37 @@ export const statisticsApi = createApiEndpoints({
         return response.data;
       },
     }),
+
+    getDailyReport: build.query<ReportData, { date: string }>({
+      query: ({ date }) => ({
+        url: `/reports/daily?date=${date}`,
+        method: "GET",
+      }),
+      transformResponse: (response: ApiResponse<ReportData>) => response.data,
+    }),
+
+    getMonthlyReport: build.query<ReportData, { year: number; month: number }>({
+      query: ({ year, month }) => ({
+        url: `/reports/monthly?year=${year}&month=${month}`,
+        method: "GET",
+      }),
+      transformResponse: (response: ApiResponse<ReportData>) => response.data,
+    }),
+
+    createExpense: build.mutation<any, any>({
+      query: (data) => ({
+        url: "/expenses",
+        method: "POST",
+        body: data,
+      }),
+    }),
+
+    deleteExpense: build.mutation<any, string>({
+      query: (id) => ({
+        url: `/expenses/${id}`,
+        method: "DELETE",
+      }),
+    }),
   }),
 });
 
@@ -249,5 +315,9 @@ export const {
   useGetCashFlowAnalyticsQuery,
   useGetInventoryAnalyticsQuery,
   useGetMenuAnalyticsQuery,
+  useGetDailyReportQuery,
+  useGetMonthlyReportQuery,
+  useCreateExpenseMutation,
+  useDeleteExpenseMutation,
 } = statisticsApi;
 

@@ -1,18 +1,18 @@
 "use client";
 
 import {
-    AlertTriangle,
-    BarChart3,
-    ClipboardCheck,
-    History,
-    List,
-    LogOut,
-    Package,
-    Printer,
-    ShoppingCart,
-    User,
-    Users,
-    Utensils,
+  AlertTriangle,
+  BarChart3,
+  ClipboardCheck,
+  History,
+  List,
+  LogOut,
+  Package,
+  Printer,
+  ShoppingCart,
+  User,
+  Users,
+  Utensils,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -21,29 +21,29 @@ import { ThemeToggle } from "./theme-toggle";
 
 import { Button } from "@/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    Sidebar,
-    SidebarContent,
-    SidebarFooter,
-    SidebarGroup,
-    SidebarGroupContent,
-    SidebarHeader,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { useLogoutMutation } from "@/stores/features/auth/authApi";
 import {
-    selectAuthHydrated,
-    selectUser,
+  selectAuthHydrated,
+  selectUser,
 } from "@/stores/features/auth/authSlice";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
@@ -61,6 +61,7 @@ const getNavigationItems = (role?: string) => {
     return [
       { name: "Staff Management", href: "/staff-management", icon: Users },
       { name: "Analytics", href: "/analytics", icon: BarChart3 },
+      { name: "Reports", href: "/reports", icon: ClipboardCheck },
       { name: "Approvals", href: "/approvals", icon: ClipboardCheck },
       ...baseItems,
     ];

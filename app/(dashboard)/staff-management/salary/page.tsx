@@ -45,6 +45,7 @@ import {
     addEthiopianMonths,
     formatEthiopianDate,
     getCurrentEthiopianDate,
+    gregorianToEthiopian,
     parseEthiopianDate,
 } from "@/lib/utils/ethiopianCalendar";
 import {
@@ -65,6 +66,7 @@ import {
 } from "@/stores/features/salary/salaryApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import {
+    Calendar,
     Edit2,
     Filter,
     Loader2,
@@ -125,6 +127,76 @@ function SalaryCountdownCell({ salaryId }: { salaryId: string }) {
   );
 }
 
+// Gregorian to Ethiopian conversion dialog
+function GregorianToEthiopianDialog({
+  isOpen,
+  onClose,
+  onConvert,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConvert: (ethiopianDate: string) => void;
+}) {
+  const [gregorianDate, setGregorianDate] = useState("");
+  const [error, setError] = useState("");
+
+  const handleConvert = () => {
+    if (!gregorianDate) {
+      setError("Please enter a Gregorian date");
+      return;
+    }
+
+    try {
+      const date = new Date(gregorianDate);
+      if (isNaN(date.getTime())) {
+        setError("Invalid Gregorian date format");
+        return;
+      }
+
+      const ethDate = gregorianToEthiopian(date);
+      const ethiopianStr = formatEthiopianDate(ethDate);
+      onConvert(ethiopianStr);
+      setGregorianDate("");
+      setError("");
+      onClose();
+    } catch {
+      setError("Failed to convert date");
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Convert Gregorian to Ethiopian</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="gregorian-date">Gregorian Date</Label>
+            <Input
+              id="gregorian-date"
+              type="date"
+              value={gregorianDate}
+              onChange={(e) => {
+                setGregorianDate(e.target.value);
+                setError("");
+              }}
+              className="mt-2"
+            />
+            {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleConvert}>Convert</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SalaryForm({
   formData,
   setFormData,
@@ -134,6 +206,10 @@ function SalaryForm({
   staffList,
   onStaffChange,
 }: SalaryFormProps) {
+  const [isRegisteredDateDialogOpen, setIsRegisteredDateDialogOpen] =
+    useState(false);
+  const [isPaymentDateDialogOpen, setIsPaymentDateDialogOpen] = useState(false);
+
   const handleChange = (
     e:
       | React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -181,198 +257,245 @@ function SalaryForm({
   const currentYear = currentDate.getFullYear().toString();
 
   return (
-    <div className="space-y-4">
-      {/* Staff Selection */}
-      <div>
-        <Label htmlFor="salary-staff">
-          Staff <span className="text-red-500">*</span>
-        </Label>
-        <Select
-          value={formData.staffId}
-          onValueChange={(value) => {
-            handleChange({ name: "staffId", value });
-            // Auto-populate salary amount from staff record when creating
-            if (mode === "create" && onStaffChange) {
-              onStaffChange(value);
-            }
-          }}
-          disabled={isSubmitting || mode === "edit"}
-        >
-          <SelectTrigger className="mt-2 min-h-[44px]" id="salary-staff">
-            <SelectValue placeholder="Select staff member" />
-          </SelectTrigger>
-          <SelectContent>
-            {staffList.map(
-              (staff: {
-                id: string;
-                name: string;
-                salary?: number;
-                role?: string;
-              }) => (
-                <SelectItem key={staff.id} value={staff.id}>
-                  {staff.name} {staff.role ? `(${staff.role})` : ""}
-                </SelectItem>
-              ),
+    <>
+      <div className="space-y-4">
+        {/* Staff Selection */}
+        <div>
+          <Label htmlFor="salary-staff">
+            Staff <span className="text-red-500">*</span>
+          </Label>
+          <Select
+            value={formData.staffId}
+            onValueChange={(value) => {
+              handleChange({ name: "staffId", value });
+              // Auto-populate salary amount from staff record when creating
+              if (mode === "create" && onStaffChange) {
+                onStaffChange(value);
+              }
+            }}
+            disabled={isSubmitting || mode === "edit"}
+          >
+            <SelectTrigger className="mt-2 min-h-[44px]" id="salary-staff">
+              <SelectValue placeholder="Select staff member" />
+            </SelectTrigger>
+            <SelectContent>
+              {staffList.map(
+                (staff: {
+                  id: string;
+                  name: string;
+                  salary?: number;
+                  role?: string;
+                }) => (
+                  <SelectItem key={staff.id} value={staff.id}>
+                    {staff.name} {staff.role ? `(${staff.role})` : ""}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+          {errors.staffId && (
+            <p className="text-sm text-red-500 mt-1">{errors.staffId}</p>
+          )}
+          {mode === "edit" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Staff cannot be changed after creation
+            </p>
+          )}
+        </div>
+
+        {/* Amount */}
+        <div>
+          <Label htmlFor="salary-amount">
+            Amount (Birr) <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="salary-amount"
+            name="amount"
+            type="text"
+            inputMode="decimal"
+            value={formData.amount}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                handleChange({ name: "amount", value });
+              }
+            }}
+            placeholder="Enter salary amount"
+            className={cn(
+              "mt-2 min-h-[44px]",
+              errors.amount && "border-red-500",
             )}
-          </SelectContent>
-        </Select>
-        {errors.staffId && (
-          <p className="text-sm text-red-500 mt-1">{errors.staffId}</p>
-        )}
-        {mode === "edit" && (
-          <p className="text-xs text-muted-foreground mt-1">
-            Staff cannot be changed after creation
-          </p>
-        )}
-      </div>
+            disabled={isSubmitting}
+          />
+          {errors.amount && (
+            <p className="text-sm text-red-500 mt-1">{errors.amount}</p>
+          )}
+        </div>
 
-      {/* Amount */}
-      <div>
-        <Label htmlFor="salary-amount">
-          Amount (Birr) <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="salary-amount"
-          name="amount"
-          type="text"
-          inputMode="decimal"
-          value={formData.amount}
-          onChange={(e) => {
-            const value = e.target.value;
-            if (value === "" || /^\d*\.?\d*$/.test(value)) {
-              handleChange({ name: "amount", value });
+        {/* Salary Period */}
+        <div>
+          <Label htmlFor="salary-period">
+            Salary Period <span className="text-red-500">*</span>
+          </Label>
+          <Select
+            value={formData.salaryPeriod}
+            onValueChange={(value) =>
+              handleChange({
+                name: "salaryPeriod",
+                value: value as "monthly" | "per_month",
+              })
             }
-          }}
-          placeholder="Enter salary amount"
-          className={cn("mt-2 min-h-[44px]", errors.amount && "border-red-500")}
-          disabled={isSubmitting}
-        />
-        {errors.amount && (
-          <p className="text-sm text-red-500 mt-1">{errors.amount}</p>
-        )}
-      </div>
+            disabled={isSubmitting}
+          >
+            <SelectTrigger className="mt-2 min-h-[44px]" id="salary-period">
+              <SelectValue placeholder="Select salary period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="monthly">Monthly (1 month)</SelectItem>
+              <SelectItem value="per_month">Per Month</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      {/* Salary Period */}
-      <div>
-        <Label htmlFor="salary-period">
-          Salary Period <span className="text-red-500">*</span>
-        </Label>
-        <Select
-          value={formData.salaryPeriod}
-          onValueChange={(value) =>
-            handleChange({
-              name: "salaryPeriod",
-              value: value as "monthly" | "per_month",
-            })
-          }
-          disabled={isSubmitting}
-        >
-          <SelectTrigger className="mt-2 min-h-[44px]" id="salary-period">
-            <SelectValue placeholder="Select salary period" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="monthly">Monthly (1 month)</SelectItem>
-            <SelectItem value="per_month">Per Month</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Registered Date (Ethiopian) */}
-      <div>
-        <Label htmlFor="registered-date">
-          Registered Date (Ethiopian) <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="registered-date"
-          name="registeredDate"
-          type="text"
-          value={formData.registeredDate}
-          onChange={handleChange}
-          placeholder="YYYY-MM-DD"
-          className={cn(
-            "mt-2 min-h-[44px]",
-            errors.registeredDate && "border-red-500",
+        {/* Registered Date (Ethiopian) */}
+        <div>
+          <Label htmlFor="registered-date">
+            Registered Date (Ethiopian) <span className="text-red-500">*</span>
+          </Label>
+          <div className="flex gap-2 mt-2">
+            <Input
+              id="registered-date"
+              name="registeredDate"
+              type="text"
+              value={formData.registeredDate}
+              onChange={handleChange}
+              placeholder="YYYY-MM-DD"
+              className={cn(
+                "min-h-[44px]",
+                errors.registeredDate && "border-red-500",
+              )}
+              disabled={isSubmitting}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setIsRegisteredDateDialogOpen(true)}
+              disabled={isSubmitting}
+              title="Convert Gregorian to Ethiopian"
+            >
+              <Calendar className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            All dates must be in Ethiopian calendar. Format: YYYY-MM-DD (e.g.,
+            2016-01-15)
+          </p>
+          {errors.registeredDate && (
+            <p className="text-sm text-red-500 mt-1">{errors.registeredDate}</p>
           )}
-          disabled={isSubmitting}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Format: YYYY-MM-DD (e.g., 2016-01-15)
-        </p>
-        {errors.registeredDate && (
-          <p className="text-sm text-red-500 mt-1">{errors.registeredDate}</p>
-        )}
-      </div>
+        </div>
 
-      {/* Payment Date (Ethiopian) */}
-      <div>
-        <Label htmlFor="payment-date">
-          Payment Date (Ethiopian) <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="payment-date"
-          name="paymentDate"
-          type="text"
-          value={formData.paymentDate}
-          onChange={handleChange}
-          placeholder="YYYY-MM-DD"
-          className={cn(
-            "mt-2 min-h-[44px]",
-            errors.paymentDate && "border-red-500",
+        {/* Payment Date (Ethiopian) */}
+        <div>
+          <Label htmlFor="payment-date">
+            Payment Date (Ethiopian) <span className="text-red-500">*</span>
+          </Label>
+          <div className="flex gap-2 mt-2">
+            <Input
+              id="payment-date"
+              name="paymentDate"
+              type="text"
+              value={formData.paymentDate}
+              onChange={handleChange}
+              placeholder="YYYY-MM-DD"
+              className={cn(
+                "min-h-[44px]",
+                errors.paymentDate && "border-red-500",
+              )}
+              disabled={isSubmitting}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setIsPaymentDateDialogOpen(true)}
+              disabled={isSubmitting}
+              title="Convert Gregorian to Ethiopian"
+            >
+              <Calendar className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            All dates must be in Ethiopian calendar. Format: YYYY-MM-DD (e.g.,
+            2016-02-15) - When payment is due
+          </p>
+          {errors.paymentDate && (
+            <p className="text-sm text-red-500 mt-1">{errors.paymentDate}</p>
           )}
-          disabled={isSubmitting}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Format: YYYY-MM-DD (e.g., 2016-02-15) - When payment is due
-        </p>
-        {errors.paymentDate && (
-          <p className="text-sm text-red-500 mt-1">{errors.paymentDate}</p>
-        )}
-      </div>
+        </div>
 
-      {/* Status */}
-      <div>
-        <Label htmlFor="salary-status">Status</Label>
-        <Select
-          value={formData.status}
-          onValueChange={(value) => handleChange({ name: "status", value })}
-          disabled={isSubmitting}
-        >
-          <SelectTrigger className="mt-2 min-h-[44px]" id="salary-status">
-            <SelectValue placeholder="Select status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="paid">Paid</SelectItem>
-          </SelectContent>
-        </Select>
-        {errors.status && (
-          <p className="text-sm text-red-500 mt-1">{errors.status}</p>
-        )}
-      </div>
-
-      {/* Remarks */}
-      <div>
-        <Label htmlFor="salary-remarks">
-          Remarks{" "}
-          <span className="text-muted-foreground text-xs">(Optional)</span>
-        </Label>
-        <Input
-          id="salary-remarks"
-          name="remarks"
-          value={formData.remarks}
-          onChange={handleChange}
-          placeholder="Enter any remarks or notes"
-          className={cn(
-            "mt-2 min-h-[100px]",
-            errors.remarks && "border-red-500",
+        {/* Status */}
+        <div>
+          <Label htmlFor="salary-status">Status</Label>
+          <Select
+            value={formData.status}
+            onValueChange={(value) => handleChange({ name: "status", value })}
+            disabled={isSubmitting}
+          >
+            <SelectTrigger className="mt-2 min-h-[44px]" id="salary-status">
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.status && (
+            <p className="text-sm text-red-500 mt-1">{errors.status}</p>
           )}
-          disabled={isSubmitting}
-        />
-        {errors.remarks && (
-          <p className="text-sm text-red-500 mt-1">{errors.remarks}</p>
-        )}
+        </div>
+
+        {/* Remarks */}
+        <div>
+          <Label htmlFor="salary-remarks">
+            Remarks{" "}
+            <span className="text-muted-foreground text-xs">(Optional)</span>
+          </Label>
+          <Input
+            id="salary-remarks"
+            name="remarks"
+            value={formData.remarks}
+            onChange={handleChange}
+            placeholder="Enter any remarks or notes"
+            className={cn(
+              "mt-2 min-h-[100px]",
+              errors.remarks && "border-red-500",
+            )}
+            disabled={isSubmitting}
+          />
+          {errors.remarks && (
+            <p className="text-sm text-red-500 mt-1">{errors.remarks}</p>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Conversion Dialogs */}
+      <GregorianToEthiopianDialog
+        isOpen={isRegisteredDateDialogOpen}
+        onClose={() => setIsRegisteredDateDialogOpen(false)}
+        onConvert={(ethiopianDate) => {
+          handleChange({ name: "registeredDate", value: ethiopianDate });
+        }}
+      />
+      <GregorianToEthiopianDialog
+        isOpen={isPaymentDateDialogOpen}
+        onClose={() => setIsPaymentDateDialogOpen(false)}
+        onConvert={(ethiopianDate) => {
+          handleChange({ name: "paymentDate", value: ethiopianDate });
+        }}
+      />
+    </>
   );
 }
 
@@ -608,12 +731,14 @@ export default function SalaryManagementPage() {
     } else {
       // Simple format check - YYYY-MM-DD
       if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.registeredDate.trim())) {
-        newErrors.registeredDate = "Date must be in YYYY-MM-DD format";
+        newErrors.registeredDate =
+          "Ethiopian date must be in YYYY-MM-DD format";
       } else {
         try {
           parseEthiopianDate(formData.registeredDate);
-        } catch (e) {
-          newErrors.registeredDate = "Invalid date";
+        } catch {
+          newErrors.registeredDate =
+            "Invalid Ethiopian date. Please enter a valid Ethiopian calendar date.";
         }
       }
     }
@@ -624,12 +749,13 @@ export default function SalaryManagementPage() {
     } else {
       // Simple format check - YYYY-MM-DD
       if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.paymentDate.trim())) {
-        newErrors.paymentDate = "Date must be in YYYY-MM-DD format";
+        newErrors.paymentDate = "Ethiopian date must be in YYYY-MM-DD format";
       } else {
         try {
           parseEthiopianDate(formData.paymentDate);
-        } catch (e) {
-          newErrors.paymentDate = "Invalid date";
+        } catch {
+          newErrors.paymentDate =
+            "Invalid Ethiopian date. Please enter a valid Ethiopian calendar date.";
         }
       }
     }

@@ -223,12 +223,15 @@ export const statisticsApi = createApiEndpoints({
   endpoints: (build) => ({
     getComprehensiveAnalytics: build.query<
       ComprehensiveAnalytics,
-      DateRange | void
+      (DateRange & { status?: string }) | void
     >({
       query: (params) => {
         const queryParams = new URLSearchParams();
         if (params?.startDate) queryParams.append("startDate", params.startDate);
         if (params?.endDate) queryParams.append("endDate", params.endDate);
+        if (params && 'status' in params && params.status && params.status !== "ALL") {
+          queryParams.append("status", params.status);
+        }
 
         const qs = queryParams.toString();
         return {
@@ -258,11 +261,17 @@ export const statisticsApi = createApiEndpoints({
       },
     }),
 
-    getInventoryAnalytics: build.query<InventoryAnalytics, DateRange | void>({
+    getInventoryAnalytics: build.query<
+      InventoryAnalytics,
+      (DateRange & { status?: string }) | void
+    >({
       query: (params) => {
         const queryParams = new URLSearchParams();
         if (params?.startDate) queryParams.append("startDate", params.startDate);
         if (params?.endDate) queryParams.append("endDate", params.endDate);
+        if (params?.status && params.status !== "ALL") {
+          queryParams.append("status", params.status);
+        }
 
         const qs = queryParams.toString();
         return {
@@ -275,11 +284,18 @@ export const statisticsApi = createApiEndpoints({
       },
     }),
 
-    getMenuAnalytics: build.query<MenuAnalytics, DateRange | void>({
+    getMenuAnalytics: build.query<
+      MenuAnalytics,
+      (DateRange & { status?: string; limit?: number }) | void
+    >({
       query: (params) => {
         const queryParams = new URLSearchParams();
         if (params?.startDate) queryParams.append("startDate", params.startDate);
         if (params?.endDate) queryParams.append("endDate", params.endDate);
+        if (params?.status && params.status !== "ALL") {
+          queryParams.append("status", params.status);
+        }
+        if (params?.limit) queryParams.append("limit", String(params.limit));
 
         const qs = queryParams.toString();
         return {

@@ -6,11 +6,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Loading } from "@/components/ui/loading";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -52,8 +52,8 @@ function readFavoritesFromStorage(): FavoritesStorage {
         : [],
       inventory: Array.isArray(parsed.inventory)
         ? Array.from(
-            new Set(parsed.inventory.filter((v) => typeof v === "string")),
-          )
+          new Set(parsed.inventory.filter((v) => typeof v === "string")),
+        )
         : [],
     };
   } catch {
@@ -121,6 +121,7 @@ export default function OrderPage() {
   const [orderNote, setOrderNote] = React.useState<string>("");
   const [markAsPaidToCashier, setMarkAsPaidToCashier] =
     React.useState<boolean>(false);
+  const [withoutPrint, setWithoutPrint] = React.useState<boolean>(false);
   const [inventoryQuantities, setInventoryQuantities] = useState<
     Record<string, number>
   >({});
@@ -471,7 +472,7 @@ export default function OrderPage() {
       });
 
       // Automatically print receipt (client-side) - Non-blocking
-      if (result.receiptText) {
+      if (result.receiptText && !withoutPrint) {
         posPrinterService
           .print(result.receiptText)
           .then((printResult) => {
@@ -495,6 +496,7 @@ export default function OrderPage() {
       setSelectedTable("");
       setOrderNote("");
       setMarkAsPaidToCashier(false);
+      setWithoutPrint(false);
       setInventoryQuantities({});
 
       // Refetch inventory to update quantities
@@ -505,10 +507,10 @@ export default function OrderPage() {
       const err = error as {
         status?: number | string;
         data?:
-          | string
-          | { error?: string; message?: string; details?: string }
-          | null
-          | undefined;
+        | string
+        | { error?: string; message?: string; details?: string }
+        | null
+        | undefined;
         error?: string;
         message?: string;
       };
@@ -565,11 +567,10 @@ export default function OrderPage() {
                 <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2">
                   <button
                     onClick={() => setSelectedCategory("all")}
-                    className={`shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                      selectedCategory === "all"
+                    className={`shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${selectedCategory === "all"
                         ? "text-primary bg-primary/10 border border-primary/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                    }`}
+                      }`}
                   >
                     All Categories
                   </button>
@@ -588,11 +589,10 @@ export default function OrderPage() {
                             onClick={() => {
                               setSelectedCategory(category.id);
                             }}
-                            className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
-                              isSelected
+                            className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${isSelected
                                 ? "text-primary bg-primary/10 border border-primary/20"
                                 : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                            }`}
+                              }`}
                           >
                             {category.name}
                           </button>
@@ -679,11 +679,10 @@ export default function OrderPage() {
                 <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-2">
                   <button
                     onClick={() => setSelectedInventoryCategory("all")}
-                    className={`shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                      selectedInventoryCategory === "all"
+                    className={`shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${selectedInventoryCategory === "all"
                         ? "text-primary bg-primary/10 border border-primary/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                    }`}
+                      }`}
                   >
                     All Categories
                   </button>
@@ -703,11 +702,10 @@ export default function OrderPage() {
                             onClick={() => {
                               setSelectedInventoryCategory(category.id);
                             }}
-                            className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
-                              isSelected
+                            className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${isSelected
                                 ? "text-primary bg-primary/10 border border-primary/20"
                                 : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                            }`}
+                              }`}
                           >
                             {category.name}
                           </button>
@@ -1071,76 +1069,76 @@ export default function OrderPage() {
                   {/* Inventory Items Section */}
                   {cart.filter((item) => item.type === "inventory").length >
                     0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground mb-2">
-                        Inventory Items
-                      </h4>
-                      <div className="space-y-3">
-                        {cart
-                          .filter((item) => item.type === "inventory")
-                          .map((item) => {
-                            const inventoryItem = inventoryItems.find(
-                              (inv: Inventory) => inv.id === item.id,
-                            );
-                            const availableQty = inventoryItem?.quantity || 0;
-                            const cartQty = item.quantity;
+                      <div>
+                        <h4 className="text-sm font-semibold text-foreground mb-2">
+                          Inventory Items
+                        </h4>
+                        <div className="space-y-3">
+                          {cart
+                            .filter((item) => item.type === "inventory")
+                            .map((item) => {
+                              const inventoryItem = inventoryItems.find(
+                                (inv: Inventory) => inv.id === item.id,
+                              );
+                              const availableQty = inventoryItem?.quantity || 0;
+                              const cartQty = item.quantity;
 
-                            return (
-                              <div
-                                key={item.id}
-                                className="flex items-start justify-between gap-3"
-                              >
-                                <div className="flex flex-col flex-1 min-w-0">
-                                  <h4 className="text-foreground font-medium text-sm leading-tight truncate">
-                                    {item.name}
-                                  </h4>
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    Br {item.price.toFixed(2)} × {cartQty}{" "}
-                                    {item.unit}
-                                  </p>
-                                  {cartQty > availableQty && (
-                                    <p className="text-xs text-destructive mt-1">
-                                      Available: {availableQty} {item.unit}
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="flex items-start justify-between gap-3"
+                                >
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <h4 className="text-foreground font-medium text-sm leading-tight truncate">
+                                      {item.name}
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      Br {item.price.toFixed(2)} × {cartQty}{" "}
+                                      {item.unit}
                                     </p>
-                                  )}
-                                </div>
-                                <div className="flex flex-col items-end gap-1">
-                                  <div className="flex items-center gap-2">
+                                    {cartQty > availableQty && (
+                                      <p className="text-xs text-destructive mt-1">
+                                        Available: {availableQty} {item.unit}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() =>
+                                          updateQuantity(item.id, -1)
+                                        }
+                                        className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
+                                        aria-label="Decrease quantity"
+                                      >
+                                        <Minus size={12} />
+                                      </button>
+                                      <span className="text-sm font-semibold text-foreground min-w-7 text-center">
+                                        {item.quantity}
+                                      </span>
+                                      <button
+                                        onClick={() => updateQuantity(item.id, 1)}
+                                        className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        aria-label="Increase quantity"
+                                        disabled={cartQty >= availableQty}
+                                      >
+                                        <Plus size={12} />
+                                      </button>
+                                    </div>
                                     <button
-                                      onClick={() =>
-                                        updateQuantity(item.id, -1)
-                                      }
-                                      className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
-                                      aria-label="Decrease quantity"
+                                      onClick={() => removeItem(item.id)}
+                                      className="text-red-600 hover:text-destructive transition-colors p-1"
+                                      aria-label="Remove item"
                                     >
-                                      <Minus size={12} />
-                                    </button>
-                                    <span className="text-sm font-semibold text-foreground min-w-7 text-center">
-                                      {item.quantity}
-                                    </span>
-                                    <button
-                                      onClick={() => updateQuantity(item.id, 1)}
-                                      className="size-5 flex items-center justify-center rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                      aria-label="Increase quantity"
-                                      disabled={cartQty >= availableQty}
-                                    >
-                                      <Plus size={12} />
+                                      <Trash2 size={12} />
                                     </button>
                                   </div>
-                                  <button
-                                    onClick={() => removeItem(item.id)}
-                                    className="text-red-600 hover:text-destructive transition-colors p-1"
-                                    aria-label="Remove item"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </>
               )}
             </div>
@@ -1161,23 +1159,43 @@ export default function OrderPage() {
             />
           </div>
 
-          <div className="mt-3 shrink-0">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={markAsPaidToCashier}
-                onCheckedChange={(checked) =>
-                  setMarkAsPaidToCashier(checked === true)
-                }
-              />
-              <span className="text-sm font-medium text-foreground">
-                Cash Recieved
-              </span>
-            </label>
-            {markAsPaidToCashier && (
-              <p className="text-xs text-muted-foreground mt-1 ml-6">
-                Order will be created with &quot;Paid to Cashier&quot; status
-              </p>
-            )}
+          <div className="mt-3 shrink-0 flex items-start gap-6 flex-wrap">
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={markAsPaidToCashier}
+                  onCheckedChange={(checked) =>
+                    setMarkAsPaidToCashier(checked === true)
+                  }
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Cash Recieved
+                </span>
+              </label>
+              {markAsPaidToCashier && (
+                <p className="text-xs text-muted-foreground mt-1 ml-6">
+                  Order will be created with &quot;Paid to Cashier&quot; status
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={withoutPrint}
+                  onCheckedChange={(checked) =>
+                    setWithoutPrint(checked === true)
+                  }
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Without Print
+                </span>
+              </label>
+              {withoutPrint && (
+                <p className="text-xs text-muted-foreground mt-1 ml-6">
+                  Order will be created without printing a receipt
+                </p>
+              )}
+            </div>
           </div>
 
           <Button

@@ -7,86 +7,86 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { WithdrawalModal } from "@/components/shared/WithdrawalModal";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
 import {
-    ethiopianToGregorian,
-    formatEthiopianDate,
-    gregorianToEthiopian,
-    parseEthiopianDate,
+  ethiopianToGregorian,
+  formatEthiopianDate,
+  gregorianToEthiopian,
+  parseEthiopianDate,
 } from "@/lib/utils/ethiopianCalendar";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import {
-    OrderStatus,
-    Order as RTKOrder,
-    useBulkUpdateOrderStatusMutation,
-    useGetCashierReportQuery,
-    useGetDateRangeReportQuery,
-    useGetOrdersByCashierQuery,
-    useGetWaiterReportQuery,
-    useUpdateOrderStatusMutation,
+  OrderStatus,
+  Order as RTKOrder,
+  useBulkUpdateOrderStatusMutation,
+  useGetCashierReportQuery,
+  useGetDateRangeReportQuery,
+  useGetOrdersByCashierQuery,
+  useGetWaiterReportQuery,
+  useUpdateOrderStatusMutation,
 } from "@/stores/features/orders/ordersApi";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import {
-    AlertCircle,
-    ArrowRightLeft,
-    Ban,
-    Calendar,
-    CheckCircle2,
-    CheckSquare,
-    ChevronDown,
-    ChevronLeft,
-    ChevronRight,
-    Clock,
-    DollarSign,
-    Download,
-    Eye,
-    Filter,
-    Image as ImageIcon,
-    Loader2,
-    Package,
-    Plus,
-    Receipt,
-    RefreshCw,
-    Search,
-    Smartphone,
-    Square,
-    X,
-    XCircle,
+  AlertCircle,
+  ArrowRightLeft,
+  Ban,
+  Calendar,
+  CheckCircle2,
+  CheckSquare,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  Download,
+  Eye,
+  Filter,
+  Image as ImageIcon,
+  Loader2,
+  Package,
+  Plus,
+  Receipt,
+  RefreshCw,
+  Search,
+  Smartphone,
+  Square,
+  X,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
@@ -553,7 +553,11 @@ export function CashierHistory() {
   // Cleanup invalid order IDs from localStorage when orders data changes
   useEffect(() => {
     if (cashierId && orders.length > 0) {
-      const validOrderIds = new Set(orders.map((order) => order.id));
+      const validOrderIds = new Set(
+        orders
+          .map((order: DisplayOrder) => order.id)
+          .filter((id: string | undefined) => typeof id === "string"),
+      ) as Set<string>;
       cleanupInvalidOrdersFromStorage(cashierId, validOrderIds);
 
       // Also update current selection to only include valid orders

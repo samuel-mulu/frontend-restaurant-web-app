@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loading } from "@/components/ui/loading";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import React, { useEffect, useMemo, useState } from "react";
@@ -26,54 +26,47 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { Badge } from "@/components/ui/badge";
 import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+// Removed Ethiopian calendar imports as per user request to use Gregorian only
 import {
-    addEthiopianMonths,
-    formatEthiopianDate,
-    getCurrentEthiopianDate,
-    gregorianToEthiopian,
-    parseEthiopianDate,
-} from "@/lib/utils/ethiopianCalendar";
-import {
-    useCreatePaymentMutation,
-    useCreateSalaryMutation,
-    useCreateWithdrawalMutation,
-    useDeletePaymentMutation,
-    useDeleteSalaryMutation,
-    useDeleteWithdrawalMutation,
-    useGetCountdownQuery,
-    useListPaymentsQuery,
-    useListSalariesQuery,
-    useListWithdrawalsQuery,
-    useUpdateSalaryMutation,
-    type CreateSalaryInput,
-    type Salary,
-    type UpdateSalaryInput,
+  useCreatePaymentMutation,
+  useCreateSalaryMutation,
+  useCreateWithdrawalMutation,
+  useDeletePaymentMutation,
+  useDeleteSalaryMutation,
+  useDeleteWithdrawalMutation,
+  useGetCountdownQuery,
+  useListPaymentsQuery,
+  useListSalariesQuery,
+  useListWithdrawalsQuery,
+  useUpdateSalaryMutation,
+  type CreateSalaryInput,
+  type Salary,
+  type UpdateSalaryInput,
 } from "@/stores/features/salary/salaryApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import {
-    Calendar,
-    Edit2,
-    Filter,
-    Loader2,
-    Search,
-    Trash2,
-    UserPlus,
-    X,
+  Edit2,
+  Filter,
+  Loader2,
+  Search,
+  Trash2,
+  UserPlus,
+  X
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -83,9 +76,8 @@ interface FormData {
   amount: string;
   status: "pending" | "paid" | "";
   remarks: string;
-  // Ethiopian calendar fields
-  registeredDate: string; // YYYY-MM-DD (Ethiopian)
-  paymentDate: string; // YYYY-MM-DD (Ethiopian) - payment due date
+  registeredDate: string; // YYYY-MM-DD (Gregorian)
+  paymentDate: string; // YYYY-MM-DD (Gregorian) - payment due date
   salaryPeriod: "monthly" | "per_month";
 }
 
@@ -127,75 +119,7 @@ function SalaryCountdownCell({ salaryId }: { salaryId: string }) {
   );
 }
 
-// Gregorian to Ethiopian conversion dialog
-function GregorianToEthiopianDialog({
-  isOpen,
-  onClose,
-  onConvert,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConvert: (ethiopianDate: string) => void;
-}) {
-  const [gregorianDate, setGregorianDate] = useState("");
-  const [error, setError] = useState("");
-
-  const handleConvert = () => {
-    if (!gregorianDate) {
-      setError("Please enter a Gregorian date");
-      return;
-    }
-
-    try {
-      const date = new Date(gregorianDate);
-      if (isNaN(date.getTime())) {
-        setError("Invalid Gregorian date format");
-        return;
-      }
-
-      const ethDate = gregorianToEthiopian(date);
-      const ethiopianStr = formatEthiopianDate(ethDate);
-      onConvert(ethiopianStr);
-      setGregorianDate("");
-      setError("");
-      onClose();
-    } catch {
-      setError("Failed to convert date");
-    }
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Convert Gregorian to Ethiopian</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="gregorian-date">Gregorian Date</Label>
-            <Input
-              id="gregorian-date"
-              type="date"
-              value={gregorianDate}
-              onChange={(e) => {
-                setGregorianDate(e.target.value);
-                setError("");
-              }}
-              className="mt-2"
-            />
-            {error && <p className="text-sm text-red-500 mt-1">{error}</p>}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleConvert}>Convert</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+// Removed GregorianToEthiopianDialog as per user request
 
 function SalaryForm({
   formData,
@@ -206,10 +130,6 @@ function SalaryForm({
   staffList,
   onStaffChange,
 }: SalaryFormProps) {
-  const [isRegisteredDateDialogOpen, setIsRegisteredDateDialogOpen] =
-    useState(false);
-  const [isPaymentDateDialogOpen, setIsPaymentDateDialogOpen] = useState(false);
-
   const handleChange = (
     e:
       | React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -218,28 +138,25 @@ function SalaryForm({
     const name = "name" in e ? e.name : e.target.name;
     const value = "value" in e ? e.value : e.target.value;
 
-    // When Registered Date (Ethiopian) changes, automatically set
-    // Payment Date (Ethiopian) to +1 month by default.
+    // When Registered Date changes, automatically set
+    // Payment Date to +1 month by default (Gregorian).
     if (name === "registeredDate") {
       try {
-        const ethDate = parseEthiopianDate(value);
-        const paymentEthDate = addEthiopianMonths(ethDate, 1);
-        const paymentDateString = formatEthiopianDate(paymentEthDate);
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          const paymentDate = new Date(date);
+          paymentDate.setMonth(paymentDate.getMonth() + 1);
+          const paymentDateString = paymentDate.toISOString().split("T")[0];
 
-        setFormData((prev) => ({
-          ...prev,
-          registeredDate: value,
-          paymentDate: paymentDateString,
-        }));
-        return;
+          setFormData((prev) => ({
+            ...prev,
+            registeredDate: value,
+            paymentDate: paymentDateString,
+          }));
+          return;
+        }
       } catch {
-        // If the registered date is not a valid Ethiopian date yet,
-        // just update the field without touching payment date.
-        setFormData((prev) => ({
-          ...prev,
-          registeredDate: value,
-        }));
-        return;
+        // Fallback
       }
     }
 
@@ -357,78 +274,51 @@ function SalaryForm({
           </Select>
         </div>
 
-        {/* Registered Date (Ethiopian) */}
+        {/* Registered Date */}
         <div>
           <Label htmlFor="registered-date">
-            Registered Date (Ethiopian) <span className="text-red-500">*</span>
+            Registered Date <span className="text-red-500">*</span>
           </Label>
           <div className="flex gap-2 mt-2">
             <Input
               id="registered-date"
               name="registeredDate"
-              type="text"
+              type="date"
               value={formData.registeredDate}
               onChange={handleChange}
-              placeholder="YYYY-MM-DD"
               className={cn(
                 "min-h-[44px]",
                 errors.registeredDate && "border-red-500",
               )}
               disabled={isSubmitting}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setIsRegisteredDateDialogOpen(true)}
-              disabled={isSubmitting}
-              title="Convert Gregorian to Ethiopian"
-            >
-              <Calendar className="h-4 w-4" />
-            </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            All dates must be in Ethiopian calendar. Format: YYYY-MM-DD (e.g.,
-            2016-01-15)
-          </p>
           {errors.registeredDate && (
             <p className="text-sm text-red-500 mt-1">{errors.registeredDate}</p>
           )}
         </div>
 
-        {/* Payment Date (Ethiopian) */}
+        {/* Payment Date */}
         <div>
           <Label htmlFor="payment-date">
-            Payment Date (Ethiopian) <span className="text-red-500">*</span>
+            Payment Date <span className="text-red-500">*</span>
           </Label>
           <div className="flex gap-2 mt-2">
             <Input
               id="payment-date"
               name="paymentDate"
-              type="text"
+              type="date"
               value={formData.paymentDate}
               onChange={handleChange}
-              placeholder="YYYY-MM-DD"
               className={cn(
                 "min-h-[44px]",
                 errors.paymentDate && "border-red-500",
               )}
               disabled={isSubmitting}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setIsPaymentDateDialogOpen(true)}
-              disabled={isSubmitting}
-              title="Convert Gregorian to Ethiopian"
-            >
-              <Calendar className="h-4 w-4" />
-            </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            All dates must be in Ethiopian calendar. Format: YYYY-MM-DD (e.g.,
-            2016-02-15) - When payment is due
+            Date when payment is due
           </p>
           {errors.paymentDate && (
             <p className="text-sm text-red-500 mt-1">{errors.paymentDate}</p>
@@ -480,21 +370,6 @@ function SalaryForm({
         </div>
       </div>
 
-      {/* Conversion Dialogs */}
-      <GregorianToEthiopianDialog
-        isOpen={isRegisteredDateDialogOpen}
-        onClose={() => setIsRegisteredDateDialogOpen(false)}
-        onConvert={(ethiopianDate) => {
-          handleChange({ name: "registeredDate", value: ethiopianDate });
-        }}
-      />
-      <GregorianToEthiopianDialog
-        isOpen={isPaymentDateDialogOpen}
-        onClose={() => setIsPaymentDateDialogOpen(false)}
-        onConvert={(ethiopianDate) => {
-          handleChange({ name: "paymentDate", value: ethiopianDate });
-        }}
-      />
     </>
   );
 }
@@ -520,16 +395,17 @@ export default function SalaryManagementPage() {
   const [monthFilter, setMonthFilter] = useState<string>("");
   const [yearFilter, setYearFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const currentEthDate = getCurrentEthiopianDate();
-  // Calculate default payment date as 30 days from today (same month/day next month)
-  const defaultPaymentDate = addEthiopianMonths(currentEthDate, 1);
+  const now = new Date();
+  const defaultPaymentDate = new Date(now);
+  defaultPaymentDate.setMonth(now.getMonth() + 1);
+
   const [formData, setFormData] = useState<FormData>({
     staffId: "",
     amount: "",
     status: "pending",
     remarks: "",
-    registeredDate: formatEthiopianDate(currentEthDate),
-    paymentDate: formatEthiopianDate(defaultPaymentDate),
+    registeredDate: now.toISOString().split("T")[0],
+    paymentDate: defaultPaymentDate.toISOString().split("T")[0],
     salaryPeriod: "monthly",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -725,39 +601,13 @@ export default function SalaryManagementPage() {
       newErrors.status = "Status must be either 'pending' or 'paid'";
     }
 
-    // Registered date validation (simplified - just check format)
+    // Date validation
     if (!formData.registeredDate.trim()) {
       newErrors.registeredDate = "Registered date is required";
-    } else {
-      // Simple format check - YYYY-MM-DD
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.registeredDate.trim())) {
-        newErrors.registeredDate =
-          "Ethiopian date must be in YYYY-MM-DD format";
-      } else {
-        try {
-          parseEthiopianDate(formData.registeredDate);
-        } catch {
-          newErrors.registeredDate =
-            "Invalid Ethiopian date. Please enter a valid Ethiopian calendar date.";
-        }
-      }
     }
 
-    // Payment date validation
     if (!formData.paymentDate.trim()) {
       newErrors.paymentDate = "Payment date is required";
-    } else {
-      // Simple format check - YYYY-MM-DD
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(formData.paymentDate.trim())) {
-        newErrors.paymentDate = "Ethiopian date must be in YYYY-MM-DD format";
-      } else {
-        try {
-          parseEthiopianDate(formData.paymentDate);
-        } catch {
-          newErrors.paymentDate =
-            "Invalid Ethiopian date. Please enter a valid Ethiopian calendar date.";
-        }
-      }
     }
 
     // Salary period validation
@@ -770,15 +620,17 @@ export default function SalaryManagementPage() {
   };
 
   const resetForm = () => {
-    const currentEthDate = getCurrentEthiopianDate();
-    const defaultPaymentDate = addEthiopianMonths(currentEthDate, 1);
+    const now = new Date();
+    const defaultPaymentDate = new Date(now);
+    defaultPaymentDate.setMonth(now.getMonth() + 1);
+
     setFormData({
       staffId: "",
       amount: "",
       status: "pending",
       remarks: "",
-      registeredDate: formatEthiopianDate(currentEthDate),
-      paymentDate: formatEthiopianDate(defaultPaymentDate),
+      registeredDate: now.toISOString().split("T")[0],
+      paymentDate: defaultPaymentDate.toISOString().split("T")[0],
       salaryPeriod: "monthly",
     });
     setErrors({});
@@ -826,17 +678,19 @@ export default function SalaryManagementPage() {
         ? salary.staffId
         : salary.staffId?._id || salary.staffId?.id || "";
 
-    const currentEthDate = getCurrentEthiopianDate();
-    const defaultPaymentDate = addEthiopianMonths(currentEthDate, 1);
+    const now = new Date();
+    const defaultPaymentDate = new Date(now);
+    defaultPaymentDate.setMonth(now.getMonth() + 1);
+
     setFormData({
       staffId,
       amount: salary.amount.toString(),
       status: salary.status,
       remarks: salary.remarks || "",
       registeredDate:
-        salary.registeredDate || formatEthiopianDate(currentEthDate),
+        salary.createdAt?.split("T")[0] || now.toISOString().split("T")[0],
       paymentDate:
-        salary.ethiopianPaymentDate || formatEthiopianDate(defaultPaymentDate),
+        salary.paymentDate?.split("T")[0] || defaultPaymentDate.toISOString().split("T")[0],
       salaryPeriod: salary.salaryPeriod || "monthly",
     });
     setEditingSalaryId(salary._id || salary.id || "");
@@ -854,7 +708,7 @@ export default function SalaryManagementPage() {
         status: formData.status || "pending",
         remarks: formData.remarks.trim() || undefined,
         registeredDate: formData.registeredDate,
-        ethiopianPaymentDate: formData.paymentDate,
+        paymentDate: formData.paymentDate,
         salaryPeriod: formData.salaryPeriod,
       };
 
@@ -1141,8 +995,8 @@ export default function SalaryManagementPage() {
                     <TableHead>Staff</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Net Amount</TableHead>
-                    <TableHead>Registered Date (Ethiopian)</TableHead>
-                    <TableHead>Payment Date (Ethiopian)</TableHead>
+                    <TableHead>Registered Date</TableHead>
+                    <TableHead>Payment Date</TableHead>
                     <TableHead>Countdown Progress</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-48 text-right">Actions</TableHead>
@@ -1165,7 +1019,7 @@ export default function SalaryManagementPage() {
                             className={cn(
                               "font-medium",
                               netAmount < salary.amount &&
-                                "text-orange-600 dark:text-orange-400",
+                              "text-orange-600 dark:text-orange-400",
                             )}
                           >
                             {netAmount.toFixed(2)} Br
@@ -1178,25 +1032,25 @@ export default function SalaryManagementPage() {
                             )}
                         </TableCell>
                         <TableCell>
-                          {salary.registeredDate ? (
+                          {salary.createdAt ? (
                             <span className="text-sm font-medium">
-                              {salary.registeredDate}
+                              {salary.createdAt.split("T")[0]}
                             </span>
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {salary.ethiopianPaymentDate ? (
+                          {salary.paymentDate ? (
                             <span className="text-sm font-medium">
-                              {salary.ethiopianPaymentDate}
+                              {salary.paymentDate.split("T")[0]}
                             </span>
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {salary.registeredDate && salary.salaryPeriod ? (
+                          {salary.paymentDate && salary.salaryPeriod ? (
                             <SalaryCountdownCell salaryId={salaryId} />
                           ) : (
                             <span className="text-gray-400 text-sm">
@@ -1373,7 +1227,7 @@ export default function SalaryManagementPage() {
             <div className="space-y-6 py-4">
               {/* Countdown Timer */}
               {countdown && (
-                <div className="p-4 rounded-lg border bg-gray-50 dark:bg-gray-900">
+                <div className="p-4 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                   <h3 className="text-lg font-semibold mb-2">
                     Next Payment Countdown
                   </h3>
@@ -1382,7 +1236,7 @@ export default function SalaryManagementPage() {
                     nextPaymentDate={countdown.nextPaymentDate.gregorian}
                   />
                   <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    <p>Registered: {countdown.registeredDate}</p>
+                    <p>Registered: {countdown.registeredDateGregorian?.split("T")[0] || countdown.registeredDate}</p>
                     <p>
                       Period:{" "}
                       {countdown.salaryPeriod === "monthly"
@@ -1390,8 +1244,8 @@ export default function SalaryManagementPage() {
                         : "Per Month"}
                     </p>
                     <p>
-                      Next Payment (Ethiopian):{" "}
-                      {countdown.nextPaymentDate.ethiopian}
+                      Next Payment:{" "}
+                      {countdown.nextPaymentDate.gregorian.split("T")[0]}
                     </p>
                   </div>
                 </div>
@@ -1542,8 +1396,8 @@ export default function SalaryManagementPage() {
         description={
           salaryToDelete
             ? `Are you sure you want to delete the salary record for ${getStaffName(
-                salaryToDelete,
-              )}? This will also delete all associated withdrawals and payments. This action cannot be undone.`
+              salaryToDelete,
+            )}? This will also delete all associated withdrawals and payments. This action cannot be undone.`
             : "Are you sure you want to delete this salary record? This action cannot be undone."
         }
         isLoading={isDeleting}

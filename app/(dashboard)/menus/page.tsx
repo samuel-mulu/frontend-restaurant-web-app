@@ -1,21 +1,14 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,33 +19,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import {
   Edit2,
-  Loader2,
-  Search,
-  X,
   Filter,
-  Plus,
-  Trash2,
+  Loader2,
   MessageCircle,
+  Plus,
+  Search,
+  Trash2,
+  X,
 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 
-import {
-  useListItemsQuery,
-  useCreateItemMutation,
-  useUpdateItemMutation,
-  useDeleteItemMutation,
-  useUpdateItemAvailabilityMutation,
-} from "@/stores/features/items/itemsApi";
-import { useListCategoriesQuery } from "@/stores/features/categories/categoriesApi";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
-import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { useListCategoriesQuery } from "@/stores/features/categories/categoriesApi";
+import {
+  useCreateItemMutation,
+  useDeleteItemMutation,
+  useListItemsQuery,
+  useUpdateItemAvailabilityMutation,
+  useUpdateItemMutation,
+} from "@/stores/features/items/itemsApi";
 
 interface MenuFormData {
   categoryId: string;
@@ -119,11 +119,11 @@ export default function MenuManagement() {
   const error =
     itemsError && "data" in itemsError
       ? (itemsError.data as { message?: string })?.message ||
-        "An error occurred"
+      "An error occurred"
       : categoriesError && "data" in categoriesError
-      ? (categoriesError.data as { message?: string })?.message ||
+        ? (categoriesError.data as { message?: string })?.message ||
         "An error occurred"
-      : null;
+        : null;
 
   const getCategoryName = useCallback(
     (categoryId: string): string => {
@@ -341,8 +341,7 @@ export default function MenuManagement() {
         data: { isAvailable: newAvailability },
       }).unwrap();
       toast.success(
-        `Item "${menu.name}" marked as ${
-          newAvailability ? "available" : "unavailable"
+        `Item "${menu.name}" marked as ${newAvailability ? "available" : "unavailable"
         }`
       );
     } catch (err: unknown) {
@@ -404,7 +403,7 @@ export default function MenuManagement() {
   };
 
   return (
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
@@ -496,8 +495,8 @@ export default function MenuManagement() {
         <EmptyState
           message={
             searchQuery ||
-            selectedCategoryFilter !== "all" ||
-            availabilityFilter !== "all"
+              selectedCategoryFilter !== "all" ||
+              availabilityFilter !== "all"
               ? "No menu items match your filters."
               : "No menu items found."
           }
@@ -570,6 +569,7 @@ export default function MenuManagement() {
                       title="Are you sure?"
                       description="This action cannot be undone. This will permanently delete the menu"
                       itemName={menu.name}
+                      expectedPin="1219"
                       onConfirm={() => handleDelete(menu.id)}
                       trigger={
                         <Button
@@ -603,20 +603,20 @@ export default function MenuManagement() {
                       className={cn(
                         "ml-2 text-xs",
                         menu.approvalStatus === "pendingapproval" &&
-                          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
                         menu.approvalStatus === "approved" &&
-                          "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
                         menu.approvalStatus === "rejected" &&
-                          "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                        "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                       )}
                     >
                       {menu.approvalStatus === "pendingapproval"
                         ? "Pending"
                         : menu.approvalStatus === "approved"
-                        ? "Approved"
-                        : menu.approvalStatus === "rejected"
-                        ? "Rejected"
-                        : "—"}
+                          ? "Approved"
+                          : menu.approvalStatus === "rejected"
+                            ? "Rejected"
+                            : "—"}
                     </Badge>
                   </div>
                   <Button
@@ -774,11 +774,10 @@ export default function MenuManagement() {
                               size="sm"
                               onClick={() => toggleAvailability(menu.id)}
                               disabled={isSubmitting}
-                              className={`h-7 px-3 text-xs ${
-                            menu.available
+                              className={`h-7 px-3 text-xs ${menu.available
                                   ? "bg-green-600 hover:bg-green-700 text-white"
                                   : "text-gray-600 dark:text-gray-400"
-                              }`}
+                                }`}
                             >
                               Available
                             </Button>
@@ -788,11 +787,10 @@ export default function MenuManagement() {
                               size="sm"
                               onClick={() => toggleAvailability(menu.id)}
                               disabled={isSubmitting}
-                              className={`h-7 px-3 text-xs ${
-                                !menu.available
+                              className={`h-7 px-3 text-xs ${!menu.available
                                   ? "bg-red-600 hover:bg-red-700 text-white"
                                   : "text-gray-600 dark:text-gray-400"
-                              }`}
+                                }`}
                             >
                               Unavailable
                             </Button>
@@ -804,20 +802,20 @@ export default function MenuManagement() {
                           variant="outline"
                           className={cn(
                             menu.approvalStatus === "pendingapproval" &&
-                              "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                            "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
                             menu.approvalStatus === "approved" &&
-                              "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                            "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
                             menu.approvalStatus === "rejected" &&
-                              "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                           )}
                         >
                           {menu.approvalStatus === "pendingapproval"
                             ? "Pending"
                             : menu.approvalStatus === "approved"
-                            ? "Approved"
-                            : menu.approvalStatus === "rejected"
-                            ? "Rejected"
-                            : "—"}
+                              ? "Approved"
+                              : menu.approvalStatus === "rejected"
+                                ? "Rejected"
+                                : "—"}
                         </Badge>
                       </TableCell>
                       <TableCell className="py-1.5 pl-1">
@@ -831,9 +829,10 @@ export default function MenuManagement() {
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <DeleteConfirmDialog
-                            title="Are you sure?"
+                            title="Delete Menu?"
                             description="This action cannot be undone. This will permanently delete the menu"
                             itemName={menu.name}
+                            expectedPin="1219"
                             onConfirm={() => handleDelete(menu.id)}
                             trigger={
                               <Button
@@ -1193,11 +1192,10 @@ function MenuForm({
               variant={formData.available === "true" ? "default" : "ghost"}
               size="sm"
               onClick={() => setFormData({ ...formData, available: "true" })}
-              className={`h-9 px-4 text-sm ${
-                formData.available === "true"
+              className={`h-9 px-4 text-sm ${formData.available === "true"
                   ? "bg-green-600 hover:bg-green-700 text-white"
                   : "text-gray-600 dark:text-gray-400"
-              }`}
+                }`}
             >
               Available
             </Button>
@@ -1206,11 +1204,10 @@ function MenuForm({
               variant={formData.available === "false" ? "default" : "ghost"}
               size="sm"
               onClick={() => setFormData({ ...formData, available: "false" })}
-              className={`h-9 px-4 text-sm ${
-                formData.available === "false"
+              className={`h-9 px-4 text-sm ${formData.available === "false"
                   ? "bg-red-600 hover:bg-red-700 text-white"
                   : "text-gray-600 dark:text-gray-400"
-              }`}
+                }`}
             >
               Unavailable
             </Button>

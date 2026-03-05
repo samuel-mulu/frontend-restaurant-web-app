@@ -513,6 +513,7 @@ export const ordersApi = createApiEndpoints({
         success: boolean;
         updated: Array<Order & { receiptText?: string }>;
         failed: Array<{ id: string; reason: string }>;
+        mergedReceiptText?: string;
         message: string;
       },
       { orderIds: string[]; status: OrderStatus }
@@ -527,6 +528,7 @@ export const ordersApi = createApiEndpoints({
           success: boolean;
           updated: Array<Order & { receiptText?: string }>;
           failed: Array<{ id: string; reason: string }>;
+          mergedReceiptText?: string;
           message: string;
         };
       },

@@ -1,21 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,20 +18,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Edit2, Loader2, Search, X, Filter } from "lucide-react";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-
 import {
-  useListInventoryQuery,
-  useCreateInventoryMutation,
-  useUpdateInventoryMutation,
-} from "@/stores/features/inventory/inventoryApi";
-import { LoadingState } from "@/components/shared/LoadingState";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { Edit2, Filter, Loader2, Search, Trash2, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
 import { Inventory } from "@/lib/types";
+import {
+  useCreateInventoryMutation,
+  useDeleteInventoryMutation,
+  useListInventoryQuery,
+  useUpdateInventoryMutation,
+} from "@/stores/features/inventory/inventoryApi";
 
 interface InventoryFormData {
   name: string;
@@ -77,13 +79,14 @@ export function InventoryManagement() {
     useCreateInventoryMutation();
   const [updateInventory, { isLoading: isUpdating }] =
     useUpdateInventoryMutation();
+  const [deleteInventory] = useDeleteInventoryMutation();
 
   const isSubmitting = isCreating || isUpdating;
   const isLoading = isLoadingInventory;
   const error =
     inventoryError && "data" in inventoryError
       ? (inventoryError.data as { message?: string })?.message ||
-        "An error occurred"
+      "An error occurred"
       : null;
 
   // Client-side filtering for search and low stock
@@ -247,10 +250,29 @@ export function InventoryManagement() {
     setIsEditOpen(false);
   };
 
-  // Note: Delete functionality is not yet implemented in the backend
-  // const handleDelete = async (id: string) => {
-  //   // Delete functionality can be added when backend supports it
-  // };
+  const handleDelete = async (id: string) => {
+    const item = inventoryItems.find((m: { id: string; name?: string }) => m.id === id);
+    const itemName = item?.name || "this item";
+
+    try {
+      await deleteInventory(id).unwrap();
+      toast.success(`Inventory "${itemName}" deleted successfully`);
+    } catch (err: unknown) {
+      const error = err as {
+        data?: { message?: string };
+        message?: string;
+        status?: number;
+      };
+      const message =
+        error?.data?.message || error?.message || "Failed to delete inventory item";
+      if (error?.status === 404) {
+        toast.error("Item not found. It may have already been deleted.");
+        refetchInventory();
+      } else {
+        toast.error(message);
+      }
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -339,7 +361,7 @@ export function InventoryManagement() {
         <EmptyState
           message={
             searchQuery ||
-            lowStockFilter !== "all"
+              lowStockFilter !== "all"
               ? "No inventory items match your filters."
               : "No inventory items found."
           }
@@ -367,14 +389,32 @@ export function InventoryManagement() {
                     </p>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={() => handleEdit(item.id)}
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => handleEdit(item.id)}
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <DeleteConfirmDialog
+                    title="Delete Inventory Item?"
+                    description="This action cannot be undone. This will permanently delete the inventory item"
+                    itemName={item.name}
+                    expectedPin="1219"
+                    onConfirm={() => handleDelete(item.id)}
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    }
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
@@ -409,20 +449,20 @@ export function InventoryManagement() {
                     className={cn(
                       "text-xs",
                       item.approvalStatus === "pendingapproval" &&
-                        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
                       item.approvalStatus === "approved" &&
-                        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                      "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
                       item.approvalStatus === "rejected" &&
-                        "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                      "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                     )}
                   >
                     {item.approvalStatus === "pendingapproval"
                       ? "Pending"
                       : item.approvalStatus === "approved"
-                      ? "Approved"
-                      : item.approvalStatus === "rejected"
-                      ? "Rejected"
-                      : "—"}
+                        ? "Approved"
+                        : item.approvalStatus === "rejected"
+                          ? "Rejected"
+                          : "—"}
                   </Badge>
                 </div>
                 <div className="col-span-2">
@@ -506,31 +546,49 @@ export function InventoryManagement() {
                         variant="outline"
                         className={cn(
                           item.approvalStatus === "pendingapproval" &&
-                            "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
                           item.approvalStatus === "approved" &&
-                            "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                          "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
                           item.approvalStatus === "rejected" &&
-                            "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                          "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                         )}
                       >
                         {item.approvalStatus === "pendingapproval"
                           ? "Pending"
                           : item.approvalStatus === "approved"
-                          ? "Approved"
-                          : item.approvalStatus === "rejected"
-                          ? "Rejected"
-                          : "—"}
+                            ? "Approved"
+                            : item.approvalStatus === "rejected"
+                              ? "Rejected"
+                              : "—"}
                       </Badge>
                     </TableCell>
                     <TableCell className="py-1.5 pl-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleEdit(item.id)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleEdit(item.id)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <DeleteConfirmDialog
+                          title="Delete Inventory Item?"
+                          description="This action cannot be undone. This will permanently delete the inventory item"
+                          itemName={item.name}
+                          expectedPin="1219"
+                          onConfirm={() => handleDelete(item.id)}
+                          trigger={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

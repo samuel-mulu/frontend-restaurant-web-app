@@ -1,5 +1,5 @@
-import { createApiEndpoints } from "@/stores/baseApi";
 import { Inventory } from "@/lib/types";
+import { createApiEndpoints } from "@/stores/baseApi";
 import { v4 as uuidv4 } from "uuid";
 
 export interface InventoryResponse {
@@ -274,6 +274,19 @@ export const inventoryApi = createApiEndpoints({
         { type: "Inventory", id: "PENDING_APPROVALS" },
       ],
     }),
+
+    deleteInventory: build.mutation<{ success: boolean; id: string }, string>({
+      query: (id) => ({
+        url: `/inventory/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (result, _error, id) => [
+        { type: "Inventory", id },
+        { type: "Inventory", id: "LIST" },
+        { type: "Inventory", id: "LOW_STOCK" },
+        { type: "Inventory", id: "PENDING_APPROVALS" },
+      ],
+    }),
   }),
 });
 
@@ -286,4 +299,5 @@ export const {
   useListPendingApprovalsQuery,
   useApproveInventoryMutation,
   useRejectInventoryMutation,
+  useDeleteInventoryMutation,
 } = inventoryApi;

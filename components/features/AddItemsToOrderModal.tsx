@@ -20,7 +20,9 @@ import {
   OrderItem,
   useGetOrderQuery,
   useUpdateOrderMutation,
+  useUpdateOrderStatusMutation,
 } from "@/stores/features/orders/ordersApi";
+import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import { AlertCircle, Loader2, Minus, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -77,6 +79,8 @@ function AddItemsToOrderModalBody({
     useListInventoryQuery(undefined);
 
   const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
+  const [updateOrderStatus, { isLoading: isUpdatingStatus }] = useUpdateOrderStatusMutation();
+  const isAnyUpdating = isUpdating || isUpdatingStatus;
 
   const [activeTab, setActiveTab] = useState<"menu" | "inventory">("menu");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -211,7 +215,7 @@ function AddItemsToOrderModalBody({
     );
   };
 
-  const handleSave = async () => {
+  const handleSave = async (payAfterSave: boolean = false) => {
     if (!order.id && !order._id) return;
 
     if (cart.length === 0) {
@@ -242,7 +246,36 @@ function AddItemsToOrderModalBody({
         },
       }).unwrap();
 
-      toast.success("Order updated successfully");
+      if (payAfterSave) {
+        const result = await updateOrderStatus({
+          id: order.id || order._id || "",
+          status: "PAID_TO_CASHIER",
+          paymentMethod: "cash",
+        }).unwrap();
+
+        toast.success("Order updated and paid successfully");
+
+        // Print receipt if status changed to PAID_TO_CASHIER
+        if (result.receiptText) {
+          posPrinterService
+            .print(result.receiptText)
+            .then((printResult: any) => {
+              if (!printResult.success) {
+                toast.error(`Printer Error (Order #${result.orderNumber})`, {
+                  description:
+                    printResult.error || "Could not print receipt locally.",
+                });
+              }
+            })
+            .catch(() => {
+              toast.error("Printer Error", {
+                description: "POS Printer Service is not reachable.",
+              });
+            });
+        }
+      } else {
+        toast.success("Order updated successfully");
+      }
       onClose();
       onSuccess?.();
     } catch (err: unknown) {
@@ -276,17 +309,31 @@ function AddItemsToOrderModalBody({
   return (
     <>
       <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" onClick={onClose} disabled={isUpdating}>
+        <Button variant="outline" onClick={onClose} disabled={isAnyUpdating}>
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={isUpdating}>
-          {isUpdating ? (
+        <Button onClick={() => handleSave(false)} disabled={isAnyUpdating}>
+          {isUpdating && !isUpdatingStatus ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
               Saving...
             </>
           ) : (
             "Save Changes"
+          )}
+        </Button>
+        <Button
+          onClick={() => handleSave(true)}
+          disabled={isAnyUpdating}
+          className="bg-green-600 hover:bg-green-700 text-white"
+        >
+          {isUpdatingStatus ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Processing...
+            </>
+          ) : (
+            "Save & Pay"
           )}
         </Button>
       </div>
@@ -493,7 +540,7 @@ function AddItemsToOrderModalBody({
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => updateLineQty(line.itemId, -1)}
-                            disabled={isUpdating}
+                            disabled={isAnyUpdating}
                             title="Decrease"
                           >
                             <Minus className="h-4 w-4" />
@@ -506,7 +553,7 @@ function AddItemsToOrderModalBody({
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => updateLineQty(line.itemId, 1)}
-                            disabled={isUpdating}
+                            disabled={isAnyUpdating}
                             title="Increase"
                           >
                             <Plus className="h-4 w-4" />
@@ -516,7 +563,7 @@ function AddItemsToOrderModalBody({
                             size="icon"
                             className="h-8 w-8 text-destructive"
                             onClick={() => removeLine(line.itemId)}
-                            disabled={isUpdating}
+                            disabled={isAnyUpdating}
                             title="Remove"
                           >
                             <Trash2 className="h-4 w-4" />

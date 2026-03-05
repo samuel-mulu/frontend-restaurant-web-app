@@ -96,6 +96,8 @@ import { PaymentMethod, PaymentMethodSelector } from "./PaymentMethodSelector";
 
 // -------------------- Types & Utilities -------------------- //
 
+export type ExtendedOrderStatus = OrderStatus | "PAID_WITHOUT_PRINT";
+
 // localStorage utilities for persisting selected orders
 const getSelectedOrdersStorageKey = (cashierId: string) =>
   `cashier_history_selected_orders_${cashierId}`;
@@ -248,22 +250,24 @@ const getStatusColor = (status: "Completed" | "Pending"): string => {
   }[status];
 };
 
-const getStatusBadgeText = (status: OrderStatus): string => {
-  const statusMap: Partial<Record<OrderStatus, string>> = {
+const getStatusBadgeText = (status: ExtendedOrderStatus): string => {
+  const statusMap: Partial<Record<ExtendedOrderStatus, string>> = {
     OPEN: "Open",
     VOIDED: "Voided",
     PAID_TO_CASHIER: "Paid",
+    PAID_WITHOUT_PRINT: "Paid (without print)",
     TRANSFERRED_TO_OWNER: "Transferred",
     DISPUTED: "Disputed",
   };
   return statusMap[status] || status;
 };
 
-const getStatusIcon = (status: OrderStatus) => {
-  const iconMap: Partial<Record<OrderStatus, React.ReactNode>> = {
+const getStatusIcon = (status: ExtendedOrderStatus) => {
+  const iconMap: Partial<Record<ExtendedOrderStatus, React.ReactNode>> = {
     OPEN: <AlertCircle className="h-4 w-4" />,
     VOIDED: <Ban className="h-4 w-4" />,
     PAID_TO_CASHIER: <CheckCircle2 className="h-4 w-4" />,
+    PAID_WITHOUT_PRINT: <CheckCircle2 className="h-4 w-4 opacity-70" />,
     TRANSFERRED_TO_OWNER: <ArrowRightLeft className="h-4 w-4" />,
     DISPUTED: <XCircle className="h-4 w-4" />,
   };
@@ -350,7 +354,7 @@ export function CashierHistory() {
     if (!cashierId) return new Set();
     return loadSelectedOrdersFromStorage(cashierId);
   });
-  const [bulkStatusChange, setBulkStatusChange] = useState<OrderStatus | "">(
+  const [bulkStatusChange, setBulkStatusChange] = useState<ExtendedOrderStatus | "">(
     "",
   );
   const [page, setPage] = useState(1);
@@ -368,6 +372,9 @@ export function CashierHistory() {
   // Add items modal state
   const [addItemsOrderId, setAddItemsOrderId] = useState<string | null>(null);
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
+
+  // Without print checkbox state
+  const [withoutPrint, setWithoutPrint] = useState(false);
 
   // Void confirmation modal state
   const [voidConfirmOrderId, setVoidConfirmOrderId] = useState<string | null>(
@@ -388,7 +395,7 @@ export function CashierHistory() {
     null,
   );
   const [paymentImageStatus, setPaymentImageStatus] =
-    useState<OrderStatus | null>(null);
+    useState<ExtendedOrderStatus | null>(null);
   const [isPaymentImageModalOpen, setIsPaymentImageModalOpen] = useState(false);
 
   // Payment proof view modal state
@@ -470,10 +477,10 @@ export function CashierHistory() {
         isLoading,
         error: error
           ? {
-              status: (error as any)?.status,
-              data: (error as any)?.data,
-              message: (error as any)?.message,
-            }
+            status: (error as any)?.status,
+            data: (error as any)?.data,
+            message: (error as any)?.message,
+          }
           : null,
       });
     } else {
@@ -819,11 +826,13 @@ export function CashierHistory() {
     }
 
     const ids = Array.from(selectedOrderIds);
+    const isWithoutPrintBulk = bulkStatusChange === "PAID_WITHOUT_PRINT";
+    const actualStatus = (isWithoutPrintBulk ? "PAID_TO_CASHIER" : bulkStatusChange) as OrderStatus;
 
     try {
       const result = await bulkUpdateOrderStatus({
         orderIds: ids,
-        status: bulkStatusChange,
+        status: actualStatus,
       }).unwrap();
 
       if (result.failed && result.failed.length > 0) {
@@ -834,15 +843,27 @@ export function CashierHistory() {
         toast.success(`Successfully updated ${result.updated.length} order(s)`);
       }
 
-      // Print receipts for paid orders
-      if (bulkStatusChange === "PAID_TO_CASHIER") {
-        result.updated.forEach((order: RTKOrder & { receiptText?: string }) => {
-          if (order.receiptText) {
-            handlePrintReceipt(order.receiptText, order.orderNumber);
-          }
-        });
+      // Generate merged receipt if updating to PAID_TO_CASHIER and there's more than one successful update
+      if (
+        actualStatus === "PAID_TO_CASHIER" &&
+        result.updated.length > 1 &&
+        !withoutPrint && !isWithoutPrintBulk
+      ) {
+        if (result.mergedReceiptText) {
+          handlePrintReceipt(result.mergedReceiptText, "Merged");
+        }
+      } else if (
+        actualStatus === "PAID_TO_CASHIER" &&
+        result.updated.length === 1 &&
+        !withoutPrint && !isWithoutPrintBulk
+      ) {
+        if (result.updated[0].receiptText) {
+          handlePrintReceipt(
+            result.updated[0].receiptText,
+            result.updated[0].orderNumber,
+          );
+        }
       }
-
       clearSelection();
       refetch();
     } catch (err: unknown) {
@@ -856,7 +877,7 @@ export function CashierHistory() {
     }
   };
 
-  const handleStatusChange = async (orderId: string, status: OrderStatus) => {
+  const handleStatusChange = async (orderId: string, status: ExtendedOrderStatus) => {
     // Show confirmation modal for voided status
     if (status === "VOIDED") {
       setVoidConfirmOrderId(orderId);
@@ -866,7 +887,7 @@ export function CashierHistory() {
     }
 
     // For PAID_TO_CASHIER status, check payment method
-    if (status === "PAID_TO_CASHIER") {
+    if (status === "PAID_TO_CASHIER" || status === "PAID_WITHOUT_PRINT") {
       const paymentMethod = paymentMethods.get(orderId) || "cash";
 
       // If mobile banking, show image upload modal
@@ -884,24 +905,27 @@ export function CashierHistory() {
 
   const executeStatusChange = async (
     orderId: string,
-    status: OrderStatus,
+    status: ExtendedOrderStatus,
     paymentProofImage?: File | null,
     paymentBankName?: string,
   ) => {
     try {
       const paymentMethod = paymentMethods.get(orderId) || "cash";
 
+      const isWithoutPrintRow = status === "PAID_WITHOUT_PRINT";
+      const actualStatus = isWithoutPrintRow ? "PAID_TO_CASHIER" : status as OrderStatus;
+
       const result = await updateOrderStatus({
         id: orderId,
-        status,
+        status: actualStatus,
         paymentMethod,
         paymentProofImage: paymentProofImage ?? undefined,
         paymentBankName,
       }).unwrap();
       toast.success("Order status updated successfully");
 
-      // Print receipt if status changed to PAID_TO_CASHIER
-      if (status === "PAID_TO_CASHIER" && result.receiptText) {
+      // Print receipt if status changed to PAID_TO_CASHIER and withoutPrint is not checked
+      if (actualStatus === "PAID_TO_CASHIER" && result.receiptText && !withoutPrint && !isWithoutPrintRow) {
         handlePrintReceipt(result.receiptText, result.orderNumber);
       }
 
@@ -913,8 +937,8 @@ export function CashierHistory() {
       };
       toast.error(
         error?.data?.message ||
-          error?.message ||
-          "Failed to update order status",
+        error?.message ||
+        "Failed to update order status",
       );
     }
   };
@@ -1008,9 +1032,9 @@ export function CashierHistory() {
   const getAvailableStatuses = (
     currentStatus: OrderStatus,
     userRole: string,
-  ): OrderStatus[] => {
-    const transitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
-      OPEN: ["PAID_TO_CASHIER", "VOIDED"], // Swapped: Paid first, then Voided
+  ): ExtendedOrderStatus[] => {
+    const transitions: Partial<Record<OrderStatus, ExtendedOrderStatus[]>> = {
+      OPEN: ["PAID_TO_CASHIER", "PAID_WITHOUT_PRINT", "VOIDED"], // Swapped: Paid first, then Voided
       VOIDED: [],
       PAID_TO_CASHIER:
         userRole === "cashier" || userRole === "owner"
@@ -1090,8 +1114,8 @@ export function CashierHistory() {
   const errorMessage =
     error && "data" in error
       ? (error.data as { message?: string; error?: string })?.message ||
-        (error.data as { message?: string; error?: string })?.error ||
-        "An error occurred"
+      (error.data as { message?: string; error?: string })?.error ||
+      "An error occurred"
       : error && "error" in error
         ? (error.error as string) || "An error occurred"
         : null;
@@ -1125,9 +1149,8 @@ export function CashierHistory() {
           </h1>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                isRealtimeConnected ? "bg-emerald-500" : "bg-muted-foreground"
-              }`}
+              className={`inline-block h-2 w-2 rounded-full ${isRealtimeConnected ? "bg-emerald-500" : "bg-muted-foreground"
+                }`}
             />
             <span>
               Realtime: {isRealtimeConnected ? "Connected" : "Disconnected"}
@@ -1142,11 +1165,10 @@ export function CashierHistory() {
               <button
                 key={r}
                 onClick={() => handleRoleViewChange(r)}
-                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${
-                  roleView === r
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                }`}
+                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-all ${roleView === r
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  }`}
               >
                 {r === "all"
                   ? "All"
@@ -1277,11 +1299,10 @@ export function CashierHistory() {
           {orders.length > 0 && (
             <>
               <div
-                className={`grid gap-4 ${
-                  roleView === "owner"
-                    ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-                    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-                }`}
+                className={`grid gap-4 ${roleView === "owner"
+                  ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+                  }`}
               >
                 {roleView === "owner" ? (
                   <>
@@ -1298,9 +1319,8 @@ export function CashierHistory() {
                       ).toFixed(2)} Br`}
                       icon={<ArrowRightLeft className="h-5 w-5" />}
                       color="purple"
-                      subtitle={`${
-                        (summary as any).transferredCount || 0
-                      } orders`}
+                      subtitle={`${(summary as any).transferredCount || 0
+                        } orders`}
                     />
                     <EnhancedStatCard
                       label="Pending Transfer"
@@ -1499,11 +1519,10 @@ export function CashierHistory() {
                     variant={calendarMode === "gregorian" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCalendarMode("gregorian")}
-                    className={`h-7 px-3 text-xs ${
-                      calendarMode === "gregorian"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground"
-                    }`}
+                    className={`h-7 px-3 text-xs ${calendarMode === "gregorian"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
+                      }`}
                   >
                     Gregorian
                   </Button>
@@ -1511,11 +1530,10 @@ export function CashierHistory() {
                     variant={calendarMode === "ethiopian" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCalendarMode("ethiopian")}
-                    className={`h-7 px-3 text-xs ${
-                      calendarMode === "ethiopian"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground"
-                    }`}
+                    className={`h-7 px-3 text-xs ${calendarMode === "ethiopian"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
+                      }`}
                   >
                     Ethiopian
                   </Button>
@@ -1566,9 +1584,9 @@ export function CashierHistory() {
                   Select All (
                   {selectedOrdersStatus
                     ? filtered.filter(
-                        (o: DisplayOrder) =>
-                          o.backendStatus === selectedOrdersStatus,
-                      ).length
+                      (o: DisplayOrder) =>
+                        o.backendStatus === selectedOrdersStatus,
+                    ).length
                     : filtered.length}
                   )
                 </Button>
@@ -1622,12 +1640,30 @@ export function CashierHistory() {
                   </Button>
                 </div>
               )}
+
+              <div className="flex items-center gap-2 border-l border-border pl-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div
+                    onClick={() => setWithoutPrint(!withoutPrint)}
+                    className={`flex items-center justify-center h-4 w-4 rounded-sm border border-primary transition-colors ${withoutPrint ? "bg-primary text-primary-foreground" : "bg-transparent"}`}
+                  >
+                    {withoutPrint && <CheckSquare className="h-3.5 w-3.5" />}
+                  </div>
+                  <span className="text-sm font-medium text-foreground select-none pointer-events-none">
+                    Without Print
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex-1" />
+
               <Button
                 variant="ghost"
                 onClick={clearSelection}
                 className="text-gray-600 dark:text-gray-400 whitespace-nowrap"
               >
-                Clear
+                <Square className="h-4 w-4 mr-2" />
+                Unselect All
               </Button>
             </div>
           )}
@@ -1698,25 +1734,24 @@ export function CashierHistory() {
                                 } else {
                                   toast.error(
                                     "You can only select orders with the same status. Current selection: " +
-                                      getStatusBadgeText(selectedOrdersStatus!),
+                                    getStatusBadgeText(selectedOrdersStatus!),
                                   );
                                 }
                               }}
                               disabled={!canSelect}
-                              className={`hover:opacity-70 ${
-                                !canSelect
-                                  ? "opacity-30 cursor-not-allowed"
-                                  : ""
-                              }`}
+                              className={`hover:opacity-70 ${!canSelect
+                                ? "opacity-30 cursor-not-allowed"
+                                : ""
+                                }`}
                               title={
                                 isTerminalStatus
                                   ? `Orders with ${getStatusBadgeText(
-                                      o.backendStatus,
-                                    )} status cannot be changed`
+                                    o.backendStatus,
+                                  )} status cannot be changed`
                                   : !canSelect
                                     ? `Can only select orders with status: ${getStatusBadgeText(
-                                        selectedOrdersStatus!,
-                                      )}`
+                                      selectedOrdersStatus!,
+                                    )}`
                                     : "Select order"
                               }
                             >
@@ -1777,7 +1812,7 @@ export function CashierHistory() {
                                       if (value !== o.backendStatus) {
                                         handleStatusChange(
                                           o.id,
-                                          value as OrderStatus,
+                                          value as ExtendedOrderStatus,
                                         );
                                       }
                                     }}
@@ -1803,11 +1838,11 @@ export function CashierHistory() {
                                               {getStatusIcon(status)}
                                               {getStatusBadgeText(status)}
                                             </div>
-                                            {status === "PAID_TO_CASHIER" && (
+                                            {(status === "PAID_TO_CASHIER" || status === "PAID_WITHOUT_PRINT") && (
                                               <div className="shrink-0 flex items-center text-gray-600 dark:text-gray-400">
                                                 {getPaymentMethodIcon(
                                                   paymentMethods.get(o.id) ||
-                                                    "cash",
+                                                  "cash",
                                                 )}
                                               </div>
                                             )}
@@ -1845,7 +1880,7 @@ export function CashierHistory() {
                                 o.paymentProofImage?.url &&
                                 (o.paymentMethod === "mobile_banking" ||
                                   paymentMethods.get(o.id) ===
-                                    "mobile_banking") && (
+                                  "mobile_banking") && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -2040,7 +2075,7 @@ export function CashierHistory() {
         orderNumber={
           paymentImageOrderId
             ? filtered.find((o: DisplayOrder) => o.id === paymentImageOrderId)
-                ?.orderNumber
+              ?.orderNumber
             : undefined
         }
       />
@@ -2135,14 +2170,14 @@ function EnhancedStatCard({
   value: string | number;
   icon: React.ReactNode;
   color?:
-    | "blue"
-    | "green"
-    | "emerald"
-    | "purple"
-    | "indigo"
-    | "amber"
-    | "red"
-    | "orange";
+  | "blue"
+  | "green"
+  | "emerald"
+  | "purple"
+  | "indigo"
+  | "amber"
+  | "red"
+  | "orange";
   subtitle?: string;
 }) {
   const colorClasses = {

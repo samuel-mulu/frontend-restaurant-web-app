@@ -36,6 +36,7 @@ import { convertToCSV, formatReportForThermal } from "@/lib/exportUtils";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import {
   ReportStaffOrderDetail,
+  SoldItemsPerformanceResponse,
   useCreateExpenseMutation,
   useGetDailyReportQuery,
   useGetMonthlyReportQuery,
@@ -612,7 +613,7 @@ export default function ReportsPage() {
   const totalSales = paymentFilter === "ALL" ? totalFromOrders : totalSalesFromPayment;
   const totalExpenses = reportData.expenses.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0);
   const netRevenue = totalSales - totalExpenses;
-  const soldItemsData = soldItemsQuery.data || {
+  const soldItemsData: SoldItemsPerformanceResponse = soldItemsQuery.data || {
     items: [],
     pagination: {
       page: 1,

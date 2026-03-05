@@ -213,6 +213,26 @@ export interface ReportStaffOrderDetail {
   }>;
 }
 
+export interface SoldItemPerformanceRow {
+  itemId: string;
+  itemName: string;
+  itemType: "menu" | "inventory";
+  qtySold: number;
+  salesAmount: number;
+}
+
+export interface SoldItemsPerformanceResponse {
+  items: SoldItemPerformanceRow[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -375,6 +395,46 @@ export const statisticsApi = createApiEndpoints({
         response.data || [],
     }),
 
+    getSoldItemsPerformance: build.query<
+      SoldItemsPerformanceResponse,
+      {
+        startDate: string;
+        endDate: string;
+        status?: string;
+        paymentMethod?: string;
+        page?: number;
+        limit?: number;
+      }
+    >({
+      query: ({ startDate, endDate, status, paymentMethod, page, limit }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("startDate", startDate);
+        queryParams.append("endDate", endDate);
+        if (status && status !== "ALL") queryParams.append("status", status);
+        if (paymentMethod && paymentMethod !== "ALL") {
+          queryParams.append("paymentMethod", paymentMethod);
+        }
+        if (page) queryParams.append("page", String(page));
+        if (limit) queryParams.append("limit", String(limit));
+        return {
+          url: `/statistics/item-performance?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: ApiResponse<SoldItemsPerformanceResponse>) =>
+        response.data || {
+          items: [],
+          pagination: {
+            page: 1,
+            limit: 20,
+            total: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        },
+    }),
+
     createExpense: build.mutation<any, any>({
       query: (data) => ({
         url: "/expenses",
@@ -400,6 +460,7 @@ export const {
   useGetDailyReportQuery,
   useGetMonthlyReportQuery,
   useGetReportStaffOrdersQuery,
+  useGetSoldItemsPerformanceQuery,
   useCreateExpenseMutation,
   useDeleteExpenseMutation,
 } = statisticsApi;

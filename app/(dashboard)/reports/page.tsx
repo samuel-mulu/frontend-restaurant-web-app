@@ -38,10 +38,9 @@ import {
   ReportStaffOrderDetail,
   useCreateExpenseMutation,
   useGetDailyReportQuery,
-  useGetInventoryAnalyticsQuery,
-  useGetMenuAnalyticsQuery,
   useGetMonthlyReportQuery,
   useGetReportStaffOrdersQuery,
+  useGetSoldItemsPerformanceQuery,
 } from "@/stores/features/statistics/statisticsApi";
 import {
   ArrowDownCircle,
@@ -61,7 +60,7 @@ import {
   TrendingUp,
   Users
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 // Staff Order Details Component
@@ -363,6 +362,7 @@ const getReportDateRange = (
 };
 
 export default function ReportsPage() {
+  const SOLD_ITEMS_PAGE_SIZE = 20;
   const [viewType, setViewType] = useState<"daily" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -370,6 +370,7 @@ export default function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("PAID_TO_CASHIER");
   const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
   const selectedStatus = statusFilter === "ALL" ? undefined : statusFilter;
+  const [soldItemsPage, setSoldItemsPage] = useState(1);
 
   // Staff detail modal state
   const [staffDetailModal, setStaffDetailModal] = useState<{
@@ -416,18 +417,13 @@ export default function ReportsPage() {
   );
 
   const detailRange = getReportDateRange(selectedDate, viewType);
-
-  const menuAnalytics = useGetMenuAnalyticsQuery({
+  const soldItemsQuery = useGetSoldItemsPerformanceQuery({
     startDate: detailRange.startDate,
     endDate: detailRange.endDate,
     status: statusFilter,
-    limit: 100,
-  });
-
-  const inventoryAnalytics = useGetInventoryAnalyticsQuery({
-    startDate: detailRange.startDate,
-    endDate: detailRange.endDate,
-    status: statusFilter,
+    paymentMethod: paymentFilter,
+    page: soldItemsPage,
+    limit: SOLD_ITEMS_PAGE_SIZE,
   });
 
   const [createExpense, { isLoading: isCreatingExpense }] =
@@ -435,6 +431,10 @@ export default function ReportsPage() {
 
   const { data, isLoading, isFetching, error, refetch } =
     viewType === "daily" ? dailyQuery : monthlyQuery;
+
+  useEffect(() => {
+    setSoldItemsPage(1);
+  }, [viewType, selectedDate, statusFilter, paymentFilter]);
 
   const handlePrevDate = () => {
     setSelectedDate((prev) =>
@@ -511,12 +511,12 @@ export default function ReportsPage() {
 
       // Menu/Inventory Performance
       csvData.push({ Category: "ITEM PERFORMANCE", Label: "Item Name", Type: "Type", Count: "Quantity" });
-      combinedPerformance.forEach((item) => {
+      soldItemsData.items.forEach((item) => {
         csvData.push({
           Category: "Item",
-          Label: item.name,
-          Type: item.type,
-          Count: item.quantity
+          Label: item.itemName,
+          Type: item.itemType,
+          Count: item.qtySold
         });
       });
 
@@ -552,8 +552,10 @@ export default function ReportsPage() {
           salesByPayment: reportData.salesByPaymentMethod,
           expenses: reportData.expenses,
           cashierPerformance: sortedCashiers,
-          menuPerformance: combinedPerformance.filter(p => p.type === "menu"),
-          inventoryPerformance: combinedPerformance.filter(p => p.type === "inventory")
+          menuPerformance: soldItemsData.items.filter((item) => item.itemType === "menu"),
+          inventoryPerformance: soldItemsData.items.filter(
+            (item) => item.itemType === "inventory",
+          ),
         }
       });
 
@@ -610,19 +612,17 @@ export default function ReportsPage() {
   const totalSales = paymentFilter === "ALL" ? totalFromOrders : totalSalesFromPayment;
   const totalExpenses = reportData.expenses.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0);
   const netRevenue = totalSales - totalExpenses;
-
-  const combinedPerformance = [
-    ...(menuAnalytics.data?.topSellingItems || []).map((item: { itemName: string; totalQty: number }) => ({
-      name: item.itemName,
-      quantity: item.totalQty,
-      type: "menu",
-    })),
-    ...(inventoryAnalytics.data?.topSelling || []).map((item: { inventoryName: string; quantity: number }) => ({
-      name: item.inventoryName,
-      quantity: item.quantity,
-      type: "inventory",
-    })),
-  ].sort((a, b) => b.quantity - a.quantity);
+  const soldItemsData = soldItemsQuery.data || {
+    items: [],
+    pagination: {
+      page: 1,
+      limit: SOLD_ITEMS_PAGE_SIZE,
+      total: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    },
+  };
 
   return (
     <div className="p-6 space-y-6 bg-slate-50/50 dark:bg-slate-950 min-h-screen">
@@ -937,29 +937,71 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {menuAnalytics.isFetching || inventoryAnalytics.isFetching ? <TableSkeleton columnCount={2} rowCount={5} /> : (
+                {soldItemsQuery.isFetching ? <TableSkeleton columnCount={4} rowCount={5} /> : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Item Name</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Qty Sold</TableHead>
+                        <TableHead className="text-right">Sales Amount</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {combinedPerformance.map((item, index) => (
-                        <TableRow key={index}>
+                      {soldItemsData.items.map((item) => (
+                        <TableRow key={`${item.itemType}-${item.itemId}`}>
                           <TableCell className="font-medium">
-                            <div className="flex flex-col">
-                              <span>{item.name}</span>
-                              <span className="text-[10px] text-muted-foreground uppercase">{item.type}</span>
-                            </div>
+                            {item.itemName}
                           </TableCell>
-                          <TableCell className="text-right font-bold text-primary">{item.quantity}x</TableCell>
+                          <TableCell className="text-xs uppercase text-muted-foreground">
+                            {item.itemType}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-primary">
+                            {item.qtySold}x
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(item.salesAmount)}
+                          </TableCell>
                         </TableRow>
                       ))}
+                      {soldItemsData.items.length === 0 && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={4}
+                            className="h-24 text-center text-muted-foreground"
+                          >
+                            No sold items for selected filters
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 )}
+                <div className="flex items-center justify-between border-t px-4 py-3">
+                  <span className="text-xs text-muted-foreground">
+                    Page {soldItemsData.pagination.page} of{" "}
+                    {soldItemsData.pagination.totalPages || 1} ·{" "}
+                    {soldItemsData.pagination.total} items
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!soldItemsData.pagination.hasPreviousPage}
+                      onClick={() => setSoldItemsPage((p) => Math.max(1, p - 1))}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!soldItemsData.pagination.hasNextPage}
+                      onClick={() => setSoldItemsPage((p) => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -1107,7 +1149,7 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {combinedPerformance.length > 0 && (
+          {soldItemsData.items.length > 0 && (
             <div className="space-y-4 pt-4">
               <h2 className="text-sm font-black uppercase tracking-widest border-b-2 border-slate-100 pb-2 flex justify-between">
                 <span>Inventory & Menu Analytics</span>
@@ -1122,11 +1164,11 @@ export default function ReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {combinedPerformance.slice(0, 50).map((item, i) => (
-                    <TableRow key={i} className="border-b border-slate-50">
-                      <TableCell className="py-1 text-xs px-2 font-medium">{item.name}</TableCell>
-                      <TableCell className="py-1 text-[10px] px-2 capitalize italic text-slate-500 font-bold">{item.type}</TableCell>
-                      <TableCell className="text-right py-1 text-xs px-2 font-black">{item.quantity} units</TableCell>
+                  {soldItemsData.items.slice(0, 50).map((item, i) => (
+                    <TableRow key={`${item.itemType}-${item.itemId}-${i}`} className="border-b border-slate-50">
+                      <TableCell className="py-1 text-xs px-2 font-medium">{item.itemName}</TableCell>
+                      <TableCell className="py-1 text-[10px] px-2 capitalize italic text-slate-500 font-bold">{item.itemType}</TableCell>
+                      <TableCell className="text-right py-1 text-xs px-2 font-black">{item.qtySold} units</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

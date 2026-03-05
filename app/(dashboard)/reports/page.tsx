@@ -370,6 +370,9 @@ export default function ReportsPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("PAID_TO_CASHIER");
   const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
+  const [itemTypeFilter, setItemTypeFilter] = useState<
+    "ALL" | "menu" | "inventory"
+  >("ALL");
   const selectedStatus = statusFilter === "ALL" ? undefined : statusFilter;
   const [soldItemsPage, setSoldItemsPage] = useState(1);
 
@@ -423,6 +426,7 @@ export default function ReportsPage() {
     endDate: detailRange.endDate,
     status: statusFilter,
     paymentMethod: paymentFilter,
+    itemType: itemTypeFilter,
     page: soldItemsPage,
     limit: SOLD_ITEMS_PAGE_SIZE,
   });
@@ -435,7 +439,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     setSoldItemsPage(1);
-  }, [viewType, selectedDate, statusFilter, paymentFilter]);
+  }, [viewType, selectedDate, statusFilter, paymentFilter, itemTypeFilter]);
 
   const handlePrevDate = () => {
     setSelectedDate((prev) =>
@@ -932,10 +936,27 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader className="border-b pb-4">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Package className="h-5 w-5 text-indigo-500" />
-                  Menu & Inventory Performance
-                </CardTitle>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <Package className="h-5 w-5 text-indigo-500" />
+                    Menu & Inventory Performance
+                  </CardTitle>
+                  <Select
+                    value={itemTypeFilter}
+                    onValueChange={(value) =>
+                      setItemTypeFilter(value as "ALL" | "menu" | "inventory")
+                    }
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Item Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Items</SelectItem>
+                      <SelectItem value="menu">Menu</SelectItem>
+                      <SelectItem value="inventory">Inventory</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {soldItemsQuery.isFetching ? <TableSkeleton columnCount={4} rowCount={5} /> : (

@@ -402,17 +402,29 @@ export const statisticsApi = createApiEndpoints({
         endDate: string;
         status?: string;
         paymentMethod?: string;
+        itemType?: "menu" | "inventory" | "ALL";
         page?: number;
         limit?: number;
       }
     >({
-      query: ({ startDate, endDate, status, paymentMethod, page, limit }) => {
+      query: ({
+        startDate,
+        endDate,
+        status,
+        paymentMethod,
+        itemType,
+        page,
+        limit,
+      }) => {
         const queryParams = new URLSearchParams();
         queryParams.append("startDate", startDate);
         queryParams.append("endDate", endDate);
         if (status && status !== "ALL") queryParams.append("status", status);
         if (paymentMethod && paymentMethod !== "ALL") {
           queryParams.append("paymentMethod", paymentMethod);
+        }
+        if (itemType && itemType !== "ALL") {
+          queryParams.append("itemType", itemType);
         }
         if (page) queryParams.append("page", String(page));
         if (limit) queryParams.append("limit", String(limit));

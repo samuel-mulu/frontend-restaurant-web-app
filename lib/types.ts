@@ -14,6 +14,7 @@ export interface MenuItem {
 export interface Category {
   id: string;
   name: string;
+  isFavorite: boolean;
   products: number; // Note: Backend doesn't provide this, set to 0 by default
   updatedAt: string; // Formatted as YYYY-MM-DD for display
   // Optional fields from backend (not always needed in UI)

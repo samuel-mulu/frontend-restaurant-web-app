@@ -7,6 +7,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { NotificationBell } from "@/components/notification-bell";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 
 export default function DashboardLayout({
@@ -33,7 +34,10 @@ export default function DashboardLayout({
       <SidebarInset className="h-screen overflow-y-auto bg-background/80">
         <main className="flex-1 min-h-screen">
           <div className="page-shell">
-            <SidebarTrigger className="rounded-full border border-border bg-card/80 text-muted-foreground shadow-sm backdrop-blur" />
+            <div className="flex items-center gap-2 mb-4">
+              <SidebarTrigger className="rounded-full border border-border bg-card/80 text-muted-foreground shadow-sm backdrop-blur" />
+              <NotificationBell />
+            </div>
             {children}
           </div>
         </main>

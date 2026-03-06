@@ -25,6 +25,8 @@ import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { useListTablesQuery } from "@/stores/features/tables/tablesApi";
 import { AlertCircle, Minus, Plus, Search, Star, Trash2 } from "lucide-react";
 import React, { useState } from "react";
+import { useUpdateCategoryMutation } from "@/stores/features/categories/categoriesApi";
+import { useUpdateItemMutation } from "@/stores/features/items/itemsApi";
 import { toast } from "sonner";
 
 type MenuCartItem = Menu & { quantity: number; type: "menu" };
@@ -33,41 +35,6 @@ type InventoryCartItem = Inventory & {
   type: "inventory";
 };
 type CartItem = MenuCartItem | InventoryCartItem;
-
-type FavoritesStorage = {
-  menu: string[];
-  inventory: string[];
-};
-
-const FAVORITES_STORAGE_KEY = "pos:favorites:v1";
-
-function readFavoritesFromStorage(): FavoritesStorage {
-  try {
-    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-    if (!raw) return { menu: [], inventory: [] };
-    const parsed = JSON.parse(raw) as Partial<FavoritesStorage>;
-    return {
-      menu: Array.isArray(parsed.menu)
-        ? Array.from(new Set(parsed.menu.filter((v) => typeof v === "string")))
-        : [],
-      inventory: Array.isArray(parsed.inventory)
-        ? Array.from(
-          new Set(parsed.inventory.filter((v) => typeof v === "string")),
-        )
-        : [],
-    };
-  } catch {
-    return { menu: [], inventory: [] };
-  }
-}
-
-function writeFavoritesToStorage(next: FavoritesStorage) {
-  try {
-    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // ignore
-  }
-}
 
 const WAITER_COLOR_CLASS: Record<string, string> = {
   red: "bg-red-500",
@@ -127,22 +94,11 @@ export default function OrderPage() {
   >({});
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  const [favoriteMenuIds, setFavoriteMenuIds] = React.useState<Set<string>>(
-    () => new Set(),
-  );
-  const [favoriteInventoryIds, setFavoriteInventoryIds] = React.useState<
-    Set<string>
-  >(() => new Set());
-
-  React.useEffect(() => {
-    const fav = readFavoritesFromStorage();
-    setFavoriteMenuIds(new Set(fav.menu));
-    setFavoriteInventoryIds(new Set(fav.inventory));
-  }, []);
-
   // All hooks must be called before any conditional returns
   const [createOrder, { isLoading: isCreatingOrder }] =
     useCreateOrderMutation();
+  const [updateCategory] = useUpdateCategoryMutation();
+  const [updateItem] = useUpdateItemMutation();
 
   // Fetch data using Redux Toolkit Query
   const { data: waitersData, isLoading: waitersLoading } = useListStaffQuery({
@@ -198,72 +154,45 @@ export default function OrderPage() {
   );
 
   const visibleMenuItems = React.useMemo(() => {
-    const filtered = items.filter(
+    return items.filter(
       (item: Menu) =>
         item.available &&
         item.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
-    const withIndex = filtered.map((item: Menu, idx: number) => ({
-      item,
-      idx,
-    }));
-    withIndex.sort(
-      (a: { item: Menu; idx: number }, b: { item: Menu; idx: number }) => {
-        const af = favoriteMenuIds.has(a.item.id);
-        const bf = favoriteMenuIds.has(b.item.id);
-        if (af === bf) return a.idx - b.idx;
-        return af ? -1 : 1;
-      },
-    );
-    return withIndex.map((x: { item: Menu; idx: number }) => x.item);
-  }, [items, searchQuery, favoriteMenuIds]);
+  }, [items, searchQuery]);
 
   const visibleInventoryItems = React.useMemo(() => {
-    const filtered = inventoryItems.filter((item: Inventory) =>
+    return inventoryItems.filter((item: Inventory) =>
       item.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
-    const withIndex = filtered.map((item: Inventory, idx: number) => ({
-      item,
-      idx,
-    }));
-    withIndex.sort(
-      (
-        a: { item: Inventory; idx: number },
-        b: { item: Inventory; idx: number },
-      ) => {
-        const af = favoriteInventoryIds.has(a.item.id);
-        const bf = favoriteInventoryIds.has(b.item.id);
-        if (af === bf) return a.idx - b.idx;
-        return af ? -1 : 1;
-      },
-    );
-    return withIndex.map((x: { item: Inventory; idx: number }) => x.item);
-  }, [inventoryItems, searchQuery, favoriteInventoryIds]);
+  }, [inventoryItems, searchQuery]);
 
-  const toggleFavoriteMenu = (id: string) => {
-    setFavoriteMenuIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      writeFavoritesToStorage({
-        menu: Array.from(next),
-        inventory: Array.from(favoriteInventoryIds),
-      });
-      return next;
-    });
+  const toggleFavoriteMenu = async (item: Menu) => {
+    try {
+      await updateItem({
+        id: item.id,
+        data: { isFavorite: !item.isFavorite },
+      }).unwrap();
+      toast.success(
+        !item.isFavorite ? "Added to favorites" : "Removed from favorites",
+      );
+    } catch {
+      toast.error("Failed to update favorite status");
+    }
   };
 
-  const toggleFavoriteInventory = (id: string) => {
-    setFavoriteInventoryIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      writeFavoritesToStorage({
-        menu: Array.from(favoriteMenuIds),
-        inventory: Array.from(next),
-      });
-      return next;
-    });
+  const toggleFavoriteCategory = async (cat: Category) => {
+    try {
+      await updateCategory({
+        id: cat.id,
+        data: { isFavorite: !cat.isFavorite },
+      }).unwrap();
+      toast.success(
+        !cat.isFavorite ? "Added to favorites" : "Removed from favorites",
+      );
+    } catch {
+      toast.error("Failed to update favorite status");
+    }
   };
 
   // Show loading while checking authorization
@@ -584,18 +513,37 @@ export default function OrderPage() {
                       .map((category: Category) => {
                         const isSelected = selectedCategory === category.id;
                         return (
-                          <button
+                          <div
                             key={category.id}
-                            onClick={() => {
-                              setSelectedCategory(category.id);
-                            }}
-                            className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${isSelected
+                            className="relative group shrink-0"
+                          >
+                            <button
+                              onClick={() => {
+                                setSelectedCategory(category.id);
+                              }}
+                              className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap pr-8 ${isSelected
                                 ? "text-primary bg-primary/10 border border-primary/20"
                                 : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                              }`}
-                          >
-                            {category.name}
-                          </button>
+                                }`}
+                            >
+                              {category.name}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavoriteCategory(category);
+                              }}
+                              className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full transition-opacity ${category.isFavorite
+                                ? "opacity-100 text-yellow-500"
+                                : "opacity-0 group-hover:opacity-50 text-muted-foreground"
+                                }`}
+                            >
+                              <Star
+                                className={`h-3 w-3 ${category.isFavorite ? "fill-current" : ""
+                                  }`}
+                              />
+                            </button>
+                          </div>
                         );
                       })
                   )}
@@ -637,21 +585,19 @@ export default function OrderPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-9 w-9"
-                                onClick={() => toggleFavoriteMenu(item.id)}
+                                onClick={() => toggleFavoriteMenu(item)}
                                 aria-label={
-                                  favoriteMenuIds.has(item.id)
+                                  item.isFavorite
                                     ? "Remove from favorites"
                                     : "Add to favorites"
                                 }
                                 title={
-                                  favoriteMenuIds.has(item.id)
-                                    ? "Unfavorite"
-                                    : "Favorite"
+                                  item.isFavorite ? "Unfavorite" : "Favorite"
                                 }
                               >
                                 <Star
                                   className={
-                                    favoriteMenuIds.has(item.id)
+                                    item.isFavorite
                                       ? "h-5 w-5 fill-yellow-400 text-yellow-500"
                                       : "h-5 w-5"
                                   }
@@ -697,18 +643,37 @@ export default function OrderPage() {
                         const isSelected =
                           selectedInventoryCategory === category.id;
                         return (
-                          <button
+                          <div
                             key={category.id}
-                            onClick={() => {
-                              setSelectedInventoryCategory(category.id);
-                            }}
-                            className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${isSelected
+                            className="relative group shrink-0"
+                          >
+                            <button
+                              onClick={() => {
+                                setSelectedInventoryCategory(category.id);
+                              }}
+                              className={`capitalize shrink-0 px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap pr-8 ${isSelected
                                 ? "text-primary bg-primary/10 border border-primary/20"
                                 : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                              }`}
-                          >
-                            {category.name}
-                          </button>
+                                }`}
+                            >
+                              {category.name}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavoriteCategory(category);
+                              }}
+                              className={`absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full transition-opacity ${category.isFavorite
+                                ? "opacity-100 text-yellow-500"
+                                : "opacity-0 group-hover:opacity-50 text-muted-foreground"
+                                }`}
+                            >
+                              <Star
+                                className={`h-3 w-3 ${category.isFavorite ? "fill-current" : ""
+                                  }`}
+                              />
+                            </button>
+                          </div>
                         );
                       })
                   )}
@@ -809,32 +774,6 @@ export default function OrderPage() {
                               </div>
 
                               <div className="flex flex-col items-end gap-4">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-9 w-9"
-                                  onClick={() =>
-                                    toggleFavoriteInventory(item.id)
-                                  }
-                                  aria-label={
-                                    favoriteInventoryIds.has(item.id)
-                                      ? "Remove from favorites"
-                                      : "Add to favorites"
-                                  }
-                                  title={
-                                    favoriteInventoryIds.has(item.id)
-                                      ? "Unfavorite"
-                                      : "Favorite"
-                                  }
-                                >
-                                  <Star
-                                    className={
-                                      favoriteInventoryIds.has(item.id)
-                                        ? "h-5 w-5 fill-yellow-400 text-yellow-500"
-                                        : "h-5 w-5"
-                                    }
-                                  />
-                                </Button>
                                 <Button
                                   onClick={() => addInventoryItem(item)}
                                   size={"sm"}

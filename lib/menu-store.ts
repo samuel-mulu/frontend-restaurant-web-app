@@ -14,6 +14,7 @@ export interface Menu {
   ingredients?: string[];
   mealType?: "breakfast" | "lunch" | "dinner" | "treats";
   special?: boolean;
+  isFavorite: boolean;
   // User comments/feedback for this menu item
   comments?: string[];
   updatedAt: string;

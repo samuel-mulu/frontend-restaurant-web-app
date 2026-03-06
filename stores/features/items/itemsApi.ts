@@ -31,6 +31,7 @@ export interface ItemResponse {
   // List of user comments for this item
   comments?: string[];
   special?: boolean;
+  isFavorite?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -68,6 +69,7 @@ export interface UpdateItemInput {
   ingredients?: string[];
   mealType?: "breakfast" | "lunch" | "dinner" | "treats";
   special?: boolean;
+  isFavorite?: boolean;
 }
 
 export interface UpdateAvailabilityInput {
@@ -94,6 +96,7 @@ function transformItem(item: ItemResponse): Menu {
     ingredients: item.ingredients,
     mealType: item.mealType,
     special: item.special,
+    isFavorite: !!item.isFavorite,
     comments: item.comments || [],
     updatedAt: item.updatedAt
       ? new Date(item.updatedAt).toISOString().split("T")[0]
@@ -278,6 +281,9 @@ export const itemsApi = createApiEndpoints({
           if (data.special !== undefined) {
             formData.append("special", data.special.toString());
           }
+          if (data.isFavorite !== undefined) {
+            formData.append("isFavorite", data.isFavorite.toString());
+          }
           formData.append("image", data.image);
 
           return {
@@ -301,6 +307,8 @@ export const itemsApi = createApiEndpoints({
           updateData.ingredients = data.ingredients;
         if (data.mealType !== undefined) updateData.mealType = data.mealType;
         if (data.special !== undefined) updateData.special = data.special;
+        if (data.isFavorite !== undefined)
+          updateData.isFavorite = data.isFavorite;
 
         return {
           url: `/items/${id}`,

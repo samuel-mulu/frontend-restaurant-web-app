@@ -7,6 +7,7 @@ export interface CategoryResponse {
   id: string;
   name: string;
   products?: number; // Number of items in this category
+  isFavorite?: boolean;
   clientId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -19,6 +20,7 @@ export interface CreateCategoryInput {
 
 export interface UpdateCategoryInput {
   name?: string;
+  isFavorite?: boolean;
 }
 
 interface ApiResponse<T> {
@@ -34,7 +36,8 @@ function transformCategory(category: CategoryResponse): Category {
   return {
     id: category.id || category._id || "",
     name: category.name,
-    products: category.products ?? 0, // Use count from backend, default to 0 if not provided
+    products: category.products ?? 0,
+    isFavorite: !!category.isFavorite,
     updatedAt: category.updatedAt
       ? new Date(category.updatedAt).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0],

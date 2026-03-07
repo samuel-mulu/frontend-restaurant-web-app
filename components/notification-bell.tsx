@@ -137,7 +137,7 @@ export function NotificationBell() {
     // Initial fetch only for authenticated users
     fetchActiveNotifications();
 
-    // Add polling every 15 seconds instead of 5 to reduce API load
+    // Add polling every 60 seconds (1 minute) to minimize API requests
     // Only poll when on relevant page and tab is active
     const pollInterval = setInterval(() => {
       if (
@@ -147,7 +147,7 @@ export function NotificationBell() {
       ) {
         fetchActiveNotifications();
       }
-    }, 15000); // Increased from 5000 to 15000
+    }, 60000); // Increased from 15000 to 60000 (1 minute)
 
     return () => {
       clearInterval(pollInterval);

@@ -6,24 +6,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Loading } from "@/components/ui/loading";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Menu } from "@/lib/menu-store";
 import { Category, Inventory } from "@/lib/types";
 import {
-    useListCategoriesQuery,
-    useUpdateCategoryMutation,
+  useListCategoriesQuery,
+  useUpdateCategoryMutation,
 } from "@/stores/features/categories/categoriesApi";
 import { useListInventoryQuery } from "@/stores/features/inventory/inventoryApi";
 import {
-    useListItemsQuery,
-    useUpdateItemMutation,
+  useListItemsQuery,
+  useUpdateItemMutation,
 } from "@/stores/features/items/itemsApi";
 import { useCreateOrderMutation } from "@/stores/features/orders/ordersApi";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
@@ -81,12 +81,6 @@ export default function OrderPage() {
     allowedRoles: ["cashier", "waiter"],
     redirectTo: "/",
   });
-
-  // Function to refresh notifications when order is created
-  const refreshNotifications = () => {
-    // Trigger notification refresh by incrementing refresh trigger
-    window.dispatchEvent(new CustomEvent("refreshNotifications"));
-  };
 
   const [cart, setCart] = React.useState<CartItem[]>([]);
   const [selectedWaiter, setSelectedWaiter] = React.useState<string>("");
@@ -409,9 +403,6 @@ export default function OrderPage() {
       toast.success("Order created successfully!", {
         description: `Order #${result.orderNumber} has been created`,
       });
-
-      // Refresh notifications to update other cashiers/waiters
-      refreshNotifications();
 
       // Automatically print receipt (client-side) - Non-blocking
       if (result.receiptText && !withoutPrint) {

@@ -15,8 +15,7 @@ import {
   selectUser,
 } from "@/stores/features/auth/authSlice";
 import { AlertCircle, Bell, Check } from "lucide-react";
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useSelector } from "react-redux";
 
 export interface TableNotification {
@@ -29,17 +28,12 @@ export interface TableNotification {
   createdAt: string;
 }
 
-export function NotificationBell({
-  refreshTrigger,
-}: {
-  refreshTrigger?: number;
-}) {
+export function NotificationBell() {
   const [notifications, setNotifications] = useState<TableNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [newNotificationIds, setNewNotificationIds] = useState<Set<string>>(
     new Set(),
   );
-  const [previousCount, setPreviousCount] = useState(0);
 
   // Get user authentication state
   const user = useSelector(selectUser);
@@ -94,7 +88,6 @@ export function NotificationBell({
           }
 
           setNotifications(result.data);
-          setPreviousCount(notifications.length);
         } else {
           console.warn(
             "[NotificationBell] API returned success:false",
@@ -126,32 +119,6 @@ export function NotificationBell({
       console.error("Failed to clear notification:", error);
     }
   };
-
-  const pathname = usePathname();
-
-  useEffect(() => {
-    // Only set up polling if user is authenticated and has the right role
-    if (!shouldShowNotifications) {
-      console.log(
-        "[NotificationBell] Notifications disabled - user not authenticated or wrong role",
-      );
-      return;
-    }
-
-    // Initial fetch only for authenticated users (no automatic polling)
-    fetchActiveNotifications();
-
-    // DISABLED: No automatic polling to prevent "Too Many Requests" errors
-    // Users must manually refresh or rely on order creation events
-    return () => {
-      // No interval to clear
-    };
-  }, [
-    fetchActiveNotifications,
-    pathname,
-    shouldShowNotifications,
-    refreshTrigger,
-  ]);
 
   const pendingCount = notifications.length;
 

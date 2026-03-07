@@ -9,31 +9,16 @@ import {
     SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useEffect, useState } from "react";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
   const auth = useRequireAuth({
     allowedRoles: ["owner", "cashier", "waiter"],
     redirectTo: "/login",
   });
-
-  useEffect(() => {
-    const handleRefresh = () => {
-      setRefreshTrigger((prev) => prev + 1);
-    };
-
-    window.addEventListener("refreshNotifications", handleRefresh);
-
-    return () => {
-      window.removeEventListener("refreshNotifications", handleRefresh);
-    };
-  }, []);
 
   if (auth.isChecking || !auth.hydrated) {
     return <Loading fullScreen text="Authenticating..." size="lg" />;
@@ -51,7 +36,7 @@ export default function DashboardLayout({
           <div className="page-shell">
             <div className="flex items-center gap-2 mb-4">
               <SidebarTrigger className="rounded-full border border-border bg-card/80 text-muted-foreground shadow-sm backdrop-blur" />
-              <NotificationBell refreshTrigger={refreshTrigger} />
+              <NotificationBell />
             </div>
             {children}
           </div>

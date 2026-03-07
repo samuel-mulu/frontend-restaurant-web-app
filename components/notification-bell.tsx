@@ -137,8 +137,8 @@ export function NotificationBell() {
     // Initial fetch only for authenticated users
     fetchActiveNotifications();
 
-    // Add polling every 5 seconds for free plan efficiency
-    // Only poll when on the relevant page and tab is active
+    // Add polling every 15 seconds instead of 5 to reduce API load
+    // Only poll when on relevant page and tab is active
     const pollInterval = setInterval(() => {
       if (
         document.visibilityState === "visible" &&
@@ -147,7 +147,7 @@ export function NotificationBell() {
       ) {
         fetchActiveNotifications();
       }
-    }, 5000);
+    }, 15000); // Increased from 5000 to 15000
 
     return () => {
       clearInterval(pollInterval);

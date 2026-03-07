@@ -29,7 +29,11 @@ export interface TableNotification {
   createdAt: string;
 }
 
-export function NotificationBell() {
+export function NotificationBell({
+  refreshTrigger,
+}: {
+  refreshTrigger?: number;
+}) {
   const [notifications, setNotifications] = useState<TableNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [newNotificationIds, setNewNotificationIds] = useState<Set<string>>(
@@ -152,7 +156,12 @@ export function NotificationBell() {
     return () => {
       clearInterval(pollInterval);
     };
-  }, [fetchActiveNotifications, pathname, shouldShowNotifications]);
+  }, [
+    fetchActiveNotifications,
+    pathname,
+    shouldShowNotifications,
+    refreshTrigger,
+  ]);
 
   const pendingCount = notifications.length;
 

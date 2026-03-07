@@ -13,7 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -59,10 +59,11 @@ import {
   Package,
   Printer,
   TrendingUp,
-  Users
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import "./print-styles.css";
 
 // Staff Order Details Component
 interface StaffOrderDetailsProps {
@@ -158,8 +159,11 @@ function StaffOrderDetails({
             </div>
             <div className="text-2xl font-bold">
               {formatCurrencyValue(
-                orders.reduce((sum: number, order: ReportStaffOrderDetail) => sum + order.totalAmount, 0) /
-                orders.length,
+                orders.reduce(
+                  (sum: number, order: ReportStaffOrderDetail) =>
+                    sum + order.totalAmount,
+                  0,
+                ) / orders.length,
               )}
             </div>
           </div>
@@ -179,7 +183,11 @@ function StaffOrderDetails({
             Payment Methods
           </div>
           <div className="text-sm">
-            {Array.from(new Set(orders.map((o: ReportStaffOrderDetail) => o.paymentMethod))).join(", ")}
+            {Array.from(
+              new Set(
+                orders.map((o: ReportStaffOrderDetail) => o.paymentMethod),
+              ),
+            ).join(", ")}
           </div>
         </div>
       </div>
@@ -251,7 +259,9 @@ function OrderDetailsTable({ orders }: { orders: ReportStaffOrderDetail[] }) {
                 </div>
               </TableCell>
               <TableCell>
-                <PaymentBadge paymentMethod={order.paymentMethod || "unknown"} />
+                <PaymentBadge
+                  paymentMethod={order.paymentMethod || "unknown"}
+                />
               </TableCell>
               <TableCell className="text-right font-medium">
                 {formatCurrencyValue(order.totalAmount)}
@@ -400,7 +410,28 @@ export default function ReportsPage() {
       cashierPerformance: false,
       menuPerformance: false,
       inventoryPerformance: false,
-    }
+    },
+  });
+
+  // PDF Options Modal State
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    sections: {
+      expenses: boolean;
+      paymentBreakdown: boolean;
+      cashierPerformance: boolean;
+      waiterPerformance: boolean;
+      itemPerformance: boolean;
+    };
+  }>({
+    isOpen: false,
+    sections: {
+      expenses: true,
+      paymentBreakdown: true,
+      cashierPerformance: true,
+      waiterPerformance: false,
+      itemPerformance: true,
+    },
   });
 
   const dailyQuery = useGetDailyReportQuery(
@@ -431,6 +462,18 @@ export default function ReportsPage() {
     limit: SOLD_ITEMS_PAGE_SIZE,
   });
 
+  // Query for all sold items (unlimited) for PDF export
+  const allSoldItemsQuery = useGetSoldItemsPerformanceQuery({
+    startDate: detailRange.startDate,
+    endDate: detailRange.endDate,
+    status: statusFilter,
+    paymentMethod: paymentFilter,
+    itemType: itemTypeFilter,
+    page: 1,
+    limit: 9999, // fetch everything for PDF
+  });
+  const allSoldItems = allSoldItemsQuery.data?.items ?? [];
+
   const [createExpense, { isLoading: isCreatingExpense }] =
     useCreateExpenseMutation();
 
@@ -458,70 +501,108 @@ export default function ReportsPage() {
       const csvData: any[] = [];
 
       // Financial Summary
-      csvData.push({ Category: "SUMMARY", Label: "Total Sales", Value: totalSales });
-      csvData.push({ Category: "SUMMARY", Label: "Total Expenses", Value: totalExpenses });
-      csvData.push({ Category: "SUMMARY", Label: "Net Revenue", Value: netRevenue });
+      csvData.push({
+        Category: "SUMMARY",
+        Label: "Total Sales",
+        Value: totalSales,
+      });
+      csvData.push({
+        Category: "SUMMARY",
+        Label: "Total Expenses",
+        Value: totalExpenses,
+      });
+      csvData.push({
+        Category: "SUMMARY",
+        Label: "Net Revenue",
+        Value: netRevenue,
+      });
       csvData.push({}); // Empty row
 
       // Payment Breakdown
-      csvData.push({ Category: "PAYMENT BREAKDOWN", Label: "Method", Bank: "Bank", Count: "Orders", Total: "Amount" });
+      csvData.push({
+        Category: "PAYMENT BREAKDOWN",
+        Label: "Method",
+        Bank: "Bank",
+        Count: "Orders",
+        Total: "Amount",
+      });
       reportData.salesByPaymentMethod.forEach((item: any) => {
         csvData.push({
           Category: "Payment",
           Label: item._id.method.replace("_", " "),
           Bank: item._id.bank || "N/A",
           Count: item.count,
-          Total: item.total
+          Total: item.total,
         });
       });
       csvData.push({});
 
       // Expenses
-      csvData.push({ Category: "EXPENSES", Label: "Reason", Description: "Details", Total: "Amount" });
+      csvData.push({
+        Category: "EXPENSES",
+        Label: "Reason",
+        Description: "Details",
+        Total: "Amount",
+      });
       reportData.expenses.forEach((group: any) => {
         group.items.forEach((ex: any) => {
           csvData.push({
             Category: "Expense",
             Label: ex.reason.replace("_", " "),
             Description: ex.description || "-",
-            Total: -ex.amount
+            Total: -ex.amount,
           });
         });
       });
       csvData.push({});
 
       // Waiter Performance
-      csvData.push({ Category: "WAITER PERFORMANCE", Label: "Name", Count: "Orders", Total: "Revenue" });
+      csvData.push({
+        Category: "WAITER PERFORMANCE",
+        Label: "Name",
+        Count: "Orders",
+        Total: "Revenue",
+      });
       sortedWaiters.forEach((item: any) => {
         csvData.push({
           Category: "Waiter",
           Label: item.name,
           Count: item.count,
-          Total: item.total
+          Total: item.total,
         });
       });
       csvData.push({});
 
       // Cashier Performance
-      csvData.push({ Category: "CASHIER PERFORMANCE", Label: "Name", Count: "Orders", Total: "Settled" });
+      csvData.push({
+        Category: "CASHIER PERFORMANCE",
+        Label: "Name",
+        Count: "Orders",
+        Total: "Settled",
+      });
       sortedCashiers.forEach((item: any) => {
         csvData.push({
           Category: "Cashier",
           Label: item.name,
           Count: item.count,
-          Total: item.total
+          Total: item.total,
         });
       });
       csvData.push({});
 
       // Menu/Inventory Performance
-      csvData.push({ Category: "ITEM PERFORMANCE", Label: "Item Name", Type: "Type", Count: "Quantity" });
+      csvData.push({
+        Category: "ITEM PERFORMANCE",
+        Label: "Item Name",
+        Type: "Type",
+        Count: "Quantity",
+      });
       soldItemsData.items.forEach((item) => {
         csvData.push({
           Category: "Item",
           Label: item.itemName,
           Type: item.itemType,
-          Count: item.qtySold
+          Count: item.qtySold,
         });
       });
 
@@ -530,7 +611,10 @@ export default function ReportsPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `Report_${viewType}_${formatDateForReport(selectedDate, "yyyy-MM-dd")}.csv`);
+      link.setAttribute(
+        "download",
+        `Report_${viewType}_${formatDateForReport(selectedDate, "yyyy-MM-dd")}.csv`,
+      );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -541,14 +625,476 @@ export default function ReportsPage() {
   };
 
   const handleExportPDF = () => {
-    window.print();
+    setPdfModal((p) => ({ ...p, isOpen: true }));
+  };
+
+  const handleGeneratePDF = () => {
+    setPdfModal((p) => ({ ...p, isOpen: false }));
+    // Generate HTML and open in new window for better pagination
+    setTimeout(() => {
+      handlePrint();
+    }, 300);
+  };
+
+  const handlePrint = () => {
+    // Generate complete HTML with all data
+    const printHTML = generatePrintHTML();
+
+    // Generate filename with restaurant name and date
+    const reportDate = formatDateForReport(
+      selectedDate,
+      viewType === "daily" ? "PPP" : "MMMM yyyy",
+    );
+    const filename = `Kandino's Kitchen-${reportDate}-report`;
+
+    // Open new window with the HTML content
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(printHTML);
+      printWindow.document.close();
+
+      // Set document title for filename
+      printWindow.document.title = filename;
+
+      // Wait for content to load, then trigger print dialog
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+    } else {
+      toast.error(
+        "Failed to open print window. Please allow popups for this site.",
+      );
+    }
+  };
+
+  const generatePrintHTML = () => {
+    const currentDate = new Date().toLocaleString();
+    const reportDate = formatDateForReport(
+      selectedDate,
+      viewType === "daily" ? "PPP" : "MMMM yyyy",
+    );
+
+    // Generate expenses HTML
+    const expensesHTML =
+      pdfModal.sections.expenses && data?.expenses && data.expenses.length > 0
+        ? data.expenses
+            .map((item: any) =>
+              item.items
+                .map(
+                  (ex: any) => `
+            <tr>
+              <td>
+                <div class="font-bold">${ex.reason.replace("_", " ")}</div>
+                <div class="text-sm">• ${ex.description || "N/A"}</div>
+              </td>
+              <td class="text-right font-bold">ETB ${ex.amount.toFixed(2)}</td>
+            </tr>
+          `,
+                )
+                .join(""),
+            )
+            .join("")
+        : "";
+
+    // Generate payment breakdown HTML
+    const paymentHTML =
+      pdfModal.sections.paymentBreakdown && filteredSales.length > 0
+        ? filteredSales
+            .map(
+              (item: any, i: number) => `
+          <tr>
+            <td class="capitalize">${item._id.method === "unpaid" ? "Unpaid / Pending" : item._id.method.replace("_", " ")}</td>
+            <td>${item._id.bank || "-"}</td>
+            <td class="text-right">${item.count}</td>
+            <td class="text-right font-bold">ETB ${item.total.toFixed(2)}</td>
+          </tr>
+        `,
+            )
+            .join("")
+        : "";
+
+    // Generate cashier performance HTML
+    const cashierHTML =
+      pdfModal.sections.cashierPerformance && sortedCashiers.length > 0
+        ? sortedCashiers
+            .map(
+              (item: any) => `
+          <tr>
+            <td class="font-medium">${item.name}</td>
+            <td class="text-right">${item.count}</td>
+            <td class="text-right font-bold">ETB ${item.total.toFixed(2)}</td>
+          </tr>
+        `,
+            )
+            .join("")
+        : "";
+
+    // Generate waiter performance HTML
+    const waiterHTML =
+      pdfModal.sections.waiterPerformance && sortedWaiters.length > 0
+        ? sortedWaiters
+            .map(
+              (item: any) => `
+          <tr>
+            <td class="font-medium">${item.name}</td>
+            <td class="text-right">${item.count}</td>
+            <td class="text-right font-bold">ETB ${item.total.toFixed(2)}</td>
+          </tr>
+        `,
+            )
+            .join("")
+        : "";
+
+    // Generate inventory HTML
+    const inventoryHTML =
+      pdfModal.sections.itemPerformance && allSoldItems.length > 0
+        ? allSoldItems
+            .map(
+              (item: any) => `
+          <tr>
+            <td>${item.itemName}</td>
+            <td class="capitalize">${item.itemType}</td>
+            <td class="text-right font-bold">${item.qtySold}</td>
+            <td class="text-right font-bold">ETB ${item.salesAmount.toFixed(2)}</td>
+          </tr>
+        `,
+            )
+            .join("")
+        : "";
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Restaurant Report</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 1cm;
+          }
+          
+          body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            line-height: 1.4;
+            color: #2c3e50;
+            background: white;
+          }
+          
+          .header {
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 16pt;
+            margin-bottom: 24pt;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20pt;
+            border-radius: 8pt;
+          }
+          
+          .header h1 {
+            font-size: 24pt;
+            font-weight: bold;
+            margin-bottom: 8pt;
+            color: #2c3e50;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+          }
+          
+          .header h2 {
+            font-size: 18pt;
+            font-weight: bold;
+            margin-bottom: 8pt;
+            color: #3498db;
+          }
+          
+          .meta {
+            font-size: 9pt;
+            color: #7f8c8d;
+            margin-top: 8pt;
+            background: rgba(255,255,255,0.8);
+            padding: 8pt;
+            border-radius: 4pt;
+          }
+          
+          .section {
+            margin-bottom: 24pt;
+            page-break-inside: avoid;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8pt;
+            padding: 16pt;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+          }
+          
+          .section h3 {
+            font-size: 14pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8pt;
+            margin-top: 0;
+            margin-bottom: 12pt;
+            page-break-after: avoid;
+            color: #2c3e50;
+          }
+          
+          .financial-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12pt;
+            margin: 16pt 0;
+            page-break-inside: avoid;
+          }
+          
+          .financial-item {
+            border: 2px solid #3498db;
+            padding: 12pt;
+            text-align: center;
+            border-radius: 8pt;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.15);
+          }
+          
+          .financial-label {
+            font-size: 9pt;
+            font-weight: bold;
+            margin-bottom: 4pt;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5pt;
+          }
+          
+          .financial-value {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #2c3e50;
+          }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8pt 0;
+            font-size: 10pt;
+            page-break-inside: auto;
+          }
+          
+          th {
+            border: 1px solid #3498db;
+            padding: 6pt;
+            text-align: left;
+            font-weight: bold;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            text-transform: uppercase;
+            font-size: 9pt;
+            letter-spacing: 0.5pt;
+          }
+          
+          td {
+            border: 1px solid #e9ecef;
+            padding: 4pt 6pt;
+            vertical-align: top;
+            background: white;
+          }
+          
+          tr:nth-child(even) td {
+            background: #f8f9fa;
+          }
+          
+          .text-right {
+            text-align: right;
+          }
+          
+          .font-bold {
+            font-weight: bold;
+            color: #2c3e50;
+          }
+          
+          .footer {
+            margin-top: 36pt;
+            padding-top: 16pt;
+            border-top: 2px solid #3498db;
+            text-align: center;
+            font-size: 8pt;
+            color: #7f8c8d;
+            page-break-before: auto;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 16pt;
+            border-radius: 8pt;
+          }
+          
+          .compact-table {
+            font-size: 8pt;
+            line-height: 1.1;
+          }
+          
+          .compact-table th,
+          .compact-table td {
+            padding: 2pt 4pt;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Kandino's Kitchen</h1>
+          <h2>${viewType === "daily" ? "DAILY PERFORMANCE REPORT" : "MONTHLY PERFORMANCE REPORT"}</h2>
+          <div class="meta">
+            <p>${reportDate}</p>
+            <div>Status: ${statusFilter.replace("_", " ")} • Payment: ${paymentFilter.replace("_", " ")}</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>Financial Summary</h3>
+          <div class="financial-grid">
+            <div class="financial-item">
+              <div class="financial-label">Total Sales</div>
+              <div class="financial-value">${formatCurrency(totalSales)}</div>
+            </div>
+            <div class="financial-item">
+              <div class="financial-label">Expenses</div>
+              <div class="financial-value">${formatCurrency(totalExpenses)}</div>
+            </div>
+            <div class="financial-item">
+              <div class="financial-label">Net Revenue</div>
+              <div class="financial-value">${formatCurrency(netRevenue)}</div>
+            </div>
+          </div>
+        </div>
+
+        ${
+          expensesHTML
+            ? `
+        <div class="section">
+          <h3>Expenses & Withdrawals</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Reason/Details</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${expensesHTML}
+            </tbody>
+          </table>
+        </div>
+        `
+            : ""
+        }
+
+        ${
+          paymentHTML
+            ? `
+        <div class="section">
+          <h3>Payment Breakdown</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Bank</th>
+                <th class="text-right">Orders</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${paymentHTML}
+            </tbody>
+          </table>
+        </div>
+        `
+            : ""
+        }
+
+        ${
+          cashierHTML
+            ? `
+        <div class="section">
+          <h3>Cashier Performance</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th class="text-right">Orders</th>
+                <th class="text-right">Settled</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${cashierHTML}
+            </tbody>
+          </table>
+        </div>
+        `
+            : ""
+        }
+
+        ${
+          waiterHTML
+            ? `
+        <div class="section">
+          <h3>Waiter Performance</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th class="text-right">Orders</th>
+                <th class="text-right">Revenue</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${waiterHTML}
+            </tbody>
+          </table>
+        </div>
+        `
+            : ""
+        }
+
+        ${
+          inventoryHTML
+            ? `
+        <div class="section">
+          <h3>Menu & Inventory Performance</h3>
+          <div class="mb-4 text-sm text-gray-600">
+            Showing all ${allSoldItems.length} items
+          </div>
+          <table class="compact-table">
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Type</th>
+                <th class="text-right">Qty</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inventoryHTML}
+            </tbody>
+          </table>
+        </div>
+        `
+            : ""
+        }
+
+        <div class="footer">
+          Generated: ${currentDate} • System Generated Report
+        </div>
+      </body>
+      </html>
+    `;
   };
 
   const handleThermalPrint = async () => {
     try {
       const receiptText = formatReportForThermal({
-        title: viewType === "daily" ? "DAILY PERFORMANCE REPORT" : "MONTHLY PERFORMANCE REPORT",
-        dateRange: viewType === "daily" ? formatDateForReport(selectedDate, "PPP") : formatDateForReport(selectedDate, "MMMM yyyy"),
+        title:
+          viewType === "daily"
+            ? "DAILY PERFORMANCE REPORT"
+            : "MONTHLY PERFORMANCE REPORT",
+        dateRange:
+          viewType === "daily"
+            ? formatDateForReport(selectedDate, "PPP")
+            : formatDateForReport(selectedDate, "MMMM yyyy"),
         totalSales,
         totalExpenses,
         netRevenue,
@@ -557,17 +1103,19 @@ export default function ReportsPage() {
           salesByPayment: reportData.salesByPaymentMethod,
           expenses: reportData.expenses,
           cashierPerformance: sortedCashiers,
-          menuPerformance: soldItemsData.items.filter((item) => item.itemType === "menu"),
+          menuPerformance: soldItemsData.items.filter(
+            (item) => item.itemType === "menu",
+          ),
           inventoryPerformance: soldItemsData.items.filter(
             (item) => item.itemType === "inventory",
           ),
-        }
+        },
       });
 
       const result = await posPrinterService.print(receiptText);
       if (result.success) {
         toast.success("Sent to printer successfully");
-        setPrintModal(prev => ({ ...prev, isOpen: false }));
+        setPrintModal((prev) => ({ ...prev, isOpen: false }));
       } else {
         toast.error("Printing failed", { description: result.error });
       }
@@ -596,7 +1144,10 @@ export default function ReportsPage() {
   };
 
   if (isLoading) return <LoadingState message="Generating report..." />;
-  if (error) return <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />;
+  if (error)
+    return (
+      <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />
+    );
 
   const reportData = data || {
     orders: [],
@@ -605,17 +1156,32 @@ export default function ReportsPage() {
     staffPerformance: { byWaiter: [], byCashier: [] },
   };
 
-  const sortedWaiters = [...reportData.staffPerformance.byWaiter].sort((a: any, b: any) => b.count - a.count);
-  const sortedCashiers = [...reportData.staffPerformance.byCashier].sort((a: any, b: any) => b.count - a.count);
-
-  const filteredSales = reportData.salesByPaymentMethod.filter(
-    (s: { _id: { method: string } }) => paymentFilter === "ALL" || s._id.method === paymentFilter,
+  const sortedWaiters = [...reportData.staffPerformance.byWaiter].sort(
+    (a: any, b: any) => b.count - a.count,
+  );
+  const sortedCashiers = [...reportData.staffPerformance.byCashier].sort(
+    (a: any, b: any) => b.count - a.count,
   );
 
-  const totalFromOrders = reportData.orders.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0);
-  const totalSalesFromPayment = filteredSales.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0);
-  const totalSales = paymentFilter === "ALL" ? totalFromOrders : totalSalesFromPayment;
-  const totalExpenses = reportData.expenses.reduce((acc: number, curr: { total: number }) => acc + curr.total, 0);
+  const filteredSales = reportData.salesByPaymentMethod.filter(
+    (s: { _id: { method: string } }) =>
+      paymentFilter === "ALL" || s._id.method === paymentFilter,
+  );
+
+  const totalFromOrders = reportData.orders.reduce(
+    (acc: number, curr: { total: number }) => acc + curr.total,
+    0,
+  );
+  const totalSalesFromPayment = filteredSales.reduce(
+    (acc: number, curr: { total: number }) => acc + curr.total,
+    0,
+  );
+  const totalSales =
+    paymentFilter === "ALL" ? totalFromOrders : totalSalesFromPayment;
+  const totalExpenses = reportData.expenses.reduce(
+    (acc: number, curr: { total: number }) => acc + curr.total,
+    0,
+  );
   const netRevenue = totalSales - totalExpenses;
   const soldItemsData: SoldItemsPerformanceResponse = soldItemsQuery.data || {
     items: [],
@@ -643,13 +1209,19 @@ export default function ReportsPage() {
 
         <div className="flex flex-col sm:flex-row items-end gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <WithdrawalModal selectedDate={selectedDate} onSuccess={() => refetch()} />
+            <WithdrawalModal
+              selectedDate={selectedDate}
+              onSuccess={() => refetch()}
+            />
 
-            <Select onValueChange={(val) => {
-              if (val === "csv") handleExportCSV();
-              if (val === "pdf") handleExportPDF();
-              if (val === "print") setPrintModal({ ...printModal, isOpen: true });
-            }}>
+            <Select
+              onValueChange={(val) => {
+                if (val === "csv") handleExportCSV();
+                if (val === "pdf") handleExportPDF();
+                if (val === "print")
+                  setPrintModal({ ...printModal, isOpen: true });
+              }}
+            >
               <SelectTrigger className="w-[140px] bg-slate-900 border-slate-700 text-white hover:bg-slate-800 transition-colors">
                 <div className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
@@ -685,7 +1257,9 @@ export default function ReportsPage() {
             </Button>
             <div className="flex items-center gap-2 px-4 font-semibold text-sm">
               <CalendarIcon className="h-4 w-4 text-primary" />
-              {viewType === "daily" ? formatDateForReport(selectedDate, "PPP") : formatDateForReport(selectedDate, "MMMM yyyy")}
+              {viewType === "daily"
+                ? formatDateForReport(selectedDate, "PPP")
+                : formatDateForReport(selectedDate, "MMMM yyyy")}
             </div>
             <Button variant="ghost" size="icon" onClick={handleNextDate}>
               <ChevronRight className="h-4 w-4" />
@@ -694,7 +1268,13 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <Tabs value={viewType} onValueChange={(value: string) => setViewType(value as "daily" | "monthly")} className="w-full">
+      <Tabs
+        value={viewType}
+        onValueChange={(value: string) =>
+          setViewType(value as "daily" | "monthly")
+        }
+        className="w-full"
+      >
         <TabsList className="grid w-full max-w-[400px] grid-cols-2">
           <TabsTrigger value="daily">Daily Report</TabsTrigger>
           <TabsTrigger value="monthly">Monthly Report</TabsTrigger>
@@ -715,7 +1295,9 @@ export default function ReportsPage() {
                   <SelectItem value="ALL">All Statuses</SelectItem>
                   <SelectItem value="OPEN">Open</SelectItem>
                   <SelectItem value="PAID_TO_CASHIER">Paid</SelectItem>
-                  <SelectItem value="TRANSFERRED_TO_OWNER">Transferred</SelectItem>
+                  <SelectItem value="TRANSFERRED_TO_OWNER">
+                    Transferred
+                  </SelectItem>
                   <SelectItem value="OWNER_CONFIRMED">Confirmed</SelectItem>
                   <SelectItem value="VOIDED">Voided</SelectItem>
                   <SelectItem value="DISPUTED">Disputed</SelectItem>
@@ -741,8 +1323,16 @@ export default function ReportsPage() {
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Sales</p>
-                    {isFetching ? <Skeleton className="h-8 w-32 mt-1" /> : <h3 className="text-2xl font-bold mt-1">{formatCurrency(totalSales)}</h3>}
+                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+                      Total Sales
+                    </p>
+                    {isFetching ? (
+                      <Skeleton className="h-8 w-32 mt-1" />
+                    ) : (
+                      <h3 className="text-2xl font-bold mt-1">
+                        {formatCurrency(totalSales)}
+                      </h3>
+                    )}
                   </div>
                   <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
                     <TrendingUp className="h-5 w-5 text-emerald-600" />
@@ -755,8 +1345,16 @@ export default function ReportsPage() {
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Expenses</p>
-                    {isFetching ? <Skeleton className="h-8 w-32 mt-1" /> : <h3 className="text-2xl font-bold mt-1 text-rose-600">{formatCurrency(totalExpenses)}</h3>}
+                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+                      Total Expenses
+                    </p>
+                    {isFetching ? (
+                      <Skeleton className="h-8 w-32 mt-1" />
+                    ) : (
+                      <h3 className="text-2xl font-bold mt-1 text-rose-600">
+                        {formatCurrency(totalExpenses)}
+                      </h3>
+                    )}
                   </div>
                   <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-lg">
                     <ArrowDownCircle className="h-5 w-5 text-rose-600" />
@@ -769,8 +1367,16 @@ export default function ReportsPage() {
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Net Revenue</p>
-                    {isFetching ? <Skeleton className="h-8 w-32 mt-1" /> : <h3 className="text-2xl font-bold mt-1 text-blue-600">{formatCurrency(netRevenue)}</h3>}
+                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+                      Net Revenue
+                    </p>
+                    {isFetching ? (
+                      <Skeleton className="h-8 w-32 mt-1" />
+                    ) : (
+                      <h3 className="text-2xl font-bold mt-1 text-blue-600">
+                        {formatCurrency(netRevenue)}
+                      </h3>
+                    )}
                   </div>
                   <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                     <DollarSign className="h-5 w-5 text-blue-600" />
@@ -789,7 +1395,9 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {isFetching ? <TableSkeleton columnCount={4} rowCount={3} /> : (
+                {isFetching ? (
+                  <TableSkeleton columnCount={4} rowCount={3} />
+                ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -802,15 +1410,28 @@ export default function ReportsPage() {
                     <TableBody>
                       {filteredSales.map((item: any, i: number) => (
                         <TableRow key={i}>
-                          <TableCell className="capitalize">{item._id.method === "unpaid" ? "Unpaid / Pending" : item._id.method.replace("_", " ")}</TableCell>
+                          <TableCell className="capitalize">
+                            {item._id.method === "unpaid"
+                              ? "Unpaid / Pending"
+                              : item._id.method.replace("_", " ")}
+                          </TableCell>
                           <TableCell>{item._id.bank || "-"}</TableCell>
-                          <TableCell className="text-right">{item.count}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(item.total)}</TableCell>
+                          <TableCell className="text-right">
+                            {item.count}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(item.total)}
+                          </TableCell>
                         </TableRow>
                       ))}
                       {filteredSales.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No sales recorded</TableCell>
+                          <TableCell
+                            colSpan={4}
+                            className="h-24 text-center text-muted-foreground"
+                          >
+                            No sales recorded
+                          </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
@@ -827,7 +1448,9 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {isFetching ? <TableSkeleton columnCount={3} rowCount={3} /> : (
+                {isFetching ? (
+                  <TableSkeleton columnCount={3} rowCount={3} />
+                ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -840,16 +1463,29 @@ export default function ReportsPage() {
                         item.items.map((ex: any) => (
                           <TableRow key={ex._id}>
                             <TableCell className="capitalize">
-                              <span className="font-semibold">{ex.reason.replace("_", " ")}</span>
-                              {ex.description && <span className="text-xs text-slate-500 block">{ex.description}</span>}
+                              <span className="font-semibold">
+                                {ex.reason.replace("_", " ")}
+                              </span>
+                              {ex.description && (
+                                <span className="text-xs text-slate-500 block">
+                                  {ex.description}
+                                </span>
+                              )}
                             </TableCell>
-                            <TableCell className="text-rose-600 font-bold">-{formatCurrency(ex.amount)}</TableCell>
+                            <TableCell className="text-rose-600 font-bold">
+                              -{formatCurrency(ex.amount)}
+                            </TableCell>
                           </TableRow>
                         )),
                       )}
                       {(!data?.expenses || data.expenses.length === 0) && (
                         <TableRow>
-                          <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">No expenses recorded</TableCell>
+                          <TableCell
+                            colSpan={2}
+                            className="h-24 text-center text-muted-foreground"
+                          >
+                            No expenses recorded
+                          </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
@@ -868,7 +1504,9 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {isFetching ? <TableSkeleton columnCount={3} rowCount={3} /> : (
+                {isFetching ? (
+                  <TableSkeleton columnCount={3} rowCount={3} />
+                ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -881,11 +1519,28 @@ export default function ReportsPage() {
                     <TableBody>
                       {sortedWaiters.map((item: any) => (
                         <TableRow key={item._id}>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell className="text-right">{item.count}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.total)}</TableCell>
+                          <TableCell className="font-medium">
+                            {item.name}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => setStaffDetailModal({ isOpen: true, type: "waiter", staffId: item._id, staffName: item.name })}>
+                            {item.count}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.total)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setStaffDetailModal({
+                                  isOpen: true,
+                                  type: "waiter",
+                                  staffId: item._id,
+                                  staffName: item.name,
+                                })
+                              }
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -905,7 +1560,9 @@ export default function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                {isFetching ? <TableSkeleton columnCount={3} rowCount={3} /> : (
+                {isFetching ? (
+                  <TableSkeleton columnCount={3} rowCount={3} />
+                ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -918,11 +1575,28 @@ export default function ReportsPage() {
                     <TableBody>
                       {sortedCashiers.map((item: any) => (
                         <TableRow key={item._id}>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell className="text-right">{item.count}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(item.total)}</TableCell>
+                          <TableCell className="font-medium">
+                            {item.name}
+                          </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => setStaffDetailModal({ isOpen: true, type: "cashier", staffId: item._id, staffName: item.name })}>
+                            {item.count}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.total)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setStaffDetailModal({
+                                  isOpen: true,
+                                  type: "cashier",
+                                  staffId: item._id,
+                                  staffName: item.name,
+                                })
+                              }
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -959,14 +1633,18 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {soldItemsQuery.isFetching ? <TableSkeleton columnCount={4} rowCount={5} /> : (
+                {soldItemsQuery.isFetching ? (
+                  <TableSkeleton columnCount={4} rowCount={5} />
+                ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Item Name</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead className="text-right">Qty Sold</TableHead>
-                        <TableHead className="text-right">Sales Amount</TableHead>
+                        <TableHead className="text-right">
+                          Sales Amount
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1010,7 +1688,9 @@ export default function ReportsPage() {
                       variant="outline"
                       size="sm"
                       disabled={!soldItemsData.pagination.hasPreviousPage}
-                      onClick={() => setSoldItemsPage((p) => Math.max(1, p - 1))}
+                      onClick={() =>
+                        setSoldItemsPage((p) => Math.max(1, p - 1))
+                      }
                     >
                       Prev
                     </Button>
@@ -1028,186 +1708,14 @@ export default function ReportsPage() {
             </Card>
           </div>
         </div>
-
-        {/* Print Content (Hidden on screen, shown on print) */}
-        <div className="hidden print:block p-8 space-y-8 bg-white text-black min-h-screen">
-          <div className="text-center border-b-2 border-primary/20 pb-6">
-            <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 mb-1">
-              {viewType === "daily" ? "Daily Operations Report" : "Monthly Operations Report"}
-            </h1>
-            <p className="text-sm font-medium text-slate-600">{formatDateForReport(selectedDate, "PPP")}</p>
-
-            <div className="mt-4 flex flex-wrap justify-center gap-4 text-[10px] uppercase tracking-widest text-slate-500 font-bold">
-              <span>Status: {statusFilter.replace("_", " ")}</span>
-              <span>•</span>
-              <span>Payment: {paymentFilter.replace("_", " ")}</span>
-              <span>•</span>
-              <span>Total Orders: {reportData.orders.length}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-6">
-            <div className="border p-4 rounded-xl text-center bg-slate-50 border-slate-200">
-              <p className="text-[10px] uppercase font-black text-slate-500 mb-1 tracking-wider">Gross Sales</p>
-              <p className="text-xl font-black text-slate-900">{formatCurrency(totalSales)}</p>
-            </div>
-            <div className="border p-4 rounded-xl text-center bg-slate-50 border-slate-200">
-              <p className="text-[10px] uppercase font-black text-rose-500 mb-1 tracking-wider">Total Expenses</p>
-              <p className="text-xl font-black text-rose-600">-{formatCurrency(totalExpenses)}</p>
-            </div>
-            <div className="border p-4 rounded-xl text-center bg-blue-50 border-blue-200">
-              <p className="text-[10px] uppercase font-black text-blue-500 mb-1 tracking-wider">Net Profit</p>
-              <p className="text-xl font-black text-blue-700">{formatCurrency(netRevenue)}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h2 className="text-sm font-black uppercase tracking-widest border-b-2 border-slate-100 pb-2 flex justify-between">
-                <span>Payment Analysis</span>
-                <CreditCard className="h-4 w-4 text-slate-400" />
-              </h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-black text-xs font-bold px-2">Method</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">Qty</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredSales.map((item: any, i: number) => (
-                    <TableRow key={i} className="border-b border-slate-50">
-                      <TableCell className="capitalize py-2 text-xs font-medium px-2">{item._id.method.replace("_", " ")}</TableCell>
-                      <TableCell className="text-right py-2 text-xs px-2">{item.count}</TableCell>
-                      <TableCell className="text-right font-bold py-2 text-xs px-2">{formatCurrency(item.total)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="space-y-4">
-              <h2 className="text-sm font-black uppercase tracking-widest border-b-2 border-slate-100 pb-2 flex justify-between">
-                <span>Expense Log</span>
-                <Banknote className="h-4 w-4 text-rose-400" />
-              </h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-black text-xs font-bold px-2">Details</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reportData.expenses.map((group: any) =>
-                    group.items.map((ex: any) => (
-                      <TableRow key={ex._id} className="border-b border-slate-50">
-                        <TableCell className="py-2 text-xs px-2">
-                          <span className="font-bold uppercase block text-[10px]">{ex.reason.replace("_", " ")}</span>
-                          <span className="text-slate-500 italic">{ex.description || "-"}</span>
-                        </TableCell>
-                        <TableCell className="text-right py-2 text-xs font-bold text-rose-600 px-2">-{formatCurrency(ex.amount)}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                  {reportData.expenses.length === 0 && (
-                    <TableRow><TableCell colSpan={2} className="text-center py-4 text-slate-400 text-xs italic">No expenses recorded</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8 pt-4">
-            <div className="space-y-4">
-              <h2 className="text-sm font-black uppercase tracking-widest border-b-2 border-slate-100 pb-2 flex justify-between">
-                <span>Waiter Contribution</span>
-                <Users className="h-4 w-4 text-slate-400" />
-              </h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-black text-xs font-bold px-2">Staff</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">Orders</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">Revenue</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedWaiters.map((item: any, i: number) => (
-                    <TableRow key={i} className="border-b border-slate-50">
-                      <TableCell className="py-2 text-xs font-bold px-2 uppercase">{item.name}</TableCell>
-                      <TableCell className="text-right py-2 text-xs px-2">{item.count}</TableCell>
-                      <TableCell className="text-right py-2 text-xs font-black px-2">{formatCurrency(item.total)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="space-y-4">
-              <h2 className="text-sm font-black uppercase tracking-widest border-b-2 border-slate-100 pb-2 flex justify-between">
-                <span>Cashier Activity</span>
-                <Eye className="h-4 w-4 text-blue-400" />
-              </h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-black text-xs font-bold px-2">Staff</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">Bills</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">Settled</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedCashiers.map((item: any, i: number) => (
-                    <TableRow key={i} className="border-b border-slate-50">
-                      <TableCell className="py-2 text-xs font-bold px-2 uppercase">{item.name}</TableCell>
-                      <TableCell className="text-right py-2 text-xs px-2">{item.count}</TableCell>
-                      <TableCell className="text-right py-2 text-xs font-black px-2">{formatCurrency(item.total)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          {soldItemsData.items.length > 0 && (
-            <div className="space-y-4 pt-4">
-              <h2 className="text-sm font-black uppercase tracking-widest border-b-2 border-slate-100 pb-2 flex justify-between">
-                <span>Inventory & Menu Analytics</span>
-                <Package className="h-4 w-4 text-slate-400" />
-              </h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-black text-xs font-bold px-2">Item Name</TableHead>
-                    <TableHead className="text-black text-xs font-bold px-2 capitalize">Category</TableHead>
-                    <TableHead className="text-right text-black text-xs font-bold px-2">SoldCount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {soldItemsData.items.slice(0, 50).map((item, i) => (
-                    <TableRow key={`${item.itemType}-${item.itemId}-${i}`} className="border-b border-slate-50">
-                      <TableCell className="py-1 text-xs px-2 font-medium">{item.itemName}</TableCell>
-                      <TableCell className="py-1 text-[10px] px-2 capitalize italic text-slate-500 font-bold">{item.itemType}</TableCell>
-                      <TableCell className="text-right py-1 text-xs px-2 font-black">{item.qtySold} units</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <div className="pt-12 text-center text-[8px] text-slate-400 uppercase tracking-widest font-bold">
-            Report Finalized by Kandino's Kitchen Enterprise System • {new Date().toLocaleString()}
-          </div>
-        </div>
       </Tabs>
 
       {/* Staff Detail Modal */}
       <Dialog
         open={staffDetailModal.isOpen}
-        onOpenChange={(open) => setStaffDetailModal((prev) => ({ ...prev, isOpen: open }))}
+        onOpenChange={(open) =>
+          setStaffDetailModal((prev) => ({ ...prev, isOpen: open }))
+        }
       >
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50">
           <DialogHeader>
@@ -1215,7 +1723,9 @@ export default function ReportsPage() {
               <Users className="h-6 w-6 text-primary" />
               {staffDetailModal.staffName} History
             </DialogTitle>
-            <DialogDescription>Detailed view of orders handled by this staff member.</DialogDescription>
+            <DialogDescription>
+              Detailed view of orders handled by this staff member.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="py-4">
@@ -1231,7 +1741,14 @@ export default function ReportsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStaffDetailModal((prev) => ({ ...prev, isOpen: false }))}>Close</Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setStaffDetailModal((prev) => ({ ...prev, isOpen: false }))
+              }
+            >
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1239,7 +1756,7 @@ export default function ReportsPage() {
       {/* Print Options Modal */}
       <Dialog
         open={printModal.isOpen}
-        onOpenChange={(open) => setPrintModal(p => ({ ...p, isOpen: open }))}
+        onOpenChange={(open) => setPrintModal((p) => ({ ...p, isOpen: open }))}
       >
         <DialogContent className="max-w-md bg-white dark:bg-slate-900">
           <DialogHeader>
@@ -1247,14 +1764,18 @@ export default function ReportsPage() {
               <Printer className="h-5 w-5 text-primary" />
               Thermal Print Options
             </DialogTitle>
-            <DialogDescription>Customize the sections to include in the printed receipt.</DialogDescription>
+            <DialogDescription>
+              Customize the sections to include in the printed receipt.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border">
               <div className="flex flex-col">
                 <span className="text-sm font-semibold">Financial Summary</span>
-                <span className="text-xs text-muted-foreground">Required for report validity</span>
+                <span className="text-xs text-muted-foreground">
+                  Required for report validity
+                </span>
               </div>
               <Badge variant="secondary">Mandatory</Badge>
             </div>
@@ -1267,12 +1788,23 @@ export default function ReportsPage() {
                 { id: "menuPerformance", label: "Menu Performance" },
                 { id: "inventoryPerformance", label: "Inventory Performance" },
               ].map((section) => (
-                <label key={section.id} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg cursor-pointer border transition-colors">
+                <label
+                  key={section.id}
+                  className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg cursor-pointer border transition-colors"
+                >
                   <span className="text-sm font-medium">{section.label}</span>
                   <input
                     type="checkbox"
                     checked={(printModal.sections as any)[section.id]}
-                    onChange={(e) => setPrintModal(p => ({ ...p, sections: { ...p.sections, [section.id]: e.target.checked } }))}
+                    onChange={(e) =>
+                      setPrintModal((p) => ({
+                        ...p,
+                        sections: {
+                          ...p.sections,
+                          [section.id]: e.target.checked,
+                        },
+                      }))
+                    }
                     className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
                   />
                 </label>
@@ -1281,10 +1813,102 @@ export default function ReportsPage() {
           </div>
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPrintModal(p => ({ ...p, isOpen: false }))}>Cancel</Button>
-            <Button onClick={handleThermalPrint} className="bg-primary text-white">
+            <Button
+              variant="outline"
+              onClick={() => setPrintModal((p) => ({ ...p, isOpen: false }))}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleThermalPrint}
+              className="bg-primary text-white"
+            >
               <Printer className="mr-2 h-4 w-4" />
               Print to Thermal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF Options Modal */}
+      <Dialog
+        open={pdfModal.isOpen}
+        onOpenChange={(open) => setPdfModal((p) => ({ ...p, isOpen: open }))}
+      >
+        <DialogContent className="max-w-md bg-white dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Generate PDF Report
+            </DialogTitle>
+            <DialogDescription>
+              Customize sections for the PDF
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border">
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold">Financial Summary</span>
+                <span className="text-xs text-muted-foreground">
+                  Required for report validity
+                </span>
+              </div>
+              <Badge variant="secondary">REQUIRED</Badge>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { id: "expenses", label: "Expenses & Withdrawals" },
+                { id: "paymentBreakdown", label: "Payment Breakdown" },
+                { id: "cashierPerformance", label: "Cashier Performance" },
+                { id: "waiterPerformance", label: "Waiter Performance" },
+                {
+                  id: "itemPerformance",
+                  label: "Menu & Inventory Performance",
+                },
+              ].map((section) => (
+                <label
+                  key={section.id}
+                  className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg cursor-pointer border transition-colors"
+                >
+                  <span className="text-sm font-medium">{section.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={
+                      pdfModal.sections[
+                        section.id as keyof typeof pdfModal.sections
+                      ]
+                    }
+                    onChange={(e) =>
+                      setPdfModal((p) => ({
+                        ...p,
+                        sections: {
+                          ...p.sections,
+                          [section.id]: e.target.checked,
+                        },
+                      }))
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPdfModal((p) => ({ ...p, isOpen: false }))}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGeneratePDF}
+              className="bg-primary text-white"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Generate PDF →
             </Button>
           </DialogFooter>
         </DialogContent>

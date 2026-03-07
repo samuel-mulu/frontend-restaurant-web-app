@@ -3,16 +3,16 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { apiConfig } from "@/config/apiConfig";
 import { cn } from "@/lib/utils";
 import {
-    selectIsAuthenticated,
-    selectUser,
+  selectIsAuthenticated,
+  selectUser,
 } from "@/stores/features/auth/authSlice";
 import { AlertCircle, Bell, Check } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -161,6 +161,11 @@ export function NotificationBell({
     setIsOpen(true);
   };
 
+  const handleManualRefresh = async () => {
+    // Manual refresh button to fetch notifications
+    await fetchActiveNotifications();
+  };
+
   // Don't render notification bell for users without proper role
   if (!shouldShowNotifications) {
     return null;
@@ -205,6 +210,29 @@ export function NotificationBell({
               {pendingCount}
             </Badge>
           )}
+        </Button>
+
+        {/* Manual refresh button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleManualRefresh}
+          className="rounded-full h-7 w-7 bg-card/80 border border-border shadow-sm backdrop-blur ml-1"
+          title="Refresh notifications"
+        >
+          <svg
+            className="h-3 w-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
         </Button>
       </div>
 

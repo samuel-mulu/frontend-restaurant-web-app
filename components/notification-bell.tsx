@@ -77,7 +77,7 @@ export function NotificationBell() {
 
           // Find new notifications
           const newIds: Set<string> = new Set(
-            Array.from(currentIds).filter((id: string) => !previousIds.has(id)),
+            [...currentIds].filter((id: string) => !previousIds.has(id)),
           );
 
           if (newIds.size > 0) {

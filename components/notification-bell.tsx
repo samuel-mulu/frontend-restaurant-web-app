@@ -156,6 +156,12 @@ export function NotificationBell() {
 
   const pendingCount = notifications.length;
 
+  const handleOpenModal = () => {
+    // Clear animation when opening modal
+    setNewNotificationIds(new Set<string>());
+    setIsOpen(true);
+  };
+
   // Don't render notification bell for users without proper role
   if (!shouldShowNotifications) {
     return null;
@@ -167,7 +173,7 @@ export function NotificationBell() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setIsOpen(true)}
+          onClick={handleOpenModal}
           className={cn(
             "rounded-full h-9 w-9 bg-card/80 border border-border shadow-sm backdrop-blur relative",
             newNotificationIds.size > 0 && "animate-pulse",

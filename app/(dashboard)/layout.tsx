@@ -9,7 +9,7 @@ import {
     SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function DashboardLayout({
   children,

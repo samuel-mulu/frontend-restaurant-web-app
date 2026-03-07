@@ -138,23 +138,13 @@ export function NotificationBell({
       return;
     }
 
-    // Initial fetch only for authenticated users
+    // Initial fetch only for authenticated users (no automatic polling)
     fetchActiveNotifications();
 
-    // Add polling every 60 seconds (1 minute) to minimize API requests
-    // Only poll when on relevant page and tab is active
-    const pollInterval = setInterval(() => {
-      if (
-        document.visibilityState === "visible" &&
-        pathname === "/create-order" &&
-        shouldShowNotifications
-      ) {
-        fetchActiveNotifications();
-      }
-    }, 60000); // Increased from 15000 to 60000 (1 minute)
-
+    // DISABLED: No automatic polling to prevent "Too Many Requests" errors
+    // Users must manually refresh or rely on order creation events
     return () => {
-      clearInterval(pollInterval);
+      // No interval to clear
     };
   }, [
     fetchActiveNotifications,

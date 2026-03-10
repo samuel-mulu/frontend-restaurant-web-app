@@ -28,8 +28,6 @@ export const connectSocket = (userRole?: string, userId?: string): Socket => {
   socket.on("connect", () => {
     if (!socket) return;
     
-    console.log("🔌 Socket.IO connected:", socket.id);
-
     // Join role-based rooms
     if (userRole === "owner") {
       socket.emit("join-owner");
@@ -45,7 +43,7 @@ export const connectSocket = (userRole?: string, userId?: string): Socket => {
   });
 
   socket.on("disconnect", (reason) => {
-    console.log("🔌 Socket.IO disconnected:", reason);
+    // Handle disconnect
   });
 
   socket.on("connect_error", (error) => {
@@ -53,8 +51,6 @@ export const connectSocket = (userRole?: string, userId?: string): Socket => {
   });
 
   socket.on("reconnect", (attemptNumber) => {
-    console.log("🔌 Socket.IO reconnected after", attemptNumber, "attempts");
-
     // Rejoin rooms after reconnection
     if (userRole === "owner") {
       socket?.emit("join-owner");

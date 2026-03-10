@@ -114,7 +114,6 @@ const loadSelectedOrdersFromStorage = (cashierId: string): Set<string> => {
     }
     return new Set();
   } catch (error) {
-    console.warn("Failed to load selected orders from localStorage:", error);
     return new Set();
   }
 };
@@ -128,7 +127,7 @@ const saveSelectedOrdersToStorage = (
     const data = Array.from(selectedIds);
     localStorage.setItem(key, JSON.stringify(data));
   } catch (error) {
-    console.warn("Failed to save selected orders to localStorage:", error);
+    // Silently fail for storage errors
   }
 };
 
@@ -146,7 +145,7 @@ const cleanupInvalidOrdersFromStorage = (
       saveSelectedOrdersToStorage(cashierId, valid);
     }
   } catch (error) {
-    console.warn("Failed to cleanup invalid orders from localStorage:", error);
+    // Silently fail for storage errors
   }
 };
 
@@ -344,7 +343,7 @@ export function CashierHistory() {
     "waiter",
   );
   const [statusFilter, setStatusFilter] = useState<string>("OPEN");
-  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("latest");
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
   const [calendarMode, setCalendarMode] = useState<"gregorian" | "ethiopian">(
     "gregorian",
@@ -465,28 +464,6 @@ export function CashierHistory() {
     },
   );
 
-  // Debug logging
-  useEffect(() => {
-    if (cashierId) {
-      console.log("CashierHistory Debug:", {
-        cashierId,
-        user: user?.name,
-        userRole: user?.role,
-        hasCashierId: !!cashierId,
-        ordersData: ordersData?.length || 0,
-        isLoading,
-        error: error
-          ? {
-            status: (error as any)?.status,
-            data: (error as any)?.data,
-            message: (error as any)?.message,
-          }
-          : null,
-      });
-    } else {
-      console.warn("CashierHistory: cashierId is empty", { user });
-    }
-  }, [cashierId, ordersData, isLoading, error, user]);
 
   // Fetch cashier report
   const { data: cashierReport } = useGetCashierReportQuery(
@@ -577,15 +554,22 @@ export function CashierHistory() {
     }
   }, [cashierId, orders]);
 
+  // Get unique dates available in the orders for filtering dropdown
+  const dates = useMemo(
+    () => extractDates(orders, calendarMode),
+    [orders, calendarMode],
+  );
+
   // Filter orders based on UI filters (status and waiter are now handled by backend)
   const filtered = useMemo(() => {
     return orders.filter((o: DisplayOrder) => {
       // Date filter (client-side)
       if (dateFilter !== "all") {
         const orderDateStr = formatDateForDisplay(o.date, calendarMode);
-        // If calendar mode is Ethiopian, compare Ethiopian dates directly
-        // If Gregorian, compare Gregorian dates
-        if (orderDateStr !== dateFilter) {
+        // "latest" dynamically matches the most recent date available in the data
+        const actualFilterDate = dateFilter === "latest" ? dates[0] : dateFilter;
+
+        if (orderDateStr !== actualFilterDate) {
           return false;
         }
       }
@@ -602,7 +586,7 @@ export function CashierHistory() {
 
       return true;
     });
-  }, [orders, dateFilter, searchQuery, calendarMode]);
+  }, [orders, dateFilter, searchQuery, calendarMode, dates]);
 
   // Pagination info
   const paginationInfo = useMemo(() => {
@@ -1050,10 +1034,6 @@ export function CashierHistory() {
     return transitions[currentStatus] || [];
   };
 
-  const dates = useMemo(
-    () => extractDates(orders, calendarMode),
-    [orders, calendarMode],
-  );
   const datePresets = getDatePresets();
 
   // Handle date range preset changes
@@ -1091,7 +1071,7 @@ export function CashierHistory() {
 
   // Reset date filter when calendar mode changes
   useEffect(() => {
-    setDateFilter("all");
+    setDateFilter("latest");
   }, [calendarMode]);
 
   // Fetch all waiters from the API
@@ -1544,6 +1524,8 @@ export function CashierHistory() {
                     <SelectValue placeholder="Date" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">All Dates</SelectItem>
+                    <SelectItem value="latest">Latest Date {dates[0] ? `(${dates[0]})` : ""}</SelectItem>
                     {dates.map((d: string) => (
                       <SelectItem key={d} value={d}>
                         {d}

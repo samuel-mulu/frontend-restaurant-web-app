@@ -12,7 +12,7 @@ export function registerServiceWorker() {
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
-        console.log("Service Worker registered:", registration.scope);
+        // Service worker registered
       })
       .catch((error) => {
         console.error("Service Worker registration failed:", error);

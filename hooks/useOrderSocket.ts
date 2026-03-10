@@ -59,7 +59,6 @@ export function useOrderSocket() {
 
     // Listen for new order events (cashier room)
     socket.on("newOrder", (data: SocketEventData) => {
-      console.log("📦 New order received:", data.data.orderNumber);
       // Invalidate orders list to refetch
       const orderId = data.data._id || data.data.id;
       if (orderId) {
@@ -75,7 +74,6 @@ export function useOrderSocket() {
 
     // Listen for order updated events
     socket.on("orderUpdated", (data: SocketEventData) => {
-      console.log("📦 Order updated:", data.data.orderNumber, data.data.status);
       // Invalidate specific order and list
       const orderId = data.data._id || data.data.id;
       if (orderId) {
@@ -97,11 +95,6 @@ export function useOrderSocket() {
         data: { orderId: string; orderNumber: string; status: string };
         timestamp: Date;
       }) => {
-        console.log(
-          "📦 Order status changed:",
-          data.data.orderNumber,
-          data.data.status
-        );
         // Invalidate specific order and list
         if (data.data.orderId) {
           dispatch(
@@ -121,7 +114,6 @@ export function useOrderSocket() {
 
     // Listen for order created events (owner-specific)
     socket.on("orderCreated", (data: SocketEventData) => {
-      console.log("📦 Order created (owner):", data.data.orderNumber);
       const orderId = data.data._id || data.data.id;
       if (orderId) {
         dispatch(
@@ -136,11 +128,6 @@ export function useOrderSocket() {
 
     // Listen for general order events (from orders:general room)
     socket.on("orderEvent", (data: SocketEventData) => {
-      console.log(
-        "📦 Order event received:",
-        data.type,
-        data.data?.orderNumber
-      );
       // Handle different event types
       if (data.type === "order_created" || data.type === "new_order") {
         const orderId = data.data?._id || data.data?.id;

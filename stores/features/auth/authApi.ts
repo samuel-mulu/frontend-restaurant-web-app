@@ -47,7 +47,6 @@ export const authApi = createApiEndpoints({
       async onQueryStarted(_, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
-          console.log("Login API Response:", data);
           if (data?.success && data.data) {
             const user = data.data.user;
 

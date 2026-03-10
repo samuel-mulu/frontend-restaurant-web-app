@@ -47,23 +47,14 @@ export function NotificationBell() {
   const fetchActiveNotifications = useCallback(async () => {
     // Don't fetch if user is not authenticated or doesn't have the right role
     if (!shouldShowNotifications) {
-      console.log(
-        "[NotificationBell] Skipping fetch - user not authenticated or wrong role",
-      );
       return;
     }
 
     try {
-      console.log(
-        `[NotificationBell] Fetching notifications for user: ${user?.name} (Role: ${userRole})`,
-      );
       const response = await fetch(`${apiConfig.BASE_URL}/table-notifications`);
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          console.log(
-            `[NotificationBell] Successfully fetched ${result.data.length} active notifications`,
-          );
 
           // Track new notifications for animation
           const currentIds = new Set(

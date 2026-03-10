@@ -19,7 +19,6 @@ const MIGRATIONS: Migration[] = [
     up: async () => {
       // This migration is handled by Dexie's version(2) in indexedDB.ts
       // Additional data transformations can be added here if needed
-      console.log("Migration v2: Salary and shift tables added");
     },
   },
 ];
@@ -52,16 +51,13 @@ export async function runMigrations(): Promise<void> {
     const targetVersion = 2; // Latest version
 
     if (currentVersion >= targetVersion) {
-      console.log("Database is up to date");
       return;
     }
 
     // Run migrations in order
     for (const migration of MIGRATIONS) {
       if (migration.version > currentVersion && migration.version <= targetVersion) {
-        console.log(`Running migration: ${migration.name}`);
         await migration.up();
-        console.log(`Migration ${migration.version} completed`);
       }
     }
   } catch (error) {
@@ -80,8 +76,6 @@ export async function initializeDatabase(): Promise<void> {
     
     // Run any additional migrations
     await runMigrations();
-    
-    console.log("Database initialized successfully");
   } catch (error) {
     console.error("Database initialization failed:", error);
     throw error;

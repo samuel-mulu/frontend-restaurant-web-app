@@ -414,24 +414,17 @@ export const itemsApi = createApiEndpoints({
       }),
       transformResponse: (response: any) => {
         // Handle different response formats
-        // Backend returns: { success: true, data: [...], message: "..." }
-        // RTK Query's fetchBaseQuery returns the response as-is from response.json()
-        console.log("[listPendingApprovals] Raw response:", response);
-        
         if (Array.isArray(response)) {
-          console.log("[listPendingApprovals] Response is array, length:", response.length);
           return response;
         }
         if (response && typeof response === "object") {
           // Handle wrapped response: { success: true, data: [...] }
           if (response.data !== undefined) {
             const data = Array.isArray(response.data) ? response.data : [];
-            console.log("[listPendingApprovals] Extracted data array, length:", data.length);
             return data;
           }
         }
         // Fallback: return empty array if response format is unexpected
-        console.warn("[listPendingApprovals] Unexpected response format:", response);
         return [];
       },
       providesTags: (result) =>

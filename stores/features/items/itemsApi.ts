@@ -120,6 +120,7 @@ export const itemsApi = createApiEndpoints({
           method: "GET",
         };
       },
+      keepUnusedDataFor: 300,
       transformResponse: (response: ApiResponse<ItemResponse[]>) => {
         // Handle both array and wrapped response
         const items = Array.isArray(response) ? response : response.data;

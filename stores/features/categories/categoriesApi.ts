@@ -51,6 +51,7 @@ export const categoriesApi = createApiEndpoints({
         url: "/categories",
         method: "GET",
       }),
+      keepUnusedDataFor: 300,
       transformResponse: (response: ApiResponse<CategoryResponse[]>) => {
         return response.data.map(transformCategory);
       },

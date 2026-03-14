@@ -40,6 +40,12 @@ type InventoryCartItem = Inventory & {
 };
 type CartItem = MenuCartItem | InventoryCartItem;
 
+const CREATE_ORDER_QUERY_OPTIONS = {
+  refetchOnFocus: false,
+  refetchOnReconnect: false,
+  refetchOnMountOrArgChange: false,
+} as const;
+
 const WAITER_COLOR_CLASS: Record<string, string> = {
   red: "bg-red-500",
   orange: "bg-orange-500",
@@ -108,12 +114,15 @@ export default function OrderPage() {
   const { data: waitersData, isLoading: waitersLoading } = useListStaffQuery({
     role: "waiter",
     status: "active",
-  });
+  }, CREATE_ORDER_QUERY_OPTIONS);
 
-  const { data: tablesData, isLoading: tablesLoading } = useListTablesQuery();
+  const { data: tablesData, isLoading: tablesLoading } = useListTablesQuery(
+    undefined,
+    CREATE_ORDER_QUERY_OPTIONS,
+  );
 
   const { data: categoriesData, isLoading: categoriesLoading } =
-    useListCategoriesQuery();
+    useListCategoriesQuery(undefined, CREATE_ORDER_QUERY_OPTIONS);
 
   const {
     data: itemsData,
@@ -125,6 +134,7 @@ export default function OrderPage() {
       selectedCategory.trim() !== ""
       ? { categoryId: selectedCategory }
       : undefined,
+    CREATE_ORDER_QUERY_OPTIONS,
   );
 
   const {
@@ -138,6 +148,7 @@ export default function OrderPage() {
       selectedInventoryCategory.trim() !== ""
       ? { categoryId: selectedInventoryCategory }
       : undefined,
+    CREATE_ORDER_QUERY_OPTIONS,
   );
 
   const loading =
@@ -356,6 +367,8 @@ export default function OrderPage() {
       }
     }
 
+    const hasInventoryItems = cart.some((item) => item.type === "inventory");
+
     try {
       // Validate item IDs are present
       const invalidItems = cart.filter(
@@ -432,8 +445,10 @@ export default function OrderPage() {
       setWithoutPrint(false);
       setInventoryQuantities({});
 
-      // Refetch inventory to update quantities
-      refetchInventory();
+      // Only refresh stock when the order actually changed inventory.
+      if (hasInventoryItems) {
+        refetchInventory();
+      }
     } catch (error: unknown) {
       console.error("Error creating order:", error);
 

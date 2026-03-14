@@ -42,25 +42,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
-import {
-  ethiopianToGregorian,
-  formatEthiopianDate,
-  gregorianToEthiopian,
-  parseEthiopianDate,
-} from "@/lib/utils/ethiopianCalendar";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import {
   OrderStatus,
   Order as RTKOrder,
   useBulkUpdateOrderStatusMutation,
-  useGetCashierReportQuery,
-  useGetDateRangeReportQuery,
   useGetOrdersByCashierQuery,
-  useGetWaiterReportQuery,
   useUpdateOrderStatusMutation,
 } from "@/stores/features/orders/ordersApi";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
-import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -88,7 +78,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 import { PaymentImageModal } from "./PaymentImageModal";
@@ -167,67 +157,16 @@ interface DisplayOrder {
   paymentProofImage?: { url: string; publicId: string };
 }
 
-const formatDate = (date: string): string => {
+const formatDateForFilter = (date: string): string => {
   try {
-    const d = new Date(date);
-    return d.toISOString().split("T")[0];
-  } catch {
-    return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
-  }
-};
-
-const formatDateForInput = (date: Date): string => {
-  return date.toISOString().split("T")[0];
-};
-
-// Date conversion helpers for Ethiopian calendar
-const formatDateForDisplay = (
-  date: string,
-  mode: "gregorian" | "ethiopian",
-): string => {
-  try {
-    const gregorianDate = new Date(date);
-    if (mode === "ethiopian") {
-      const ethiopianDate = gregorianToEthiopian(gregorianDate);
-      return formatEthiopianDate(ethiopianDate);
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) {
+      return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
     }
-    return formatDate(date);
+    return parsed.toLocaleDateString("en-CA");
   } catch {
     return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
   }
-};
-
-// Convert Ethiopian date string back to Gregorian for filtering
-const convertEthiopianToGregorian = (ethiopianDateStr: string): string => {
-  try {
-    const ethDate = parseEthiopianDate(ethiopianDateStr);
-    const gregDate = ethiopianToGregorian(ethDate);
-    return formatDateForInput(gregDate);
-  } catch {
-    return ethiopianDateStr;
-  }
-};
-
-const getDatePresets = () => {
-  const today = new Date();
-  const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - today.getDay());
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
-  return {
-    today: {
-      start: formatDateForInput(today),
-      end: formatDateForInput(today),
-    },
-    thisWeek: {
-      start: formatDateForInput(startOfWeek),
-      end: formatDateForInput(today),
-    },
-    thisMonth: {
-      start: formatDateForInput(startOfMonth),
-      end: formatDateForInput(today),
-    },
-  };
 };
 
 /**
@@ -322,14 +261,10 @@ function transformOrder(order: RTKOrder): DisplayOrder {
   };
 }
 
-const extractDates = (
-  orders: DisplayOrder[],
-  calendarMode: "gregorian" | "ethiopian",
-): string[] => {
+const extractDates = (orders: DisplayOrder[]): string[] => {
   const dateSet = new Set<string>();
   orders.forEach((o) => {
-    const dateStr = formatDateForDisplay(o.date, calendarMode);
-    dateSet.add(dateStr);
+    dateSet.add(formatDateForFilter(o.date));
   });
   return [...dateSet].sort().reverse();
 };
@@ -345,10 +280,8 @@ export function CashierHistory() {
   const [statusFilter, setStatusFilter] = useState<string>("OPEN");
   const [dateFilter, setDateFilter] = useState<string>("latest");
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
-  const [calendarMode, setCalendarMode] = useState<"gregorian" | "ethiopian">(
-    "gregorian",
-  );
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(() => {
     if (!cashierId) return new Set();
     return loadSelectedOrdersFromStorage(cashierId);
@@ -358,11 +291,6 @@ export function CashierHistory() {
   );
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-
-  // Date range state
-  const [dateRangePreset, setDateRangePreset] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
 
   // Order details modal state
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -453,63 +381,63 @@ export function CashierHistory() {
     {
       cashierId,
       status: statusesToFetch,
-      waiterId: waiterFilter !== "all" ? waiterFilter : undefined,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
     },
     {
       skip: !cashierId,
-      refetchOnFocus: true,
+      refetchOnFocus: false,
       refetchOnReconnect: true,
     },
   );
 
-
-  // Fetch cashier report
-  const { data: cashierReport } = useGetCashierReportQuery(
-    {
-      cashierId,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-    },
-    {
-      skip: !cashierId,
-    },
+  // Transform orders to display format
+  const orders = useMemo(
+    () =>
+      (ordersData || [])
+        .map(transformOrder)
+        .filter((order: DisplayOrder) => order.cashierId === cashierId),
+    [ordersData, cashierId],
   );
+  const dates = useMemo(() => extractDates(orders), [orders]);
+  const resolvedDateFilter =
+    dateFilter === "all" ||
+    dateFilter === "latest" ||
+    dates.includes(dateFilter)
+      ? dateFilter
+      : "latest";
+  const selectedDate =
+    resolvedDateFilter === "all"
+      ? undefined
+      : resolvedDateFilter === "latest"
+        ? dates[0]
+        : resolvedDateFilter;
+  const dateScopedOrders = useMemo(() => {
+    if (!selectedDate) return orders;
+    return orders.filter(
+      (order: DisplayOrder) => formatDateForFilter(order.date) === selectedDate,
+    );
+  }, [orders, selectedDate]);
+  const waiterList = useMemo(() => {
+    const uniqueWaiters = new Map<string, string>();
 
-  // Fetch waiter report when waiter filter is applied
-  const { data: waiterReport } = useGetWaiterReportQuery(
-    {
-      waiterId: waiterFilter !== "all" ? waiterFilter : "",
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-    },
-    {
-      skip: waiterFilter === "all" || !waiterFilter,
-    },
-  );
+    dateScopedOrders.forEach((order: DisplayOrder) => {
+      if (!order.waiterId) return;
+      uniqueWaiters.set(order.waiterId, order.waiterName || "Unknown Waiter");
+    });
 
-  // Fetch date range report when dates are selected
-  const { data: dateRangeReport } = useGetDateRangeReportQuery(
-    {
-      startDate: startDate || "",
-      endDate: endDate || "",
-    },
-    {
-      skip: !startDate || !endDate,
-    },
-  );
+    return Array.from(uniqueWaiters.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [dateScopedOrders]);
+  const resolvedWaiterFilter =
+    waiterFilter === "all" ||
+    waiterList.some((waiter) => waiter.id === waiterFilter)
+      ? waiterFilter
+      : "all";
 
   const [updateOrderStatus, { isLoading: isUpdating }] =
     useUpdateOrderStatusMutation();
   const [bulkUpdateOrderStatus, { isLoading: isBulkUpdating }] =
     useBulkUpdateOrderStatusMutation();
-
-  // Transform orders to display format
-  const orders = useMemo(
-    () => (ordersData || []).map(transformOrder),
-    [ordersData],
-  );
 
   // Initialize payment methods from orders data
   useEffect(() => {
@@ -554,29 +482,16 @@ export function CashierHistory() {
     }
   }, [cashierId, orders]);
 
-  // Get unique dates available in the orders for filtering dropdown
-  const dates = useMemo(
-    () => extractDates(orders, calendarMode),
-    [orders, calendarMode],
-  );
-
-  // Filter orders based on UI filters (status and waiter are now handled by backend)
+  // Filter orders based on selected date and search.
   const filtered = useMemo(() => {
-    return orders.filter((o: DisplayOrder) => {
-      // Date filter (client-side)
-      if (dateFilter !== "all") {
-        const orderDateStr = formatDateForDisplay(o.date, calendarMode);
-        // "latest" dynamically matches the most recent date available in the data
-        const actualFilterDate = dateFilter === "latest" ? dates[0] : dateFilter;
-
-        if (orderDateStr !== actualFilterDate) {
-          return false;
-        }
+    return dateScopedOrders.filter((o: DisplayOrder) => {
+      if (resolvedWaiterFilter !== "all" && o.waiterId !== resolvedWaiterFilter) {
+        return false;
       }
 
       // Search filter (client-side)
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
+      if (deferredSearchQuery.trim()) {
+        const query = deferredSearchQuery.toLowerCase();
         return (
           (o.orderNumber?.toLowerCase() || "").includes(query) ||
           (o.tableNumber?.toLowerCase() || "").includes(query) ||
@@ -586,7 +501,7 @@ export function CashierHistory() {
 
       return true;
     });
-  }, [orders, dateFilter, searchQuery, calendarMode, dates]);
+  }, [dateScopedOrders, resolvedWaiterFilter, deferredSearchQuery]);
 
   // Pagination info
   const paginationInfo = useMemo(() => {
@@ -1034,28 +949,6 @@ export function CashierHistory() {
     return transitions[currentStatus] || [];
   };
 
-  const datePresets = getDatePresets();
-
-  // Handle date range preset changes
-  useEffect(() => {
-    if (dateRangePreset === "today") {
-      setStartDate(datePresets.today.start);
-      setEndDate(datePresets.today.end);
-    } else if (dateRangePreset === "thisWeek") {
-      setStartDate(datePresets.thisWeek.start);
-      setEndDate(datePresets.thisWeek.end);
-    } else if (dateRangePreset === "thisMonth") {
-      setStartDate(datePresets.thisMonth.start);
-      setEndDate(datePresets.thisMonth.end);
-    } else if (dateRangePreset === "custom") {
-      // Keep current dates or clear if not set
-    } else {
-      // "all" - clear dates
-      setStartDate("");
-      setEndDate("");
-    }
-  }, [dateRangePreset]);
-
   // Handle role view change and reset status filter
   const handleRoleViewChange = (view: "all" | "waiter" | "owner") => {
     setRoleView(view);
@@ -1064,32 +957,25 @@ export function CashierHistory() {
     setPage(1); // Reset to first page
   };
 
-  // Reset page when filters change
-  useEffect(() => {
+  const handleSearchQueryChange = (value: string) => {
+    setSearchQuery(value);
     setPage(1);
-  }, [statusFilter, waiterFilter, dateFilter, searchQuery, dateRangePreset]);
+  };
 
-  // Reset date filter when calendar mode changes
-  useEffect(() => {
-    setDateFilter("latest");
-  }, [calendarMode]);
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
 
-  // Fetch all waiters from the API
-  const { data: waitersData } = useListStaffQuery({
-    role: "waiter",
-    status: "active",
-    limit: 100,
-  });
+  const handleWaiterFilterChange = (value: string) => {
+    setWaiterFilter(value);
+    setPage(1);
+  };
 
-  const waiterList = useMemo(() => {
-    if (!waitersData?.staff) return [];
-    return waitersData.staff.map(
-      (waiter: { _id?: string; id?: string; name: string }) => ({
-        id: waiter._id || waiter.id || "",
-        name: waiter.name,
-      }),
-    );
-  }, [waitersData]);
+  const handleDateFilterChange = (value: string) => {
+    setDateFilter(value);
+    setPage(1);
+  };
 
   const errorMessage =
     error && "data" in error
@@ -1158,44 +1044,6 @@ export function CashierHistory() {
               </button>
             ))}
           </div>
-          {/* Date Range Preset Selector */}
-          <div className="flex flex-col items-center gap-2">
-            <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
-              <SelectTrigger className="w-[180px]">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Date Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="thisWeek">This Week</SelectItem>
-                <SelectItem value="thisMonth">This Month</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
-            {dateRangePreset === "custom" && (
-              <div className="flex flex-col items-end gap-2">
-                <div className="flex items-start gap-2">
-                  <span className="text-muted-foreground">from</span>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-[150px]"
-                  />
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-muted-foreground">to</span>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-[150px]"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </header>
 
@@ -1207,70 +1055,6 @@ export function CashierHistory() {
 
       {!isLoading && !errorMessage && (
         <>
-          {/* Waiter Report */}
-          {waiterReport && waiterFilter !== "all" && (
-            <div className="rounded-xl border bg-card p-4">
-              <h3 className="text-lg font-semibold mb-3">
-                Waiter Report: {waiterReport.waiterName || "Unknown"}
-              </h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-slate-500">Total Orders</p>
-                  <p className="text-2xl font-bold">
-                    {waiterReport.totalOrders}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Sales</p>
-                  <p className="text-2xl font-bold">
-                    {waiterReport.totalSales.toFixed(2)} Br
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Avg Order Value</p>
-                  <p className="text-2xl font-bold">
-                    {waiterReport.averageOrderValue.toFixed(2)} Br
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Date Range Report */}
-          {dateRangeReport && startDate && endDate && (
-            <div className="rounded-xl border bg-card p-4">
-              <h3 className="text-lg font-semibold mb-3">
-                Date Range Report: {startDate} to {endDate}
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm text-slate-500">Total Orders</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalOrders}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Revenue</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalRevenue.toFixed(2)} Br
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Collected</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalCollected.toFixed(2)} Br
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Transferred</p>
-                  <p className="text-xl font-bold">
-                    {dateRangeReport.totalTransferred.toFixed(2)} Br
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="flex justify-end mb-4">
             <WithdrawalModal onSuccess={() => refetch()} />
           </div>
@@ -1403,12 +1187,12 @@ export function CashierHistory() {
                 type="text"
                 placeholder="Search by order number, table, or waiter..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchQueryChange(e.target.value)}
                 className="pl-10 pr-10 rounded-full"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery("")}
+                  onClick={() => handleSearchQueryChange("")}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <X className="h-4 w-4" />
@@ -1417,7 +1201,7 @@ export function CashierHistory() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                 <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
                   <Filter className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
                   <SelectValue placeholder="Status" />
@@ -1493,50 +1277,32 @@ export function CashierHistory() {
                 </SelectContent>
               </Select>
 
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
-                  <Button
-                    variant={calendarMode === "gregorian" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setCalendarMode("gregorian")}
-                    className={`h-7 px-3 text-xs ${calendarMode === "gregorian"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground"
-                      }`}
-                  >
-                    Gregorian
-                  </Button>
-                  <Button
-                    variant={calendarMode === "ethiopian" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setCalendarMode("ethiopian")}
-                    className={`h-7 px-3 text-xs ${calendarMode === "ethiopian"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground"
-                      }`}
-                  >
-                    Ethiopian
-                  </Button>
-                </div>
-                <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
-                    <SelectValue placeholder="Date" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Dates</SelectItem>
-                    <SelectItem value="latest">Latest Date {dates[0] ? `(${dates[0]})` : ""}</SelectItem>
-                    {dates.map((d: string) => (
-                      <SelectItem key={d} value={d}>
-                        {d}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select
+                value={resolvedDateFilter}
+                onValueChange={handleDateFilterChange}
+              >
+                <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
+                  <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                  <SelectValue placeholder="Date" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Dates</SelectItem>
+                  <SelectItem value="latest">
+                    Latest Date {dates[0] ? `(${dates[0]})` : ""}
+                  </SelectItem>
+                  {dates.map((d: string) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               {waiterList.length > 0 && (
-                <Select value={waiterFilter} onValueChange={setWaiterFilter}>
+                <Select
+                  value={resolvedWaiterFilter}
+                  onValueChange={handleWaiterFilterChange}
+                >
                   <SelectTrigger className="w-fit rounded-full shrink-0 space-x-2">
                     <Filter className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
                     <SelectValue placeholder="Waiter" />

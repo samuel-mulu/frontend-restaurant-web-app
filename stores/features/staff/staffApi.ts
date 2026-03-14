@@ -71,6 +71,7 @@ export const staffApi = createApiEndpoints({
           method: "GET",
         };
       },
+      keepUnusedDataFor: 300,
       transformResponse: (response: unknown): StaffListResponse => {
         // API returns { success: true, data: { staff: [], pagination: {...} } }
         const apiResponse = response as {

@@ -24,7 +24,8 @@ export default function ProtectedRoute({
   const hydrated = useSelector(selectAuthHydrated);
   const isAuthenticated = useSelector(selectIsAuthenticated);
 
-  const { isFetching } = useGetProfileQuery(); // always loads profile
+  const { isFetching } = useGetProfileQuery(); // keep profile warm in the background
+  const shouldBlockRendering = !hydrated || (!isAuthenticated && isFetching);
 
   // Check if current route is an auth route
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
@@ -33,7 +34,7 @@ export default function ProtectedRoute({
     // Skip protection check for auth routes
     if (isAuthRoute) return;
 
-    if (!hydrated || isFetching) return;
+    if (!hydrated || (!isAuthenticated && isFetching)) return;
 
     if (!isAuthenticated) {
       const callbackUrl = encodeURIComponent(pathname);
@@ -41,7 +42,7 @@ export default function ProtectedRoute({
     }
   }, [hydrated, isFetching, isAuthenticated, router, pathname, isAuthRoute]);
 
-  if (!hydrated || isFetching) {
+  if (shouldBlockRendering) {
     return <Loading fullScreen text="Loading..." size="lg" />;
   }
 

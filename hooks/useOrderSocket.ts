@@ -28,6 +28,9 @@ export function useOrderSocket() {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
+  const listInvalidationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
@@ -57,34 +60,35 @@ export function useOrderSocket() {
     socket.on("connect", updateConnectionStatus);
     socket.on("disconnect", updateConnectionStatus);
 
+    const invalidateOrder = (orderId?: string) => {
+      if (!orderId) return;
+      dispatch(ordersApi.util.invalidateTags([{ type: "Order", id: orderId }]));
+    };
+
+    const scheduleCashierListInvalidation = () => {
+      if (listInvalidationTimeoutRef.current) {
+        clearTimeout(listInvalidationTimeoutRef.current);
+      }
+
+      listInvalidationTimeoutRef.current = setTimeout(() => {
+        dispatch(
+          ordersApi.util.invalidateTags([{ type: "Order", id: "CASHIER_LIST" }]),
+        );
+        listInvalidationTimeoutRef.current = null;
+      }, 800);
+    };
+
     // Listen for new order events (cashier room)
     socket.on("newOrder", (data: SocketEventData) => {
-      // Invalidate orders list to refetch
       const orderId = data.data._id || data.data.id;
-      if (orderId) {
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: orderId }])
-        );
-      }
-      dispatch(ordersApi.util.invalidateTags([{ type: "Order", id: "LIST" }]));
-      dispatch(
-        ordersApi.util.invalidateTags([{ type: "Order", id: "CASHIER_LIST" }])
-      );
+      invalidateOrder(orderId);
+      scheduleCashierListInvalidation();
     });
 
     // Listen for order updated events
     socket.on("orderUpdated", (data: SocketEventData) => {
-      // Invalidate specific order and list
       const orderId = data.data._id || data.data.id;
-      if (orderId) {
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: orderId }])
-        );
-      }
-      dispatch(ordersApi.util.invalidateTags([{ type: "Order", id: "LIST" }]));
-      dispatch(
-        ordersApi.util.invalidateTags([{ type: "Order", id: "CASHIER_LIST" }])
-      );
+      invalidateOrder(orderId);
     });
 
     // Listen for order status changed events
@@ -95,35 +99,16 @@ export function useOrderSocket() {
         data: { orderId: string; orderNumber: string; status: string };
         timestamp: Date;
       }) => {
-        // Invalidate specific order and list
-        if (data.data.orderId) {
-          dispatch(
-            ordersApi.util.invalidateTags([
-              { type: "Order", id: data.data.orderId },
-            ])
-          );
-        }
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: "LIST" }])
-        );
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: "CASHIER_LIST" }])
-        );
+        invalidateOrder(data.data.orderId);
+        scheduleCashierListInvalidation();
       }
     );
 
     // Listen for order created events (owner-specific)
     socket.on("orderCreated", (data: SocketEventData) => {
       const orderId = data.data._id || data.data.id;
-      if (orderId) {
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: orderId }])
-        );
-      }
-      dispatch(ordersApi.util.invalidateTags([{ type: "Order", id: "LIST" }]));
-      dispatch(
-        ordersApi.util.invalidateTags([{ type: "Order", id: "CASHIER_LIST" }])
-      );
+      invalidateOrder(orderId);
+      scheduleCashierListInvalidation();
     });
 
     // Listen for general order events (from orders:general room)
@@ -131,35 +116,20 @@ export function useOrderSocket() {
       // Handle different event types
       if (data.type === "order_created" || data.type === "new_order") {
         const orderId = data.data?._id || data.data?.id;
-        if (orderId) {
-          dispatch(
-            ordersApi.util.invalidateTags([{ type: "Order", id: orderId }])
-          );
-        }
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: "LIST" }])
-        );
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: "CASHIER_LIST" }])
-        );
+        invalidateOrder(orderId);
+        scheduleCashierListInvalidation();
       } else if (data.type === "order_updated") {
         const orderId = data.data?._id || data.data?.id;
-        if (orderId) {
-          dispatch(
-            ordersApi.util.invalidateTags([{ type: "Order", id: orderId }])
-          );
-        }
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: "LIST" }])
-        );
-        dispatch(
-          ordersApi.util.invalidateTags([{ type: "Order", id: "CASHIER_LIST" }])
-        );
+        invalidateOrder(orderId);
       }
     });
 
     // Cleanup on unmount
     return () => {
+      if (listInvalidationTimeoutRef.current) {
+        clearTimeout(listInvalidationTimeoutRef.current);
+        listInvalidationTimeoutRef.current = null;
+      }
       if (socketRef.current) {
         socketRef.current.off("connect");
         socketRef.current.off("disconnect");

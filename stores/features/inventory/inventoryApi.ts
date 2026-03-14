@@ -96,6 +96,7 @@ export const inventoryApi = createApiEndpoints({
           method: "GET",
         };
       },
+      keepUnusedDataFor: 300,
       transformResponse: (
         response: ApiResponse<InventoryResponse[]> | InventoryResponse[]
       ) => {

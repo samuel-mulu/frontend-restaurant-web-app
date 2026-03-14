@@ -39,6 +39,7 @@ export const tablesApi = createApiEndpoints({
           method: "GET",
         };
       },
+      keepUnusedDataFor: 300,
       transformResponse: (
         response: unknown
       ): { success: boolean; data: Table[] } => {

@@ -589,12 +589,15 @@ export function AddItemsToOrderModal({
   onSuccess,
 }: AddItemsToOrderModalProps) {
   const {
-    data: order,
+    currentData: order,
     isLoading: isOrderLoading,
+    isFetching: isOrderFetching,
     error: orderError,
   } = useGetOrderQuery(orderId || "", {
     skip: !orderId || !open,
   });
+  const isWaitingForCurrentOrder =
+    open && !!orderId && (isOrderLoading || (isOrderFetching && !order));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -608,7 +611,7 @@ export function AddItemsToOrderModal({
           </DialogDescription>
         </DialogHeader>
 
-        {isOrderLoading ? (
+        {isWaitingForCurrentOrder ? (
           <div className="py-10 flex items-center justify-center text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
             Loading order...

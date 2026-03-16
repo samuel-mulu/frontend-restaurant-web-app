@@ -163,7 +163,7 @@ const formatDateForFilter = (date: string): string => {
     if (Number.isNaN(parsed.getTime())) {
       return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
     }
-    return parsed.toLocaleDateString("en-CA");
+    return parsed.toISOString().split("T")[0];
   } catch {
     return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
   }
@@ -173,7 +173,11 @@ const formatDateForFilter = (date: string): string => {
  * Map backend status to frontend display status
  */
 const normalizeStatus = (status: OrderStatus): "Completed" | "Pending" => {
-  if (status === "PAID_TO_CASHIER" || status === "TRANSFERRED_TO_OWNER") {
+  if (
+    status === "PAID_TO_CASHIER" ||
+    status === "TRANSFERRED_TO_OWNER" ||
+    status === "OWNER_CONFIRMED"
+  ) {
     return "Completed";
   }
   return "Pending";
@@ -195,6 +199,7 @@ const getStatusBadgeText = (status: ExtendedOrderStatus): string => {
     PAID_TO_CASHIER: "Paid",
     PAID_WITHOUT_PRINT: "Paid (without print)",
     TRANSFERRED_TO_OWNER: "Transferred",
+    OWNER_CONFIRMED: "Confirmed",
     DISPUTED: "Disputed",
   };
   return statusMap[status] || status;
@@ -207,6 +212,7 @@ const getStatusIcon = (status: ExtendedOrderStatus) => {
     PAID_TO_CASHIER: <CheckCircle2 className="h-4 w-4" />,
     PAID_WITHOUT_PRINT: <CheckCircle2 className="h-4 w-4 opacity-70" />,
     TRANSFERRED_TO_OWNER: <ArrowRightLeft className="h-4 w-4" />,
+    OWNER_CONFIRMED: <CheckCircle2 className="h-4 w-4" />,
     DISPUTED: <XCircle className="h-4 w-4" />,
   };
   return iconMap[status] || <AlertCircle className="h-4 w-4" />;
@@ -224,19 +230,31 @@ const getPaymentMethodIcon = (method: PaymentMethod) => {
  * Transform backend order to display format
  */
 function transformOrder(order: RTKOrder): DisplayOrder {
+  const waiterRef =
+    typeof order.waiterId === "object" && order.waiterId ? order.waiterId : null;
   const waiterId =
     typeof order.waiterId === "string"
       ? order.waiterId
-      : order.waiterId?._id || order.waiterId?.id || "";
+      : waiterRef?._id ||
+        waiterRef?.id ||
+        (waiterRef as { clientId?: string } | null)?.clientId ||
+        "";
   const waiterName =
     typeof order.waiterId === "object" && order.waiterId?.name
       ? order.waiterId.name
       : "";
 
+  const cashierRef =
+    typeof order.cashierId === "object" && order.cashierId
+      ? order.cashierId
+      : null;
   const cashierId =
     typeof order.cashierId === "string"
       ? order.cashierId
-      : order.cashierId?._id || order.cashierId?.id || "";
+      : cashierRef?._id ||
+        cashierRef?.id ||
+        (cashierRef as { clientId?: string } | null)?.clientId ||
+        "";
   const cashierName =
     typeof order.cashierId === "object" && order.cashierId?.name
       ? order.cashierId.name
@@ -394,7 +412,10 @@ export function CashierHistory() {
     () =>
       (ordersData || [])
         .map(transformOrder)
-        .filter((order: DisplayOrder) => order.cashierId === cashierId),
+        .filter(
+          (order: DisplayOrder) =>
+            !order.cashierId || order.cashierId === cashierId,
+        ),
     [ordersData, cashierId],
   );
   const dates = useMemo(() => extractDates(orders), [orders]);
@@ -602,7 +623,8 @@ export function CashierHistory() {
       const completedOrders = filtered.filter(
         (o: DisplayOrder) =>
           o.backendStatus === "PAID_TO_CASHIER" ||
-          o.backendStatus === "TRANSFERRED_TO_OWNER",
+          o.backendStatus === "TRANSFERRED_TO_OWNER" ||
+          o.backendStatus === "OWNER_CONFIRMED",
       );
       const pendingOrders = filtered.filter(
         (o: DisplayOrder) => o.backendStatus === "OPEN",
@@ -1258,6 +1280,12 @@ export function CashierHistory() {
                         <div className="flex items-center gap-2">
                           <ArrowRightLeft className="h-4 w-4" />
                           Transferred
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="OWNER_CONFIRMED">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Confirmed
                         </div>
                       </SelectItem>
                       <SelectItem value="VOIDED">

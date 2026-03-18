@@ -217,6 +217,7 @@ export interface SoldItemPerformanceRow {
   itemId: string;
   itemName: string;
   itemType: "menu" | "inventory";
+  mealType?: "breakfast" | "lunch" | "dinner" | "treats";
   qtySold: number;
   salesAmount: number;
 }

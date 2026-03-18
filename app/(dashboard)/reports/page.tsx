@@ -373,6 +373,23 @@ const getReportDateRange = (
   };
 };
 
+const REASON_LABELS: Record<string, string> = {
+  inventory: "Inventory Purchase",
+  withdrawal: "General Withdrawal",
+  salary_advance: "Salary Advance",
+  broke_products: "Broke Products",
+  utility: "Utilities / Repairs",
+  other: "Other",
+};
+const EXPENSE_CATEGORY_ORDER = [
+  "inventory",
+  "withdrawal",
+  "salary_advance",
+  "broke_products",
+  "utility",
+  "other",
+];
+
 export default function ReportsPage() {
   const SOLD_ITEMS_PAGE_SIZE = 20;
   const EXPENSES_PAGE_SIZE = 10;
@@ -421,6 +438,9 @@ export default function ReportsPage() {
   const [pdfModal, setPdfModal] = useState<{
     isOpen: boolean;
     sections: {
+      yesterdayComparison: boolean;
+      orderStatusSummary: boolean;
+      categoryMenuSummary: boolean;
       expenses: boolean;
       paymentBreakdown: boolean;
       cashierPerformance: boolean;
@@ -430,6 +450,9 @@ export default function ReportsPage() {
   }>({
     isOpen: false,
     sections: {
+      yesterdayComparison: true,
+      orderStatusSummary: true,
+      categoryMenuSummary: true,
       expenses: true,
       paymentBreakdown: true,
       cashierPerformance: true,
@@ -451,6 +474,56 @@ export default function ReportsPage() {
       year: selectedDate.getFullYear(),
       month: selectedDate.getMonth() + 1,
       status: selectedStatus,
+    },
+    { skip: viewType !== "monthly" },
+  );
+
+  const yesterdayDate = subDays(selectedDate, 1);
+  const yesterdayDateStr = formatDateForReport(yesterdayDate, "yyyy-MM-dd");
+  const yesterdayRange = getReportDateRange(yesterdayDate, viewType);
+
+  const lastMonthDate = subMonths(selectedDate, 1);
+  const lastMonthRange = getReportDateRange(lastMonthDate, viewType);
+
+  const yesterdayReportQuery = useGetDailyReportQuery(
+    { date: yesterdayDateStr, status: selectedStatus },
+    { skip: viewType !== "daily" },
+  );
+  const yesterdayExpensesQuery = useGetExpensesQuery(
+    {
+      startDate: yesterdayRange.startDate,
+      endDate: yesterdayRange.endDate,
+      expenseType: expenseTypeFilter,
+    },
+    { skip: viewType !== "daily" },
+  );
+
+  const lastMonthReportQuery = useGetMonthlyReportQuery(
+    {
+      year: lastMonthDate.getFullYear(),
+      month: lastMonthDate.getMonth() + 1,
+      status: selectedStatus,
+    },
+    { skip: viewType !== "monthly" },
+  );
+  const lastMonthExpensesQuery = useGetExpensesQuery(
+    {
+      startDate: lastMonthRange.startDate,
+      endDate: lastMonthRange.endDate,
+      expenseType: expenseTypeFilter,
+    },
+    { skip: viewType !== "monthly" },
+  );
+
+  const ordersByStatusQuery = useGetDailyReportQuery(
+    { date: formatDateForReport(selectedDate, "yyyy-MM-dd") },
+    { skip: viewType !== "daily" },
+  );
+
+  const monthlyOrdersByStatusQuery = useGetMonthlyReportQuery(
+    {
+      year: selectedDate.getFullYear(),
+      month: selectedDate.getMonth() + 1,
     },
     { skip: viewType !== "monthly" },
   );
@@ -515,113 +588,254 @@ export default function ReportsPage() {
 
   const handleExportCSV = () => {
     try {
-      const csvData: any[] = [];
+      const csvSections: string[] = [];
+      const toTitleCase = (s: string) =>
+        s.replace(/\w\S*/g, (w) =>
+          w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+        );
 
-      // Financial Summary
-      csvData.push({
-        Category: "SUMMARY",
-        Label: "Total Sales",
-        Value: totalSales,
-      });
-      csvData.push({
-        Category: "SUMMARY",
-        Label: "Total Expenses",
-        Value: totalExpenses,
-      });
-      csvData.push({
-        Category: "SUMMARY",
-        Label: "Net Revenue",
-        Value: netRevenue,
-      });
-      csvData.push({}); // Empty row
+      // === SUMMARY ===
+      const summaryData = [
+        { Metric: "Total Sales", Value: totalSales.toFixed(2) },
+        { Metric: "Total Expenses", Value: totalExpenses.toFixed(2) },
+        { Metric: "Net Revenue", Value: netRevenue.toFixed(2) },
+      ];
+      csvSections.push("=== SUMMARY ===");
+      csvSections.push(convertToCSV(summaryData));
 
-      // Payment Breakdown
-      csvData.push({
-        Category: "PAYMENT BREAKDOWN",
-        Label: "Method",
-        Bank: "Bank",
-        Count: "Orders",
-        Total: "Amount",
-      });
-      reportData.salesByPaymentMethod.forEach((item: any) => {
-        csvData.push({
-          Category: "Payment",
-          Label: item._id.method.replace("_", " "),
-          Bank: item._id.bank || "N/A",
-          Count: item.count,
-          Total: item.total,
+      // === YESTERDAY / LAST MONTH COMPARISON ===
+      const prevReport =
+        viewType === "daily"
+          ? yesterdayReportQuery.data
+          : lastMonthReportQuery.data;
+      const prevExpenses =
+        viewType === "daily"
+          ? yesterdayExpensesQuery.data
+          : lastMonthExpensesQuery.data;
+      const prevLabel = viewType === "daily" ? "Yesterday" : "Last Month";
+      const prevTotalSales =
+        prevReport?.orders?.reduce(
+          (s: number, o: any) => s + (o.total || 0),
+          0,
+        ) ?? 0;
+      const prevTotalExpenses =
+        prevExpenses?.reduce((s: number, e: any) => s + (e.amount || 0), 0) ?? 0;
+      const prevNetRevenue = prevTotalSales - prevTotalExpenses;
+      if (prevReport) {
+        const comparisonData = [
+          {
+            Metric: "Revenue",
+            [viewType === "daily" ? "Today" : "This Month"]:
+              totalSales.toFixed(2),
+            [prevLabel]: prevTotalSales.toFixed(2),
+            Change: (totalSales - prevTotalSales).toFixed(2),
+          },
+          {
+            Metric: "Expenses",
+            [viewType === "daily" ? "Today" : "This Month"]:
+              totalExpenses.toFixed(2),
+            [prevLabel]: prevTotalExpenses.toFixed(2),
+            Change: (totalExpenses - prevTotalExpenses).toFixed(2),
+          },
+          {
+            Metric: "Net Revenue",
+            [viewType === "daily" ? "Today" : "This Month"]:
+              netRevenue.toFixed(2),
+            [prevLabel]: prevNetRevenue.toFixed(2),
+            Change: (netRevenue - prevNetRevenue).toFixed(2),
+          },
+        ];
+        csvSections.push(`=== ${prevLabel.toUpperCase()} COMPARISON ===`);
+        csvSections.push(convertToCSV(comparisonData));
+      }
+
+      // === ORDER STATUS SUMMARY (OPEN & VOIDED) ===
+      const ordersByStatus =
+        viewType === "daily"
+          ? ordersByStatusQuery.data?.orders ?? []
+          : monthlyOrdersByStatusQuery.data?.orders ?? [];
+      const STATUS_LABELS: Record<string, string> = {
+        OPEN: "Open (Not Paid / Pending)",
+        VOIDED: "Voided (Cancelled)",
+        PAID_TO_CASHIER: "Paid to Cashier",
+        TRANSFERRED_TO_OWNER: "Transferred to Owner",
+        OWNER_CONFIRMED: "Owner Confirmed",
+        DISPUTED: "Disputed",
+      };
+      const STATUS_ORDER = [
+        "OPEN",
+        "VOIDED",
+        "PAID_TO_CASHIER",
+        "TRANSFERRED_TO_OWNER",
+        "OWNER_CONFIRMED",
+        "DISPUTED",
+      ];
+      if (ordersByStatus.length > 0) {
+        const statusData = STATUS_ORDER.filter((k) =>
+          ordersByStatus.some((o: any) => o._id === k),
+        ).flatMap((key) => {
+          const item = ordersByStatus.find((o: any) => o._id === key);
+          if (!item) return [];
+          const label = STATUS_LABELS[key] || key.replace(/_/g, " ");
+          return [
+            {
+              Status: label,
+              Orders: item.count ?? 0,
+              Subtotal: (item.total ?? 0).toFixed(2),
+            },
+          ];
         });
-      });
-      csvData.push({});
+        csvSections.push("=== ORDER STATUS SUMMARY (OPEN & VOIDED) ===");
+        csvSections.push(convertToCSV(statusData));
+      }
 
-      // Expenses
-      csvData.push({
-        Category: "EXPENSES",
-        Label: "Reason",
-        Description: "Details",
-        Total: "Amount",
-      });
-      expensesList.forEach((ex: any) => {
-        csvData.push({
-          Category: "Expense",
-          Label: (ex.reason || "").replace("_", " "),
-          Description: ex.description || "-",
-          Total: -ex.amount,
+      // === EXPENSES & WITHDRAWALS ===
+      if (expensesList.length > 0) {
+        const groupedExpenses = expensesList.reduce(
+          (acc: Record<string, any[]>, ex: any) => {
+            const key = ex.reason || "other";
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(ex);
+            return acc;
+          },
+          {},
+        );
+        const expenseRows: {
+          Category: string;
+          Description: string;
+          "Payment Method": string;
+          Amount: string;
+        }[] = [];
+        EXPENSE_CATEGORY_ORDER.forEach((key) => {
+          const items = groupedExpenses[key];
+          if (!items?.length) return;
+          const categoryLabel = REASON_LABELS[key] || key.replace("_", " ");
+          items.forEach((ex: any) => {
+            const paymentMethod =
+              ex.expenseType === "mobile_banking" ? "Mobile Banking" : "Cash";
+            expenseRows.push({
+              Category: categoryLabel,
+              Description: toTitleCase(ex.description || "—"),
+              "Payment Method": paymentMethod,
+              Amount: ex.amount.toFixed(2),
+            });
+          });
+          const subtotal = items.reduce((s: number, ex: any) => s + ex.amount, 0);
+          expenseRows.push({
+            Category: `Subtotal - ${categoryLabel}`,
+            Description: "",
+            "Payment Method": "",
+            Amount: subtotal.toFixed(2),
+          });
         });
-      });
-      csvData.push({});
-
-      // Waiter Performance
-      csvData.push({
-        Category: "WAITER PERFORMANCE",
-        Label: "Name",
-        Count: "Orders",
-        Total: "Revenue",
-      });
-      sortedWaiters.forEach((item: any) => {
-        csvData.push({
-          Category: "Waiter",
-          Label: item.name,
-          Count: item.count,
-          Total: item.total,
+        expenseRows.push({
+          Category: "Total Expenses",
+          Description: "",
+          "Payment Method": "",
+          Amount: totalExpenses.toFixed(2),
         });
-      });
-      csvData.push({});
+        csvSections.push("=== EXPENSES & WITHDRAWALS ===");
+        csvSections.push(convertToCSV(expenseRows));
+      }
 
-      // Cashier Performance
-      csvData.push({
-        Category: "CASHIER PERFORMANCE",
-        Label: "Name",
-        Count: "Orders",
-        Total: "Settled",
-      });
-      sortedCashiers.forEach((item: any) => {
-        csvData.push({
-          Category: "Cashier",
-          Label: item.name,
-          Count: item.count,
-          Total: item.total,
-        });
-      });
-      csvData.push({});
+      // === PAYMENT BREAKDOWN ===
+      if (filteredSales.length > 0) {
+        const paymentData = filteredSales.map((item: any) => ({
+          Method:
+            item._id.method === "unpaid"
+              ? "Unpaid / Pending"
+              : item._id.method.replace("_", " "),
+          Bank: item._id.bank || "-",
+          Orders: item.count,
+          Amount: item.total.toFixed(2),
+        }));
+        csvSections.push("=== PAYMENT BREAKDOWN ===");
+        csvSections.push(convertToCSV(paymentData));
+      }
 
-      // Menu/Inventory Performance
-      csvData.push({
-        Category: "ITEM PERFORMANCE",
-        Label: "Item Name",
-        Type: "Type",
-        Count: "Quantity",
-      });
-      soldItemsData.items.forEach((item) => {
-        csvData.push({
-          Category: "Item",
-          Label: item.itemName,
-          Type: item.itemType,
-          Count: item.qtySold,
-        });
-      });
+      // === CASHIER PERFORMANCE ===
+      if (sortedCashiers.length > 0) {
+        const cashierData = sortedCashiers.map((item: any) => ({
+          Name: item.name,
+          Orders: item.count,
+          "Settled Amount": item.total.toFixed(2),
+        }));
+        csvSections.push("=== CASHIER PERFORMANCE ===");
+        csvSections.push(convertToCSV(cashierData));
+      }
 
-      const csvString = convertToCSV(csvData);
+      // === WAITER PERFORMANCE ===
+      if (sortedWaiters.length > 0) {
+        const waiterData = sortedWaiters.map((item: any) => ({
+          Name: item.name,
+          Orders: item.count,
+          Revenue: item.total.toFixed(2),
+        }));
+        csvSections.push("=== WAITER PERFORMANCE ===");
+        csvSections.push(convertToCSV(waiterData));
+      }
+
+      // === CATEGORY MENU SUMMARY (Breakfast, Lunch, Dinner, Treats) ===
+      const MEAL_TYPE_LABELS: Record<string, string> = {
+        breakfast: "Breakfast",
+        lunch: "Lunch",
+        dinner: "Dinner",
+        treats: "Treats",
+      };
+      const MEAL_TYPE_ORDER = ["breakfast", "lunch", "dinner", "treats"];
+      const menuItemsByMealType = (allSoldItems as any[])
+        .filter((i) => i.itemType === "menu")
+        .reduce(
+          (acc: Record<string, { qty: number; amount: number }>, item: any) => {
+            const key = item.mealType || "other";
+            if (!acc[key]) acc[key] = { qty: 0, amount: 0 };
+            acc[key].qty += item.qtySold ?? 0;
+            acc[key].amount += item.salesAmount ?? 0;
+            return acc;
+          },
+          {},
+        );
+      if (Object.keys(menuItemsByMealType).length > 0) {
+        const categoryMenuData = [...MEAL_TYPE_ORDER, "other"]
+          .filter((k) => menuItemsByMealType[k])
+          .map((key) => ({
+            Category: MEAL_TYPE_LABELS[key] || "Other",
+            "Qty Sold": menuItemsByMealType[key].qty,
+            Revenue: menuItemsByMealType[key].amount.toFixed(2),
+          }));
+        csvSections.push("=== CATEGORY MENU SUMMARY ===");
+        csvSections.push(convertToCSV(categoryMenuData));
+      }
+
+      // === MENU PERFORMANCE ===
+      const menuItems = (allSoldItems as any[]).filter(
+        (i) => i.itemType === "menu",
+      );
+      if (menuItems.length > 0) {
+        const menuData = menuItems.map((item: any) => ({
+          "Item Name": toTitleCase(item.itemName || ""),
+          Quantity: item.qtySold ?? 0,
+          Amount: (item.salesAmount ?? 0).toFixed(2),
+        }));
+        csvSections.push("=== MENU PERFORMANCE ===");
+        csvSections.push(convertToCSV(menuData));
+      }
+
+      // === INVENTORY PERFORMANCE ===
+      const inventoryItems = (allSoldItems as any[]).filter(
+        (i) => i.itemType === "inventory",
+      );
+      if (inventoryItems.length > 0) {
+        const inventoryData = inventoryItems.map((item: any) => ({
+          "Item Name": toTitleCase(item.itemName || ""),
+          Quantity: item.qtySold ?? 0,
+          Amount: (item.salesAmount ?? 0).toFixed(2),
+        }));
+        csvSections.push("=== INVENTORY PERFORMANCE ===");
+        csvSections.push(convertToCSV(inventoryData));
+      }
+
+      const csvString = "\uFEFF" + csvSections.join("\n\n");
       const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -633,6 +847,7 @@ export default function ReportsPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       toast.success("CSV Exported successfully");
     } catch (err) {
       toast.error("Failed to export CSV");
@@ -683,46 +898,159 @@ export default function ReportsPage() {
     }
   };
 
+  const TOP_ITEMS_LIMIT = 15;
+  const toTitleCase = (s: string) =>
+    s.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
   const generatePrintHTML = () => {
     const currentDate = new Date().toLocaleString();
     const reportDate = formatDateForReport(
       selectedDate,
       viewType === "daily" ? "PPP" : "MMMM yyyy",
     );
+    const pdfFormatCurrency = (n: number) =>
+      new Intl.NumberFormat("en-ET", {
+        style: "currency",
+        currency: "ETB",
+        minimumFractionDigits: 2,
+      }).format(n);
 
-    // Generate expenses HTML
+    const prevReport =
+      viewType === "daily" ? yesterdayReportQuery.data : lastMonthReportQuery.data;
+    const prevExpenses =
+      viewType === "daily"
+        ? yesterdayExpensesQuery.data
+        : lastMonthExpensesQuery.data;
+    const prevLabel = viewType === "daily" ? "Yesterday" : "Last Month";
+    const prevTotalSales =
+      prevReport?.orders?.reduce((s: number, o: any) => s + (o.total || 0), 0) ?? 0;
+    const prevTotalExpenses =
+      prevExpenses?.reduce((s: number, e: any) => s + (e.amount || 0), 0) ?? 0;
+    const prevNetRevenue = prevTotalSales - prevTotalExpenses;
+
+    const ordersByStatus =
+      viewType === "daily"
+        ? ordersByStatusQuery.data?.orders ?? []
+        : monthlyOrdersByStatusQuery.data?.orders ?? [];
+    const STATUS_LABELS: Record<string, string> = {
+      OPEN: "Open (Not Paid / Pending)",
+      VOIDED: "Voided (Cancelled)",
+      PAID_TO_CASHIER: "Paid to Cashier",
+      TRANSFERRED_TO_OWNER: "Transferred to Owner",
+      OWNER_CONFIRMED: "Owner Confirmed",
+      DISPUTED: "Disputed",
+    };
+    const STATUS_ORDER = [
+      "OPEN",
+      "VOIDED",
+      "PAID_TO_CASHIER",
+      "TRANSFERRED_TO_OWNER",
+      "OWNER_CONFIRMED",
+      "DISPUTED",
+    ];
+
+    const MEAL_TYPE_LABELS: Record<string, string> = {
+      breakfast: "Breakfast",
+      lunch: "Lunch",
+      dinner: "Dinner",
+      treats: "Treats",
+    };
+    const MEAL_TYPE_ORDER = ["breakfast", "lunch", "dinner", "treats"];
+    const menuItemsByMealType = (allSoldItems as any[])
+      .filter((i) => i.itemType === "menu")
+      .reduce((acc: Record<string, { qty: number; amount: number }>, item: any) => {
+        const key = item.mealType || "other";
+        if (!acc[key]) acc[key] = { qty: 0, amount: 0 };
+        acc[key].qty += item.qtySold ?? 0;
+        acc[key].amount += item.salesAmount ?? 0;
+        return acc;
+      }, {});
+
+    // Group expenses by reason
+    const groupedExpenses = expensesList.reduce((acc: Record<string, any[]>, ex: any) => {
+      const key = ex.reason || "other";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(ex);
+      return acc;
+    }, {});
+
+    const formatPaymentMethod = (ex: any) => {
+      const t = ex.expenseType || "cash";
+      return t === "mobile_banking" ? "Mobile Banking" : "Cash";
+    };
+
+    // Generate expenses HTML - categorized by reason with Payment Method column and subtotals
     const expensesHTML =
       pdfModal.sections.expenses && expensesList.length > 0
-        ? expensesList
-            .map(
-              (ex: any) => `
-            <tr>
-              <td>
-                <div class="font-bold">${(ex.reason || "").replace("_", " ")}</div>
-                <div class="text-sm">• ${ex.description || "N/A"}</div>
-              </td>
-              <td class="text-right font-bold">ETB ${ex.amount.toFixed(2)}</td>
-            </tr>
-          `,
-            )
-            .join("")
+        ? EXPENSE_CATEGORY_ORDER.filter((key) => groupedExpenses[key]?.length)
+            .map((key) => {
+              const items = groupedExpenses[key];
+              const subtotal = items.reduce((s: number, ex: any) => s + ex.amount, 0);
+              const rows = items
+                .map(
+                  (ex: any) => `
+                <tr>
+                  <td>${toTitleCase(ex.description || "—")}</td>
+                  <td>${formatPaymentMethod(ex)}</td>
+                  <td class="text-right amount-cell">${pdfFormatCurrency(ex.amount)}</td>
+                </tr>
+              `,
+                )
+                .join("");
+              const label = REASON_LABELS[key] || key.replace("_", " ");
+              return `
+              <div class="expense-category-block" style="margin-bottom: 20pt;">
+                <h4 class="expense-category-title">${label}</h4>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Payment Method</th>
+                      <th class="text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows}
+                    <tr class="subtotal-row">
+                      <td colspan="2" class="text-right subtotal-label">Subtotal</td>
+                      <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(subtotal)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            `;
+            })
+            .join("") +
+          `
+          <div class="grand-total-expenses">
+            <strong>Total Expenses: ${pdfFormatCurrency(expensesList.reduce((s: number, ex: any) => s + ex.amount, 0))}</strong>
+          </div>
+        `
         : "";
 
-    // Generate payment breakdown HTML
+    // Generate payment breakdown HTML with total row
+    const paymentTotal = filteredSales.reduce((s: number, i: any) => s + i.total, 0);
     const paymentHTML =
       pdfModal.sections.paymentBreakdown && filteredSales.length > 0
         ? filteredSales
             .map(
-              (item: any, i: number) => `
+              (item: any) => `
           <tr>
             <td class="capitalize">${item._id.method === "unpaid" ? "Unpaid / Pending" : item._id.method.replace("_", " ")}</td>
             <td>${item._id.bank || "-"}</td>
             <td class="text-right">${item.count}</td>
-            <td class="text-right font-bold">ETB ${item.total.toFixed(2)}</td>
+            <td class="text-right amount-cell">${pdfFormatCurrency(item.total)}</td>
           </tr>
         `,
             )
-            .join("")
+            .join("") +
+          `
+          <tr class="subtotal-row">
+            <td colspan="2" class="text-right subtotal-label">Total</td>
+            <td class="text-right">${filteredSales.reduce((s: number, i: any) => s + i.count, 0)}</td>
+            <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(paymentTotal)}</td>
+          </tr>
+        `
         : "";
 
     // Generate cashier performance HTML
@@ -734,7 +1062,7 @@ export default function ReportsPage() {
           <tr>
             <td class="font-medium">${item.name}</td>
             <td class="text-right">${item.count}</td>
-            <td class="text-right font-bold">ETB ${item.total.toFixed(2)}</td>
+            <td class="text-right amount-cell">${pdfFormatCurrency(item.total)}</td>
           </tr>
         `,
             )
@@ -750,28 +1078,77 @@ export default function ReportsPage() {
           <tr>
             <td class="font-medium">${item.name}</td>
             <td class="text-right">${item.count}</td>
-            <td class="text-right font-bold">ETB ${item.total.toFixed(2)}</td>
+            <td class="text-right amount-cell">${pdfFormatCurrency(item.total)}</td>
           </tr>
         `,
             )
             .join("")
         : "";
 
-    // Generate inventory HTML
-    const inventoryHTML =
-      pdfModal.sections.itemPerformance && allSoldItems.length > 0
-        ? allSoldItems
-            .map(
-              (item: any) => `
-          <tr>
-            <td>${item.itemName}</td>
-            <td class="capitalize">${item.itemType}</td>
-            <td class="text-right font-bold">${item.qtySold}</td>
-            <td class="text-right font-bold">ETB ${item.salesAmount.toFixed(2)}</td>
-          </tr>
-        `,
-            )
-            .join("")
+    // Split menu and inventory, show Top 15 + Others
+    const menuItems = (allSoldItems as any[]).filter((i) => i.itemType === "menu");
+    const inventoryItems = (allSoldItems as any[]).filter((i) => i.itemType === "inventory");
+
+    const buildItemPerformanceHTML = (
+      items: any[],
+      title: string,
+    ) => {
+      if (items.length === 0) return "";
+      const topItems = items.slice(0, TOP_ITEMS_LIMIT);
+      const restItems = items.slice(TOP_ITEMS_LIMIT);
+      const restQty = restItems.reduce((s, i) => s + (i.qtySold || 0), 0);
+      const restAmount = restItems.reduce((s, i) => s + (i.salesAmount || 0), 0);
+
+      const rows = topItems
+        .map(
+          (item: any) => `
+        <tr>
+          <td>${toTitleCase(item.itemName || "")}</td>
+          <td class="text-right">${item.qtySold ?? 0}</td>
+          <td class="text-right amount-cell">${pdfFormatCurrency(item.salesAmount ?? 0)}</td>
+        </tr>
+      `,
+        )
+        .join("");
+
+      const othersRow =
+        restItems.length > 0
+          ? `
+        <tr class="subtotal-row">
+          <td class="others-label">Others (${restItems.length} more items)</td>
+          <td class="text-right">${restQty}</td>
+          <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(restAmount)}</td>
+        </tr>
+      `
+          : "";
+
+      return `
+        <div class="item-performance-block" style="margin-bottom: 20pt;">
+          <h4 class="expense-category-title">${title}</h4>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th class="text-right">Qty</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+              ${othersRow}
+            </tbody>
+          </table>
+        </div>
+      `;
+    };
+
+    const menuPerformanceHTML =
+      pdfModal.sections.itemPerformance && menuItems.length > 0
+        ? buildItemPerformanceHTML(menuItems, "Menu Performance")
+        : "";
+    const inventoryPerformanceHTML =
+      pdfModal.sections.itemPerformance && inventoryItems.length > 0
+        ? buildItemPerformanceHTML(inventoryItems, "Inventory Performance")
         : "";
 
     return `
@@ -943,15 +1320,105 @@ export default function ReportsPage() {
           .compact-table td {
             padding: 2pt 4pt;
           }
+
+          .expense-category-title {
+            font-size: 12pt;
+            font-weight: bold;
+            margin: 0 0 10pt 0;
+            color: #2c3e50;
+            text-transform: uppercase;
+            letter-spacing: 0.5pt;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 6pt;
+          }
+
+          .subtotal-row td {
+            background: #f0f7ff !important;
+            font-weight: bold;
+            border-top: 1px solid #3498db;
+            padding: 8pt 6pt;
+          }
+
+          .subtotal-label {
+            font-size: 10pt;
+          }
+
+          .subtotal-value {
+            font-size: 11pt;
+            color: #2c3e50;
+          }
+
+          .grand-total-expenses {
+            margin-top: 16pt;
+            padding: 12pt;
+            background: linear-gradient(135deg, #e8f4fc 0%, #d6eaf8 100%);
+            border: 2px solid #3498db;
+            border-radius: 8pt;
+            font-size: 14pt;
+            text-align: right;
+            color: #2c3e50;
+          }
+
+          .amount-cell {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+          }
+
+          .others-label {
+            font-style: italic;
+            color: #7f8c8d;
+          }
+
+          .data-table {
+            font-size: 10pt;
+          }
+
+          .header-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8pt;
+            margin-top: 12pt;
+            font-size: 10pt;
+            text-align: left;
+          }
+
+          .header-meta-item {
+            background: rgba(255,255,255,0.9);
+            padding: 8pt 12pt;
+            border-radius: 4pt;
+            border: 1px solid #e9ecef;
+          }
+
+          .header-meta-label {
+            font-weight: bold;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            font-size: 8pt;
+            letter-spacing: 0.5pt;
+          }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>Kandino's Kitchen</h1>
           <h2>${viewType === "daily" ? "DAILY PERFORMANCE REPORT" : "MONTHLY PERFORMANCE REPORT"}</h2>
-          <div class="meta">
-            <p>${reportDate}</p>
-            <div>Status: ${statusFilter.replace("_", " ")} • Payment: ${paymentFilter.replace("_", " ")}</div>
+          <div class="header-meta-grid">
+            <div class="header-meta-item">
+              <div class="header-meta-label">Report Date</div>
+              <div>${reportDate}</div>
+            </div>
+            <div class="header-meta-item">
+              <div class="header-meta-label">Status Filter</div>
+              <div>${toTitleCase(statusFilter.replace(/_/g, " "))}</div>
+            </div>
+            <div class="header-meta-item">
+              <div class="header-meta-label">Payment Filter</div>
+              <div>${paymentFilter === "ALL" ? "All Methods" : toTitleCase(paymentFilter.replace(/_/g, " "))}</div>
+            </div>
+            <div class="header-meta-item">
+              <div class="header-meta-label">Generated</div>
+              <div>${currentDate}</div>
+            </div>
           </div>
         </div>
 
@@ -960,35 +1427,100 @@ export default function ReportsPage() {
           <div class="financial-grid">
             <div class="financial-item">
               <div class="financial-label">Total Sales</div>
-              <div class="financial-value">${formatCurrency(totalSales)}</div>
+              <div class="financial-value">${pdfFormatCurrency(totalSales)}</div>
             </div>
             <div class="financial-item">
-              <div class="financial-label">Expenses</div>
-              <div class="financial-value">${formatCurrency(totalExpenses)}</div>
+              <div class="financial-label">Total Expenses</div>
+              <div class="financial-value">${pdfFormatCurrency(totalExpenses)}</div>
             </div>
             <div class="financial-item">
               <div class="financial-label">Net Revenue</div>
-              <div class="financial-value">${formatCurrency(netRevenue)}</div>
+              <div class="financial-value">${pdfFormatCurrency(netRevenue)}</div>
             </div>
           </div>
         </div>
+
+        ${
+          pdfModal.sections.yesterdayComparison && prevReport
+            ? `
+        <div class="section">
+          <h3>${prevLabel} Comparison</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th class="text-right">${viewType === "daily" ? "Today" : "This Month"}</th>
+                <th class="text-right">${prevLabel}</th>
+                <th class="text-right">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Revenue</td>
+                <td class="text-right amount-cell">${pdfFormatCurrency(totalSales)}</td>
+                <td class="text-right amount-cell">${pdfFormatCurrency(prevTotalSales)}</td>
+                <td class="text-right amount-cell">${pdfFormatCurrency(totalSales - prevTotalSales)}</td>
+              </tr>
+              <tr>
+                <td>Expenses</td>
+                <td class="text-right amount-cell">${pdfFormatCurrency(totalExpenses)}</td>
+                <td class="text-right amount-cell">${pdfFormatCurrency(prevTotalExpenses)}</td>
+                <td class="text-right amount-cell">${pdfFormatCurrency(totalExpenses - prevTotalExpenses)}</td>
+              </tr>
+              <tr class="subtotal-row">
+                <td>Net Revenue</td>
+                <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(netRevenue)}</td>
+                <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(prevNetRevenue)}</td>
+                <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(netRevenue - prevNetRevenue)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        `
+            : ""
+        }
+
+        ${
+          pdfModal.sections.orderStatusSummary && ordersByStatus.length > 0
+            ? `
+        <div class="section">
+          <h3>Order Status Summary</h3>
+          <p class="text-sm" style="margin-bottom: 10pt; color: #7f8c8d;">Open = orders not paid or pending. Voided = cancelled orders.</p>
+          ${STATUS_ORDER.filter((k) => ordersByStatus.some((o: any) => o._id === k))
+            .map((key) => {
+              const item = ordersByStatus.find((o: any) => o._id === key);
+              if (!item) return "";
+              const label = STATUS_LABELS[key] || key.replace(/_/g, " ");
+              return `
+              <div class="expense-category-block" style="margin-bottom: 12pt;">
+                <h4 class="expense-category-title">${label}</h4>
+                <table class="data-table">
+                  <tbody>
+                    <tr>
+                      <td>Orders</td>
+                      <td class="text-right font-bold">${item.count ?? 0}</td>
+                    </tr>
+                    <tr class="subtotal-row">
+                      <td class="subtotal-label">Subtotal</td>
+                      <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(item.total ?? 0)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            `;
+            })
+            .join("")}
+        </div>
+        `
+            : ""
+        }
 
         ${
           expensesHTML
             ? `
         <div class="section">
           <h3>Expenses & Withdrawals</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Reason/Details</th>
-                <th class="text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${expensesHTML}
-            </tbody>
-          </table>
+          ${expensesHTML}
         </div>
         `
             : ""
@@ -1062,26 +1594,53 @@ export default function ReportsPage() {
         }
 
         ${
-          inventoryHTML
+          pdfModal.sections.categoryMenuSummary &&
+          Object.keys(menuItemsByMealType).length > 0
             ? `
         <div class="section">
-          <h3>Menu & Inventory Performance</h3>
-          <div class="mb-4 text-sm text-gray-600">
-            Showing all ${allSoldItems.length} items
-          </div>
-          <table class="compact-table">
+          <h3>Category Menu Summary</h3>
+          <table class="data-table">
             <thead>
               <tr>
-                <th>Item Name</th>
-                <th>Type</th>
-                <th class="text-right">Qty</th>
-                <th class="text-right">Amount</th>
+                <th>Category</th>
+                <th class="text-right">Qty Sold</th>
+                <th class="text-right">Revenue</th>
               </tr>
             </thead>
             <tbody>
-              ${inventoryHTML}
+              ${[...MEAL_TYPE_ORDER, "other"]
+                .filter((k) => menuItemsByMealType[k])
+                .map(
+                  (key) => `
+                <tr>
+                  <td>${MEAL_TYPE_LABELS[key] || "Other"}</td>
+                  <td class="text-right">${menuItemsByMealType[key].qty}</td>
+                  <td class="text-right amount-cell">${pdfFormatCurrency(menuItemsByMealType[key].amount)}</td>
+                </tr>
+              `,
+                )
+                .join("")}
+              <tr class="subtotal-row">
+                <td class="subtotal-label">Total</td>
+                <td class="text-right">${Object.values(menuItemsByMealType).reduce((s, v) => s + v.qty, 0)}</td>
+                <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(
+                  Object.values(menuItemsByMealType).reduce((s, v) => s + v.amount, 0),
+                )}</td>
+              </tr>
             </tbody>
           </table>
+        </div>
+        `
+            : ""
+        }
+
+        ${
+          menuPerformanceHTML || inventoryPerformanceHTML
+            ? `
+        <div class="section">
+          <h3>Menu & Inventory Performance</h3>
+          ${menuPerformanceHTML}
+          ${inventoryPerformanceHTML}
         </div>
         `
             : ""
@@ -1496,6 +2055,7 @@ export default function ReportsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Reason / Details</TableHead>
+                        <TableHead>Payment</TableHead>
                         <TableHead>Amount</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1504,13 +2064,19 @@ export default function ReportsPage() {
                         <TableRow key={ex._id}>
                           <TableCell className="capitalize">
                             <span className="font-semibold">
-                              {(ex.reason || "").replace("_", " ")}
+                              {REASON_LABELS[ex.reason || "other"] ||
+                                (ex.reason || "").replace("_", " ")}
                             </span>
                             {ex.description && (
                               <span className="text-xs text-slate-500 block">
                                 {ex.description}
                               </span>
                             )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {ex.expenseType === "mobile_banking"
+                              ? "Mobile Banking"
+                              : "Cash"}
                           </TableCell>
                           <TableCell className="text-rose-600 font-bold">
                             -{formatCurrency(ex.amount)}
@@ -1520,7 +2086,7 @@ export default function ReportsPage() {
                       {flattenedExpenses.length === 0 && (
                         <TableRow>
                           <TableCell
-                            colSpan={2}
+                            colSpan={3}
                             className="h-24 text-center text-muted-foreground"
                           >
                             No expenses recorded
@@ -1720,8 +2286,10 @@ export default function ReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {soldItemsData.items.map((item) => (
-                        <TableRow key={`${item.itemType}-${item.itemId}`}>
+                      {soldItemsData.items.map((item, index) => (
+                        <TableRow
+                          key={`${item.itemType}-${item.itemId}-${index}`}
+                        >
                           <TableCell className="font-medium">
                             {item.itemName}
                           </TableCell>
@@ -1931,6 +2499,9 @@ export default function ReportsPage() {
 
             <div className="space-y-2">
               {[
+                { id: "yesterdayComparison", label: `${viewType === "daily" ? "Yesterday" : "Last Month"} Comparison` },
+                { id: "orderStatusSummary", label: "Order Status Summary (Open & Voided)" },
+                { id: "categoryMenuSummary", label: "Category Menu Summary" },
                 { id: "expenses", label: "Expenses & Withdrawals" },
                 { id: "paymentBreakdown", label: "Payment Breakdown" },
                 { id: "cashierPerformance", label: "Cashier Performance" },

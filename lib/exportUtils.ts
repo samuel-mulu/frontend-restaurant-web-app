@@ -51,12 +51,48 @@ export function formatReportForThermal(data: ReportData): string {
   }
   
   if (data.sections.expenses && data.details.expenses?.length) {
+    const REASON_LABELS: Record<string, string> = {
+      inventory: "Inventory Purchase",
+      withdrawal: "General Withdrawal",
+      salary_advance: "Salary Advance",
+      broke_products: "Broke Products",
+      utility: "Utilities / Repairs",
+      other: "Other",
+    };
+    const EXPENSE_CATEGORY_ORDER = [
+      "inventory",
+      "withdrawal",
+      "salary_advance",
+      "broke_products",
+      "utility",
+      "other",
+    ];
+
+    const expenses = data.details.expenses;
+    const flatItems = expenses.flatMap((entry: any) =>
+      entry?.items ? entry.items : [entry]
+    );
+    const grouped = flatItems.reduce((acc: Record<string, any[]>, ex: any) => {
+      const key = ex.reason || "other";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(ex);
+      return acc;
+    }, {});
+
     text += `${centerAlign("EXPENSES")}\n`;
-    data.details.expenses.forEach((entry: any) => {
-      const items = entry?.items ? entry.items : [entry];
+    EXPENSE_CATEGORY_ORDER.forEach((key) => {
+      const items = grouped[key];
+      if (!items?.length) return;
+      const label = REASON_LABELS[key] || key.replace("_", " ");
+      text += `  ${label}\n`;
       items.forEach((ex: any) => {
-        text += `${padString((ex.reason || "").replace("_", " "), 15)} ${formatCurrency(ex.amount).padStart(15)}\n`;
+        const payment =
+          ex.expenseType === "mobile_banking" ? "Mobile" : "Cash";
+        const desc = (ex.description || "—").substring(0, 12);
+        text += `    ${padString(desc, 14)} ${padString(payment, 8)} ${formatCurrency(ex.amount).padStart(12)}\n`;
       });
+      const subtotal = items.reduce((s: number, ex: any) => s + ex.amount, 0);
+      text += `    ${padString("Subtotal", 22)} ${formatCurrency(subtotal).padStart(12)}\n`;
     });
     text += `${dash}\n`;
   }

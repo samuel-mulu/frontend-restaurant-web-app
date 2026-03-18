@@ -91,23 +91,30 @@ export default function MenuManagement() {
     comments: string[];
   } | null>(null);
 
+  const MENUS_QUERY_OPTIONS = {
+    refetchOnMountOrArgChange: false,
+  } as const;
+
   // Redux Toolkit hooks
   const {
     data: categories = [],
     isLoading: isLoadingCategories,
     error: categoriesError,
-  } = useListCategoriesQuery();
+  } = useListCategoriesQuery(undefined, MENUS_QUERY_OPTIONS);
 
   const {
     data: items = [],
     isLoading: isLoadingItems,
     error: itemsError,
     refetch: refetchItems,
-  } = useListItemsQuery({
-    categoryId:
-      selectedCategoryFilter === "all" ? undefined : selectedCategoryFilter,
-    includeUnavailable: true,
-  });
+  } = useListItemsQuery(
+    {
+      categoryId:
+        selectedCategoryFilter === "all" ? undefined : selectedCategoryFilter,
+      includeUnavailable: true,
+    },
+    MENUS_QUERY_OPTIONS
+  );
 
   const [createItem, { isLoading: isCreating }] = useCreateItemMutation();
   const [updateItem, { isLoading: isUpdating }] = useUpdateItemMutation();

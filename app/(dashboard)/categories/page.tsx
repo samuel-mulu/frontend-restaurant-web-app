@@ -41,13 +41,17 @@ export default function CategoryManagement() {
   );
   const [categoryName, setCategoryName] = useState("");
 
+  const CATEGORIES_QUERY_OPTIONS = {
+    refetchOnMountOrArgChange: false,
+  } as const;
+
   // Redux Toolkit hooks
   const {
     data: categories = [],
     isLoading,
     error,
     refetch,
-  } = useListCategoriesQuery();
+  } = useListCategoriesQuery(undefined, CATEGORIES_QUERY_OPTIONS);
 
   const [createCategory, { isLoading: isCreating }] =
     useCreateCategoryMutation();

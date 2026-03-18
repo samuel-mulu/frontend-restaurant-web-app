@@ -1,6 +1,7 @@
+import { formatDateLocal } from "@/lib/date-utils";
 import { createApiEndpoints } from "@/stores/baseApi";
-import { v4 as uuidv4 } from "uuid";
 import { Menu } from "@/lib/menu-store";
+import { v4 as uuidv4 } from "uuid";
 
 export interface ImageInfo {
   url?: string;
@@ -99,8 +100,8 @@ function transformItem(item: ItemResponse): Menu {
     isFavorite: !!item.isFavorite,
     comments: item.comments || [],
     updatedAt: item.updatedAt
-      ? new Date(item.updatedAt).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0],
+      ? formatDateLocal(new Date(item.updatedAt))
+      : formatDateLocal(new Date()),
   };
 }
 

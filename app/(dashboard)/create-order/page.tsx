@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { clearCart, loadCart, saveCart } from "@/lib/cart-storage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Menu } from "@/lib/menu-store";
 import { Category, Inventory } from "@/lib/types";
@@ -30,8 +31,9 @@ import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { useListTablesQuery } from "@/stores/features/tables/tablesApi";
 import { AlertCircle, Minus, Plus, Search, Star, Trash2 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from "uuid";
 
 type MenuCartItem = Menu & { quantity: number; type: "menu" };
 type InventoryCartItem = Inventory & {
@@ -88,7 +90,15 @@ export default function OrderPage() {
     redirectTo: "/",
   });
 
-  const [cart, setCart] = React.useState<CartItem[]>([]);
+  const restoredFromStorageRef = React.useRef(false);
+  const [cart, setCart] = React.useState<CartItem[]>(() => {
+    const stored = loadCart() as CartItem[] | null;
+    if (stored && stored.length > 0) {
+      restoredFromStorageRef.current = true;
+      return stored;
+    }
+    return [];
+  });
   const [selectedWaiter, setSelectedWaiter] = React.useState<string>("");
   const [selectedTable, setSelectedTable] = React.useState<string>("");
   const [selectedCategory, setSelectedCategory] = React.useState<string>("all");
@@ -181,6 +191,35 @@ export default function OrderPage() {
       item.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
   }, [inventoryItems, searchQuery]);
+
+  // Persist cart to localStorage
+  useEffect(() => {
+    if (cart.length > 0) {
+      saveCart(cart);
+    } else {
+      clearCart();
+    }
+  }, [cart]);
+
+  // Validate restored inventory items when inventory loads
+  useEffect(() => {
+    if (!restoredFromStorageRef.current || inventoryItems.length === 0 || cart.length === 0)
+      return;
+    const inventoryCartItems = cart.filter(
+      (i): i is InventoryCartItem => i.type === "inventory",
+    );
+    if (inventoryCartItems.length === 0) return;
+    const unavailable = inventoryCartItems.filter((item) => {
+      const inv = inventoryItems.find((inv: Inventory) => inv.id === item.id);
+      return !inv || item.quantity > inv.quantity;
+    });
+    if (unavailable.length > 0) {
+      toast.error(
+        `Some inventory items may no longer be available: ${unavailable.map((u) => u.name).join(", ")}. Please check quantities.`,
+      );
+    }
+    restoredFromStorageRef.current = false;
+  }, [cart, inventoryItems]);
 
   const toggleFavoriteMenu = async (item: Menu) => {
     try {
@@ -335,6 +374,8 @@ export default function OrderPage() {
   }, 0);
 
   const handleCreateOrder = async () => {
+    if (isCreatingOrder) return;
+
     // Validation
     if (cart.length === 0) {
       toast.error(
@@ -399,13 +440,15 @@ export default function OrderPage() {
         tableNumber = selectedTableObj?.tableNumber || undefined;
       }
 
-      // Prepare order payload
+      // Prepare order payload with clientId for idempotency (retries return same order)
+      const requestId = uuidv4();
       const orderPayload = {
         ...(tableNumber && { tableNumber }),
         items: orderItems,
         waiterId: selectedWaiter,
         note: orderNote.trim() || undefined,
         customerChannel: "pos",
+        clientId: requestId,
         ...(markAsPaidToCashier && { markAsPaidToCashier: true }),
       };
 
@@ -437,6 +480,7 @@ export default function OrderPage() {
       }
 
       // Clear cart and reset selections
+      clearCart();
       setCart([]);
       setSelectedWaiter("");
       setSelectedTable("");

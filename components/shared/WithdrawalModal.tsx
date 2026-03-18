@@ -36,6 +36,7 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
   const [newExpense, setNewExpense] = useState({
     amount: "",
     reason: "",
+    expenseType: "cash" as "cash" | "mobile_banking",
     description: "",
   });
 
@@ -68,6 +69,7 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
       await createExpense({
         ...newExpense,
         amount: parseFloat(newExpense.amount),
+        expenseType: newExpense.expenseType,
         date: formatDateForReport(selectedDate),
       }).unwrap();
 
@@ -77,6 +79,7 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
       setNewExpense({
         amount: "",
         reason: "",
+        expenseType: "cash",
         description: "",
       });
       if (onSuccess) onSuccess();
@@ -94,6 +97,7 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
       setNewExpense({
         amount: "",
         reason: "",
+        expenseType: "cash",
         description: "",
       });
     }
@@ -190,6 +194,25 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
                       <SelectItem value="broke_products">Broke Products</SelectItem>
                       <SelectItem value="utility">Utilities / Repairs</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="expenseType" className="text-sm font-semibold">
+                    Expense Type
+                  </Label>
+                  <Select
+                    value={newExpense.expenseType}
+                    onValueChange={(v) =>
+                      setNewExpense({ ...newExpense, expenseType: v as "cash" | "mobile_banking" })
+                    }
+                  >
+                    <SelectTrigger id="expenseType">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="mobile_banking">Mobile Banking</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

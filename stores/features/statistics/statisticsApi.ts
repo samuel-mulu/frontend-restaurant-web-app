@@ -328,7 +328,10 @@ export const statisticsApi = createApiEndpoints({
       },
     }),
 
-    getDailyReport: build.query<ReportData, { date: string; status?: string }>({
+    getDailyReport: build.query<
+      ReportData,
+      { date: string; status?: string }
+    >({
       query: ({ date, status }) => {
         const queryParams = new URLSearchParams();
         queryParams.append("date", date);
@@ -447,6 +450,25 @@ export const statisticsApi = createApiEndpoints({
         },
     }),
 
+    getExpenses: build.query<
+      Array<{ _id: string; reason: string; amount: number; description?: string; date: string; expenseType?: string }>,
+      { startDate: string; endDate: string; expenseType?: string }
+    >({
+      query: ({ startDate, endDate, expenseType }) => {
+        const params = new URLSearchParams();
+        params.append("startDate", startDate);
+        params.append("endDate", endDate);
+        if (expenseType && expenseType !== "ALL")
+          params.append("expenseType", expenseType);
+        return {
+          url: `/expenses?${params.toString()}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: { success: boolean; data: any[] }) =>
+        response.data || [],
+    }),
+
     createExpense: build.mutation<any, any>({
       query: (data) => ({
         url: "/expenses",
@@ -473,6 +495,7 @@ export const {
   useGetMonthlyReportQuery,
   useGetReportStaffOrdersQuery,
   useGetSoldItemsPerformanceQuery,
+  useGetExpensesQuery,
   useCreateExpenseMutation,
   useDeleteExpenseMutation,
 } = statisticsApi;

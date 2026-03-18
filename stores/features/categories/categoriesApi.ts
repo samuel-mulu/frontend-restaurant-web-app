@@ -1,3 +1,4 @@
+import { formatDateLocal } from "@/lib/date-utils";
 import { createApiEndpoints } from "@/stores/baseApi";
 import { Category } from "@/lib/types";
 import { v4 as uuidv4 } from "uuid";
@@ -39,8 +40,8 @@ function transformCategory(category: CategoryResponse): Category {
     products: category.products ?? 0,
     isFavorite: !!category.isFavorite,
     updatedAt: category.updatedAt
-      ? new Date(category.updatedAt).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0],
+      ? formatDateLocal(new Date(category.updatedAt))
+      : formatDateLocal(new Date()),
   };
 }
 

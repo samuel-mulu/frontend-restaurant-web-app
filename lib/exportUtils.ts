@@ -52,9 +52,10 @@ export function formatReportForThermal(data: ReportData): string {
   
   if (data.sections.expenses && data.details.expenses?.length) {
     text += `${centerAlign("EXPENSES")}\n`;
-    data.details.expenses.forEach(group => {
-      group.items.forEach((ex: any) => {
-        text += `${padString(ex.reason, 15)} ${formatCurrency(ex.amount).padStart(15)}\n`;
+    data.details.expenses.forEach((entry: any) => {
+      const items = entry?.items ? entry.items : [entry];
+      items.forEach((ex: any) => {
+        text += `${padString((ex.reason || "").replace("_", " "), 15)} ${formatCurrency(ex.amount).padStart(15)}\n`;
       });
     });
     text += `${dash}\n`;

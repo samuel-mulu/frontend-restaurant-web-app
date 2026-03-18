@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDateLocal } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 // Removed Ethiopian calendar imports as per user request to use Gregorian only
 import {
@@ -146,7 +147,7 @@ function SalaryForm({
         if (!isNaN(date.getTime())) {
           const paymentDate = new Date(date);
           paymentDate.setMonth(paymentDate.getMonth() + 1);
-          const paymentDateString = paymentDate.toISOString().split("T")[0];
+          const paymentDateString = formatDateLocal(paymentDate);
 
           setFormData((prev) => ({
             ...prev,
@@ -404,8 +405,8 @@ export default function SalaryManagementPage() {
     amount: "",
     status: "pending",
     remarks: "",
-    registeredDate: now.toISOString().split("T")[0],
-    paymentDate: defaultPaymentDate.toISOString().split("T")[0],
+    registeredDate: formatDateLocal(now),
+    paymentDate: formatDateLocal(defaultPaymentDate),
     salaryPeriod: "monthly",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -629,8 +630,8 @@ export default function SalaryManagementPage() {
       amount: "",
       status: "pending",
       remarks: "",
-      registeredDate: now.toISOString().split("T")[0],
-      paymentDate: defaultPaymentDate.toISOString().split("T")[0],
+      registeredDate: formatDateLocal(now),
+      paymentDate: formatDateLocal(defaultPaymentDate),
       salaryPeriod: "monthly",
     });
     setErrors({});
@@ -688,9 +689,9 @@ export default function SalaryManagementPage() {
       status: salary.status,
       remarks: salary.remarks || "",
       registeredDate:
-        salary.createdAt?.split("T")[0] || now.toISOString().split("T")[0],
+        salary.createdAt?.split("T")[0] || formatDateLocal(now),
       paymentDate:
-        salary.paymentDate?.split("T")[0] || defaultPaymentDate.toISOString().split("T")[0],
+        salary.paymentDate?.split("T")[0] || formatDateLocal(defaultPaymentDate),
       salaryPeriod: salary.salaryPeriod || "monthly",
     });
     setEditingSalaryId(salary._id || salary.id || "");

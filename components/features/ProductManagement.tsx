@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateLocal } from "@/lib/date-utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,7 +114,7 @@ export function ProductManagement() {
         quantity: parseInt(formData.quantity),
         unit: formData.unit,
         price: parseFloat(formData.price),
-        updatedAt: new Date().toISOString().split("T")[0],
+        updatedAt: formatDateLocal(new Date()),
       };
       setProducts([...products, newProduct]);
       setFormData({

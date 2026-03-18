@@ -41,6 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDateLocal } from "@/lib/date-utils";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import {
@@ -50,6 +51,8 @@ import {
   useGetOrdersByCashierQuery,
   useUpdateOrderStatusMutation,
 } from "@/stores/features/orders/ordersApi";
+import type { Staff } from "@/stores/features/staff/staffApi";
+import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import {
   AlertCircle,
@@ -78,7 +81,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 import { PaymentImageModal } from "./PaymentImageModal";
@@ -163,7 +166,7 @@ const formatDateForFilter = (date: string): string => {
     if (Number.isNaN(parsed.getTime())) {
       return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
     }
-    return parsed.toISOString().split("T")[0];
+    return formatDateLocal(parsed);
   } catch {
     return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
   }
@@ -299,7 +302,7 @@ export function CashierHistory() {
   const [dateFilter, setDateFilter] = useState<string>("latest");
   const [waiterFilter, setWaiterFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(() => {
     if (!cashierId) return new Set();
     return loadSelectedOrdersFromStorage(cashierId);
@@ -308,7 +311,7 @@ export function CashierHistory() {
     "",
   );
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(20);
 
   // Order details modal state
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -353,6 +356,37 @@ export function CashierHistory() {
   // Real-time updates
   const { isConnected: isRealtimeConnected } = useOrderSocket();
 
+  // Fetch waiters for filter dropdown (server-side waiter filter)
+  const { data: waitersData } = useListStaffQuery({
+    role: "waiter",
+    status: "active",
+  });
+  const waiterList = useMemo(() => {
+    const staff = waitersData?.staff || [];
+    return staff.map((w: Staff) => ({ id: w._id || w.id || "", name: w.name }));
+  }, [waitersData]);
+
+  // Debounce search 300ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [waiterFilter, dateFilter, statusFilter, debouncedSearch, limit]);
+
+  // Map dateFilter to startDate/endDate for API
+  const dateRange = useMemo(() => {
+    if (dateFilter === "all") return { startDate: undefined, endDate: undefined };
+    if (dateFilter === "latest") {
+      const today = formatDateLocal(new Date());
+      return { startDate: today, endDate: today };
+    }
+    return { startDate: dateFilter, endDate: dateFilter };
+  }, [dateFilter]);
+
   // Determine statuses to fetch based on roleView
   const statusesToFetch = useMemo(() => {
     if (roleView === "waiter") {
@@ -388,9 +422,9 @@ export function CashierHistory() {
     }
   }, [roleView, statusFilter]);
 
-  // Fetch orders by cashier with filters
+  // Fetch orders by cashier with server-side filters and pagination
   const {
-    data: ordersData,
+    data: ordersResponse,
     isLoading,
     isFetching,
     error,
@@ -399,6 +433,12 @@ export function CashierHistory() {
     {
       cashierId,
       status: statusesToFetch,
+      waiterId: waiterFilter !== "all" ? waiterFilter : undefined,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      search: debouncedSearch.trim() || undefined,
+      page,
+      limit,
     },
     {
       skip: !cashierId,
@@ -407,51 +447,41 @@ export function CashierHistory() {
     },
   );
 
-  // Transform orders to display format
+  // Transform orders to display format (server returns paginated data)
   const orders = useMemo(
     () =>
-      (ordersData || [])
+      (ordersResponse?.data || [])
         .map(transformOrder)
         .filter(
           (order: DisplayOrder) =>
             !order.cashierId || order.cashierId === cashierId,
         ),
-    [ordersData, cashierId],
+    [ordersResponse?.data, cashierId],
   );
-  const dates = useMemo(() => extractDates(orders), [orders]);
+
+  // Build date options - last 30 days (configurable)
+  const DATE_RANGE_DAYS = 30;
+  const dates = useMemo(() => {
+    const today = formatDateLocal(new Date());
+    const options: string[] = [today];
+    for (let i = 1; i < DATE_RANGE_DAYS; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      options.push(formatDateLocal(d));
+    }
+    return options.sort().reverse();
+  }, []);
+
   const resolvedDateFilter =
     dateFilter === "all" ||
     dateFilter === "latest" ||
     dates.includes(dateFilter)
       ? dateFilter
       : "latest";
-  const selectedDate =
-    resolvedDateFilter === "all"
-      ? undefined
-      : resolvedDateFilter === "latest"
-        ? dates[0]
-        : resolvedDateFilter;
-  const dateScopedOrders = useMemo(() => {
-    if (!selectedDate) return orders;
-    return orders.filter(
-      (order: DisplayOrder) => formatDateForFilter(order.date) === selectedDate,
-    );
-  }, [orders, selectedDate]);
-  const waiterList = useMemo(() => {
-    const uniqueWaiters = new Map<string, string>();
 
-    dateScopedOrders.forEach((order: DisplayOrder) => {
-      if (!order.waiterId) return;
-      uniqueWaiters.set(order.waiterId, order.waiterName || "Unknown Waiter");
-    });
-
-    return Array.from(uniqueWaiters.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [dateScopedOrders]);
   const resolvedWaiterFilter =
     waiterFilter === "all" ||
-    waiterList.some((waiter) => waiter.id === waiterFilter)
+    waiterList.some((waiter: { id: string; name: string }) => waiter.id === waiterFilter)
       ? waiterFilter
       : "all";
 
@@ -462,10 +492,11 @@ export function CashierHistory() {
 
   // Initialize payment methods from orders data
   useEffect(() => {
-    if (ordersData) {
+    const data = ordersResponse?.data;
+    if (data) {
       setPaymentMethods((prev) => {
         const newMap = new Map(prev);
-        ordersData.forEach((order: RTKOrder) => {
+        data.forEach((order: RTKOrder) => {
           const orderId = order.id || order._id || "";
           if (order.paymentMethod && orderId) {
             newMap.set(orderId, order.paymentMethod as PaymentMethod);
@@ -474,7 +505,7 @@ export function CashierHistory() {
         return newMap;
       });
     }
-  }, [ordersData]);
+  }, [ordersResponse?.data]);
 
   // Save selected orders to localStorage whenever they change
   useEffect(() => {
@@ -503,55 +534,26 @@ export function CashierHistory() {
     }
   }, [cashierId, orders]);
 
-  // Filter orders based on selected date and search.
-  const filtered = useMemo(() => {
-    return dateScopedOrders.filter((o: DisplayOrder) => {
-      if (resolvedWaiterFilter !== "all" && o.waiterId !== resolvedWaiterFilter) {
-        return false;
-      }
+  // Server returns paginated data; orders are already the current page
+  const paginationInfo = ordersResponse?.pagination ?? {
+    page: 1,
+    limit,
+    total: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  };
 
-      // Search filter (client-side)
-      if (deferredSearchQuery.trim()) {
-        const query = deferredSearchQuery.toLowerCase();
-        return (
-          (o.orderNumber?.toLowerCase() || "").includes(query) ||
-          (o.tableNumber?.toLowerCase() || "").includes(query) ||
-          (o.waiterName?.toLowerCase() || "").includes(query)
-        );
-      }
-
-      return true;
-    });
-  }, [dateScopedOrders, resolvedWaiterFilter, deferredSearchQuery]);
-
-  // Pagination info
-  const paginationInfo = useMemo(() => {
-    const total = filtered.length;
-    const totalPages = Math.ceil(total / limit);
-    return {
-      page,
-      limit,
-      total,
-      totalPages,
-      hasNextPage: page < totalPages,
-      hasPreviousPage: page > 1,
-    };
-  }, [filtered.length, page, limit]);
-
-  // Paginated orders
-  const paginatedOrders = useMemo(() => {
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    return filtered.slice(startIndex, endIndex);
-  }, [filtered, page, limit]);
+  // paginatedOrders = orders (server already paginated)
+  const paginatedOrders = orders;
 
   const summary = useMemo(() => {
     if (roleView === "owner") {
       // Owner view: Detailed breakdown by status
-      const transferredOrders = filtered.filter(
+      const transferredOrders = orders.filter(
         (o: DisplayOrder) => o.backendStatus === "TRANSFERRED_TO_OWNER",
       );
-      const paidOrders = filtered.filter(
+      const paidOrders = orders.filter(
         (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER",
       );
 
@@ -566,7 +568,7 @@ export function CashierHistory() {
       const totalRevenue = transferredTotal + paidFromWaiterTotal;
 
       return {
-        totalOrders: filtered.length,
+        totalOrders: orders.length,
         transferredCount: transferredOrders.length,
         transferredTotal,
         paidCount: paidOrders.length,
@@ -576,10 +578,10 @@ export function CashierHistory() {
       };
     } else if (roleView === "waiter") {
       // Waiter view: Breakdown by status
-      const openOrders = filtered.filter(
+      const openOrders = orders.filter(
         (o: DisplayOrder) => o.backendStatus === "OPEN",
       );
-      const paidOrders = filtered.filter(
+      const paidOrders = orders.filter(
         (o: DisplayOrder) => o.backendStatus === "PAID_TO_CASHIER",
       );
 
@@ -594,17 +596,17 @@ export function CashierHistory() {
       const totalAmount = openTotal + paidTotal;
 
       return {
-        totalOrders: filtered.length,
+        totalOrders: orders.length,
         openCount: openOrders.length,
         openTotal,
         paidCount: paidOrders.length,
         paidTotal,
         totalAmount,
-        avgOrderValue: filtered.length > 0 ? totalAmount / filtered.length : 0,
+        avgOrderValue: orders.length > 0 ? totalAmount / orders.length : 0,
       };
     } else {
       // All view: Comprehensive overview
-      const statusBreakdown = filtered.reduce(
+      const statusBreakdown = orders.reduce(
         (
           acc: Record<OrderStatus, { count: number; total: number }>,
           o: DisplayOrder,
@@ -620,13 +622,13 @@ export function CashierHistory() {
         {} as Record<OrderStatus, { count: number; total: number }>,
       );
 
-      const completedOrders = filtered.filter(
+      const completedOrders = orders.filter(
         (o: DisplayOrder) =>
           o.backendStatus === "PAID_TO_CASHIER" ||
           o.backendStatus === "TRANSFERRED_TO_OWNER" ||
           o.backendStatus === "OWNER_CONFIRMED",
       );
-      const pendingOrders = filtered.filter(
+      const pendingOrders = orders.filter(
         (o: DisplayOrder) => o.backendStatus === "OPEN",
       );
 
@@ -641,22 +643,22 @@ export function CashierHistory() {
       const totalRevenue = completedTotal + pendingTotal;
 
       return {
-        totalOrders: filtered.length,
+        totalOrders: orders.length,
         completedCount: completedOrders.length,
         completedTotal,
         pendingCount: pendingOrders.length,
         pendingTotal,
         totalRevenue,
-        avgTicket: filtered.length > 0 ? totalRevenue / filtered.length : 0,
+        avgTicket: orders.length > 0 ? totalRevenue / orders.length : 0,
         statusBreakdown,
       };
     }
-  }, [filtered, roleView]);
+  }, [orders, roleView]);
 
   // Get the common status of selected orders
   const selectedOrdersStatus = useMemo(() => {
     if (selectedOrderIds.size === 0) return null;
-    const selectedOrders = filtered.filter((o: DisplayOrder) =>
+    const selectedOrders = orders.filter((o: DisplayOrder) =>
       selectedOrderIds.has(o.id),
     );
     if (selectedOrders.length === 0) return null;
@@ -665,7 +667,7 @@ export function CashierHistory() {
       (o: DisplayOrder) => o.backendStatus === firstStatus,
     );
     return allSameStatus ? firstStatus : null;
-  }, [selectedOrderIds, filtered]);
+  }, [selectedOrderIds, orders]);
 
   const toggleSelect = (id: string, orderStatus: OrderStatus) => {
     if (orderStatus === "TRANSFERRED_TO_OWNER" || orderStatus === "VOIDED") {
@@ -686,7 +688,7 @@ export function CashierHistory() {
         }
       } else {
         if (s.size > 0) {
-          const selectedOrders = filtered.filter((o: DisplayOrder) =>
+          const selectedOrders = orders.filter((o: DisplayOrder) =>
             s.has(o.id),
           );
           if (selectedOrders.length > 0) {
@@ -706,8 +708,8 @@ export function CashierHistory() {
   };
 
   const selectAll = () => {
-    if (filtered.length === 0) return;
-    const firstStatus = filtered[0].backendStatus;
+    if (orders.length === 0) return;
+    const firstStatus = orders[0].backendStatus;
 
     if (firstStatus === "TRANSFERRED_TO_OWNER" || firstStatus === "VOIDED") {
       toast.error(
@@ -716,7 +718,7 @@ export function CashierHistory() {
       return;
     }
 
-    const sameStatusOrders = filtered.filter(
+    const sameStatusOrders = orders.filter(
       (o: DisplayOrder) =>
         o.backendStatus === firstStatus &&
         o.backendStatus !== "TRANSFERRED_TO_OWNER" &&
@@ -928,7 +930,7 @@ export function CashierHistory() {
   };
 
   const getPaymentProofImage = (orderId: string) => {
-    const order = filtered.find((o: DisplayOrder) => o.id === orderId);
+    const order = orders.find((o: DisplayOrder) => o.id === orderId);
     return order?.paymentProofImage;
   };
 
@@ -1313,7 +1315,7 @@ export function CashierHistory() {
                   <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0" />
                   <SelectValue placeholder="Date" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-64">
                   <SelectItem value="all">All Dates</SelectItem>
                   <SelectItem value="latest">
                     Latest Date {dates[0] ? `(${dates[0]})` : ""}
@@ -1359,11 +1361,11 @@ export function CashierHistory() {
                 >
                   Select All (
                   {selectedOrdersStatus
-                    ? filtered.filter(
+                    ? orders.filter(
                       (o: DisplayOrder) =>
                         o.backendStatus === selectedOrdersStatus,
                     ).length
-                    : filtered.length}
+                    : orders.length}
                   )
                 </Button>
                 <span className="text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap">
@@ -1850,7 +1852,7 @@ export function CashierHistory() {
         onConfirm={handlePaymentImageConfirm}
         orderNumber={
           paymentImageOrderId
-            ? filtered.find((o: DisplayOrder) => o.id === paymentImageOrderId)
+            ? orders.find((o: DisplayOrder) => o.id === paymentImageOrderId)
               ?.orderNumber
             : undefined
         }
@@ -1869,13 +1871,13 @@ export function CashierHistory() {
             </DialogTitle>
             <DialogDescription>
               {viewPaymentProofOrderId &&
-                filtered.find(
+                orders.find(
                   (o: DisplayOrder) => o.id === viewPaymentProofOrderId,
                 )?.orderNumber && (
                   <span>
                     Order #{" "}
                     {
-                      filtered.find(
+                      orders.find(
                         (o: DisplayOrder) => o.id === viewPaymentProofOrderId,
                       )?.orderNumber
                     }
@@ -1901,7 +1903,7 @@ export function CashierHistory() {
                         const imageUrl = getPaymentProofImage(
                           viewPaymentProofOrderId,
                         )?.url;
-                        const orderNumber = filtered.find(
+                        const orderNumber = orders.find(
                           (o: DisplayOrder) => o.id === viewPaymentProofOrderId,
                         )?.orderNumber;
                         if (imageUrl && orderNumber) {

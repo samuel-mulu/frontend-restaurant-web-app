@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDateLocal } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { useGetComprehensiveAnalyticsQuery } from "@/stores/features/statistics/statisticsApi";
 import {
@@ -46,12 +47,10 @@ export default function AnalyticsPage() {
   const [startDate, setStartDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() - 30);
-    return date.toISOString().split("T")[0];
+    return formatDateLocal(date);
   });
 
-  const [endDate, setEndDate] = useState(() => {
-    return new Date().toISOString().split("T")[0];
-  });
+  const [endDate, setEndDate] = useState(() => formatDateLocal(new Date()));
 
   const [activeQuickRange, setActiveQuickRange] = useState<number | null>(30);
 
@@ -76,8 +75,8 @@ export default function AnalyticsPage() {
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - days);
-    setStartDate(start.toISOString().split("T")[0]);
-    setEndDate(end.toISOString().split("T")[0]);
+    setStartDate(formatDateLocal(start));
+    setEndDate(formatDateLocal(end));
   };
 
   const handleQuickRangeWithState = (days: number) => {

@@ -1,3 +1,4 @@
+import { formatDateLocal } from "@/lib/date-utils";
 import { Inventory } from "@/lib/types";
 import { createApiEndpoints } from "@/stores/baseApi";
 import { v4 as uuidv4 } from "uuid";
@@ -64,10 +65,9 @@ function transformInventory(item: any): Inventory {
   // Format updatedAt date
   let updatedAt = "";
   if (item.updatedAt) {
-    const date = new Date(item.updatedAt);
-    updatedAt = date.toISOString().split("T")[0];
+    updatedAt = formatDateLocal(new Date(item.updatedAt));
   } else {
-    updatedAt = new Date().toISOString().split("T")[0];
+    updatedAt = formatDateLocal(new Date());
   }
 
   return {

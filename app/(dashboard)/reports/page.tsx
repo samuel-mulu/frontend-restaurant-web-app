@@ -39,6 +39,7 @@ import {
   SoldItemsPerformanceResponse,
   useCreateExpenseMutation,
   useGetDailyReportQuery,
+  useGetExpensesQuery,
   useGetMonthlyReportQuery,
   useGetReportStaffOrdersQuery,
   useGetSoldItemsPerformanceQuery,
@@ -374,17 +375,20 @@ const getReportDateRange = (
 
 export default function ReportsPage() {
   const SOLD_ITEMS_PAGE_SIZE = 20;
+  const EXPENSES_PAGE_SIZE = 10;
   const [viewType, setViewType] = useState<"daily" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("PAID_TO_CASHIER");
   const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
+  const [expenseTypeFilter, setExpenseTypeFilter] = useState<string>("ALL");
   const [itemTypeFilter, setItemTypeFilter] = useState<
     "ALL" | "menu" | "inventory"
   >("ALL");
   const selectedStatus = statusFilter === "ALL" ? undefined : statusFilter;
   const [soldItemsPage, setSoldItemsPage] = useState(1);
+  const [expensesPage, setExpensesPage] = useState(1);
 
   // Staff detail modal state
   const [staffDetailModal, setStaffDetailModal] = useState<{
@@ -452,6 +456,11 @@ export default function ReportsPage() {
   );
 
   const detailRange = getReportDateRange(selectedDate, viewType);
+  const expensesQuery = useGetExpensesQuery({
+    startDate: detailRange.startDate,
+    endDate: detailRange.endDate,
+    expenseType: expenseTypeFilter,
+  });
   const soldItemsQuery = useGetSoldItemsPerformanceQuery({
     startDate: detailRange.startDate,
     endDate: detailRange.endDate,
@@ -479,10 +488,18 @@ export default function ReportsPage() {
 
   const { data, isLoading, isFetching, error, refetch } =
     viewType === "daily" ? dailyQuery : monthlyQuery;
+  const {
+    data: expensesList = [],
+    isFetching: isExpensesFetching,
+  } = expensesQuery;
 
   useEffect(() => {
     setSoldItemsPage(1);
   }, [viewType, selectedDate, statusFilter, paymentFilter, itemTypeFilter]);
+
+  useEffect(() => {
+    setExpensesPage(1);
+  }, [viewType, selectedDate, expenseTypeFilter]);
 
   const handlePrevDate = () => {
     setSelectedDate((prev) =>
@@ -544,14 +561,12 @@ export default function ReportsPage() {
         Description: "Details",
         Total: "Amount",
       });
-      reportData.expenses.forEach((group: any) => {
-        group.items.forEach((ex: any) => {
-          csvData.push({
-            Category: "Expense",
-            Label: ex.reason.replace("_", " "),
-            Description: ex.description || "-",
-            Total: -ex.amount,
-          });
+      expensesList.forEach((ex: any) => {
+        csvData.push({
+          Category: "Expense",
+          Label: (ex.reason || "").replace("_", " "),
+          Description: ex.description || "-",
+          Total: -ex.amount,
         });
       });
       csvData.push({});
@@ -677,22 +692,18 @@ export default function ReportsPage() {
 
     // Generate expenses HTML
     const expensesHTML =
-      pdfModal.sections.expenses && data?.expenses && data.expenses.length > 0
-        ? data.expenses
-            .map((item: any) =>
-              item.items
-                .map(
-                  (ex: any) => `
+      pdfModal.sections.expenses && expensesList.length > 0
+        ? expensesList
+            .map(
+              (ex: any) => `
             <tr>
               <td>
-                <div class="font-bold">${ex.reason.replace("_", " ")}</div>
+                <div class="font-bold">${(ex.reason || "").replace("_", " ")}</div>
                 <div class="text-sm">• ${ex.description || "N/A"}</div>
               </td>
               <td class="text-right font-bold">ETB ${ex.amount.toFixed(2)}</td>
             </tr>
           `,
-                )
-                .join(""),
             )
             .join("")
         : "";
@@ -1101,7 +1112,7 @@ export default function ReportsPage() {
         sections: printModal.sections,
         details: {
           salesByPayment: reportData.salesByPaymentMethod,
-          expenses: reportData.expenses,
+          expenses: expensesList,
           cashierPerformance: sortedCashiers,
           menuPerformance: soldItemsData.items.filter(
             (item) => item.itemType === "menu",
@@ -1178,11 +1189,21 @@ export default function ReportsPage() {
   );
   const totalSales =
     paymentFilter === "ALL" ? totalFromOrders : totalSalesFromPayment;
-  const totalExpenses = reportData.expenses.reduce(
-    (acc: number, curr: { total: number }) => acc + curr.total,
+  const totalExpenses = expensesList.reduce(
+    (acc: number, ex: { amount: number }) => acc + ex.amount,
     0,
   );
   const netRevenue = totalSales - totalExpenses;
+
+  const flattenedExpenses = expensesList;
+  const totalExpensesPages = Math.max(
+    1,
+    Math.ceil(flattenedExpenses.length / EXPENSES_PAGE_SIZE),
+  );
+  const paginatedExpenses = flattenedExpenses.slice(
+    (expensesPage - 1) * EXPENSES_PAGE_SIZE,
+    expensesPage * EXPENSES_PAGE_SIZE,
+  );
   const soldItemsData: SoldItemsPerformanceResponse = soldItemsQuery.data || {
     items: [],
     pagination: {
@@ -1211,7 +1232,10 @@ export default function ReportsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <WithdrawalModal
               selectedDate={selectedDate}
-              onSuccess={() => refetch()}
+              onSuccess={() => {
+                refetch();
+                expensesQuery.refetch();
+              }}
             />
 
             <Select
@@ -1315,6 +1339,7 @@ export default function ReportsPage() {
                   <SelectItem value="unpaid">Unpaid / Pending</SelectItem>
                 </SelectContent>
               </Select>
+
             </CardContent>
           </Card>
 
@@ -1348,7 +1373,7 @@ export default function ReportsPage() {
                     <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
                       Total Expenses
                     </p>
-                    {isFetching ? (
+                    {isExpensesFetching ? (
                       <Skeleton className="h-8 w-32 mt-1" />
                     ) : (
                       <h3 className="text-2xl font-bold mt-1 text-rose-600">
@@ -1370,7 +1395,7 @@ export default function ReportsPage() {
                     <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
                       Net Revenue
                     </p>
-                    {isFetching ? (
+                    {isFetching || isExpensesFetching ? (
                       <Skeleton className="h-8 w-32 mt-1" />
                     ) : (
                       <h3 className="text-2xl font-bold mt-1 text-blue-600">
@@ -1446,9 +1471,25 @@ export default function ReportsPage() {
                   <Banknote className="h-5 w-5 text-rose-500" />
                   Expenses & Withdrawals
                 </CardTitle>
+                <Select
+                  value={expenseTypeFilter}
+                  onValueChange={(v) => {
+                    setExpenseTypeFilter(v);
+                    setExpensesPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[160px] h-8 text-sm bg-white dark:bg-slate-800">
+                    <SelectValue placeholder="Expense type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="mobile_banking">Mobile Banking</SelectItem>
+                  </SelectContent>
+                </Select>
               </CardHeader>
               <CardContent className="p-0">
-                {isFetching ? (
+                {isExpensesFetching ? (
                   <TableSkeleton columnCount={3} rowCount={3} />
                 ) : (
                   <Table>
@@ -1459,26 +1500,24 @@ export default function ReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data?.expenses.map((item: any) =>
-                        item.items.map((ex: any) => (
-                          <TableRow key={ex._id}>
-                            <TableCell className="capitalize">
-                              <span className="font-semibold">
-                                {ex.reason.replace("_", " ")}
+                      {paginatedExpenses.map((ex: any) => (
+                        <TableRow key={ex._id}>
+                          <TableCell className="capitalize">
+                            <span className="font-semibold">
+                              {(ex.reason || "").replace("_", " ")}
+                            </span>
+                            {ex.description && (
+                              <span className="text-xs text-slate-500 block">
+                                {ex.description}
                               </span>
-                              {ex.description && (
-                                <span className="text-xs text-slate-500 block">
-                                  {ex.description}
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-rose-600 font-bold">
-                              -{formatCurrency(ex.amount)}
-                            </TableCell>
-                          </TableRow>
-                        )),
-                      )}
-                      {(!data?.expenses || data.expenses.length === 0) && (
+                            )}
+                          </TableCell>
+                          <TableCell className="text-rose-600 font-bold">
+                            -{formatCurrency(ex.amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {flattenedExpenses.length === 0 && (
                         <TableRow>
                           <TableCell
                             colSpan={2}
@@ -1490,6 +1529,39 @@ export default function ReportsPage() {
                       )}
                     </TableBody>
                   </Table>
+                )}
+                {flattenedExpenses.length > EXPENSES_PAGE_SIZE && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t">
+                    <span className="text-sm text-muted-foreground">
+                      Page {expensesPage} of {totalExpensesPages}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setExpensesPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={expensesPage <= 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Prev
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setExpensesPage((p) =>
+                            Math.min(totalExpensesPages, p + 1),
+                          )
+                        }
+                        disabled={expensesPage >= totalExpensesPages}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>

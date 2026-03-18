@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDateLocal } from "@/lib/date-utils";
 import {
   formatEthiopianDate,
   gregorianToEthiopian,
@@ -164,7 +165,7 @@ type StaffOption = {
 
 const formatDate = (date?: string) => {
   if (!date) return "—";
-  return new Date(date).toISOString().split("T")[0];
+  return formatDateLocal(new Date(date));
 };
 
 // Date conversion helper for Ethiopian calendar

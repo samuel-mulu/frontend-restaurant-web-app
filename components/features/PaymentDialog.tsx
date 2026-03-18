@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatDateLocal } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
@@ -50,8 +51,8 @@ export function PaymentDialog({
   isLoading = false,
 }: PaymentDialogProps) {
   const [amount, setAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(
-    new Date().toISOString().split("T")[0]
+  const [paymentDate, setPaymentDate] = useState(() =>
+    formatDateLocal(new Date())
   );
   const [paymentMethod, setPaymentMethod] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -89,7 +90,7 @@ export function PaymentDialog({
 
       // Reset form
       setAmount("");
-      setPaymentDate(new Date().toISOString().split("T")[0]);
+      setPaymentDate(formatDateLocal(new Date()));
       setPaymentMethod("");
       setRemarks("");
       setErrors({});
@@ -98,7 +99,7 @@ export function PaymentDialog({
 
   const handleClose = () => {
     setAmount("");
-    setPaymentDate(new Date().toISOString().split("T")[0]);
+    setPaymentDate(formatDateLocal(new Date()));
     setPaymentMethod("");
     setRemarks("");
     setErrors({});

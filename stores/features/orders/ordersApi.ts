@@ -420,7 +420,10 @@ export const ordersApi = createApiEndpoints({
         // API returns order directly
         return response as Order;
       },
-      invalidatesTags: [{ type: "Order", id: "LIST" }],
+      invalidatesTags: [
+        { type: "Order", id: "LIST" },
+        { type: "Order", id: "CASHIER_LIST" },
+      ],
     }),
 
     updateOrder: build.mutation<Order, { id: string; data: UpdateOrderInput }>({
@@ -535,24 +538,36 @@ export const ordersApi = createApiEndpoints({
       invalidatesTags: (result, _error, { orderIds }) => [
         ...orderIds.map((id) => ({ type: "Order" as const, id })),
         { type: "Order", id: "LIST" },
+        { type: "Order", id: "CASHIER_LIST" },
       ],
     }),
 
-    // Get orders by cashier
+    // Get orders by cashier (server-side filtering and pagination)
     getOrdersByCashier: build.query<
-      Order[],
+      { data: Order[]; pagination: PaginationMeta },
       {
         cashierId: string;
         status?: OrderStatus | OrderStatus[];
         waiterId?: string;
         startDate?: string;
         endDate?: string;
+        search?: string;
+        page?: number;
+        limit?: number;
       }
     >({
-      query: ({ cashierId, status, waiterId, startDate, endDate }) => {
+      query: ({
+        cashierId,
+        status,
+        waiterId,
+        startDate,
+        endDate,
+        search,
+        page,
+        limit,
+      }) => {
         const queryParams = new URLSearchParams();
         if (status) {
-          // Handle array of statuses - join with comma
           if (Array.isArray(status)) {
             queryParams.append("status", status.join(","));
           } else {
@@ -562,28 +577,58 @@ export const ordersApi = createApiEndpoints({
         if (waiterId) queryParams.append("waiterId", waiterId);
         if (startDate) queryParams.append("startDate", startDate);
         if (endDate) queryParams.append("endDate", endDate);
+        if (search?.trim()) queryParams.append("search", search.trim());
+        if (page) queryParams.append("page", String(page));
+        if (limit) queryParams.append("limit", String(limit));
         const qs = queryParams.toString();
         return {
           url: `/orders/cashier/${cashierId}${qs ? `?${qs}` : ""}`,
           method: "GET",
         };
       },
-      transformResponse: (response: unknown): Order[] => {
+      transformResponse: (response: unknown): { data: Order[]; pagination: PaginationMeta } => {
         if (Array.isArray(response)) {
-          return response;
+          return {
+            data: response,
+            pagination: {
+              page: 1,
+              limit: 10,
+              total: response.length,
+              totalPages: 1,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          };
         }
-        const wrapped = response as { success?: boolean; data?: Order[] };
-        if (wrapped?.data && Array.isArray(wrapped.data)) {
-          return wrapped.data;
-        }
-        return [];
+        const wrapped = response as {
+          data?: Order[];
+          totalCount?: number;
+          totalPages?: number;
+          currentPage?: number;
+        };
+        const data = wrapped?.data && Array.isArray(wrapped.data) ? wrapped.data : [];
+        const total = wrapped?.totalCount ?? data.length;
+        const totalPages = wrapped?.totalPages ?? 1;
+        const page = wrapped?.currentPage ?? 1;
+        const limit = totalPages > 0 ? Math.ceil(total / totalPages) : 20;
+        return {
+          data,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPreviousPage: page > 1,
+          },
+        };
       },
       providesTags: (result) => {
-        if (!result || result.length === 0) {
+        if (!result || result.data.length === 0) {
           return [{ type: "Order" as const, id: "CASHIER_LIST" }];
         }
         return [
-          ...result.map((order) => ({
+          ...result.data.map((order) => ({
             type: "Order" as const,
             id: order._id || order.id,
           })),

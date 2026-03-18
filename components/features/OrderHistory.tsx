@@ -47,6 +47,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+import { formatDateLocal } from "@/lib/date-utils";
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
@@ -71,7 +72,7 @@ interface DisplayOrder {
 const formatDate = (date: string): string => {
   try {
     const d = new Date(date);
-    return d.toISOString().split("T")[0];
+    return formatDateLocal(d);
   } catch {
     return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
   }

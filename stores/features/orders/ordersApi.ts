@@ -112,6 +112,8 @@ export interface CreateOrderInput {
   clientId?: string;
   customerChannel: string; // Required: "web", "pos", "mobile", etc.
   markAsPaidToCashier?: boolean; // Optional - if true, order starts with PAID_TO_CASHIER status
+  markAsTransferredToOwner?: boolean; // Optional - if true, order starts with TRANSFERRED_TO_OWNER status
+  paymentMethod?: "cash" | "mobile_banking"; // Required when markAsTransferredToOwner is true
 }
 
 export interface UpdateOrderInput {
@@ -519,12 +521,12 @@ export const ordersApi = createApiEndpoints({
         mergedReceiptText?: string;
         message: string;
       },
-      { orderIds: string[]; status: OrderStatus }
+      { orderIds: string[]; status: OrderStatus; paymentMethod?: "cash" | "mobile_banking" }
     >({
-      query: ({ orderIds, status }) => ({
+      query: ({ orderIds, status, paymentMethod }) => ({
         url: "/orders/bulk/status",
         method: "PATCH",
-        body: { orderIds, status },
+        body: { orderIds, status, ...(paymentMethod && { paymentMethod }) },
       }),
       transformResponse: (response: unknown) => {
         return response as {

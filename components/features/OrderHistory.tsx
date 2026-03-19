@@ -67,6 +67,7 @@ interface DisplayOrder {
   cashierId?: string;
   cashierName?: string;
   backendStatus: OrderStatus;
+  paymentMethod?: "cash" | "mobile_banking";
 }
 
 const formatDate = (date: string): string => {
@@ -105,16 +106,23 @@ const getStatusColor = (status: "Completed" | "Pending"): string => {
   }[status];
 };
 
-const getStatusBadgeText = (status: OrderStatus): string => {
+const getStatusBadgeText = (
+  status: OrderStatus,
+  paymentMethod?: "cash" | "mobile_banking",
+): string => {
   const statusMap: Record<OrderStatus, string> = {
     OPEN: "Open",
     VOIDED: "Voided",
-    PAID_TO_CASHIER: "Paid",
-    TRANSFERRED_TO_OWNER: "Transferred",
+    PAID_TO_CASHIER: "Paid to Waiter",
+    TRANSFERRED_TO_OWNER: "Paid to Cashier",
     OWNER_CONFIRMED: "Confirmed",
     DISPUTED: "Disputed",
   };
-  return statusMap[status] || status;
+  let label = statusMap[status] || status;
+  if (status === "TRANSFERRED_TO_OWNER" && paymentMethod) {
+    label += ` (${paymentMethod === "mobile_banking" ? "Mobile Banking" : "Cash"})`;
+  }
+  return label;
 };
 
 const getStatusIcon = (status: OrderStatus) => {
@@ -164,6 +172,7 @@ function transformOrder(order: RTKOrder): DisplayOrder {
     cashierId,
     cashierName,
     backendStatus: order.status,
+    paymentMethod: order.paymentMethod,
   };
 }
 
@@ -865,6 +874,7 @@ export function OrderHistory() {
                                   toast.error(
                                     `Orders with ${getStatusBadgeText(
                                       o.backendStatus,
+                                      o.paymentMethod,
                                     )} status cannot be changed`,
                                   );
                                 } else {
@@ -884,6 +894,7 @@ export function OrderHistory() {
                                 isTerminalStatus
                                   ? `Orders with ${getStatusBadgeText(
                                       o.backendStatus,
+                                      o.paymentMethod,
                                     )} status cannot be changed`
                                   : !canSelect
                                     ? `Can only select orders with status: ${getStatusBadgeText(
@@ -907,7 +918,7 @@ export function OrderHistory() {
                           <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(o.status)}>
-                              {getStatusBadgeText(o.backendStatus)}
+                              {getStatusBadgeText(o.backendStatus, o.paymentMethod)}
                             </Badge>
                           </TableCell>
                           <TableCell>{formatDate(o.date)}</TableCell>
@@ -933,7 +944,7 @@ export function OrderHistory() {
                                   <SelectItem value={o.backendStatus}>
                                     <div className="flex items-center gap-2">
                                       {getStatusIcon(o.backendStatus)}
-                                      {getStatusBadgeText(o.backendStatus)}
+                                      {getStatusBadgeText(o.backendStatus, o.paymentMethod)}
                                     </div>
                                   </SelectItem>
                                   {getAvailableStatuses(

@@ -397,7 +397,7 @@ export default function ReportsPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState<string>("PAID_TO_CASHIER");
+  const [statusFilter, setStatusFilter] = useState<string>("TRANSFERRED_TO_OWNER");
   const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
   const [expenseTypeFilter, setExpenseTypeFilter] = useState<string>("ALL");
   const [itemTypeFilter, setItemTypeFilter] = useState<
@@ -657,8 +657,8 @@ export default function ReportsPage() {
       const STATUS_LABELS: Record<string, string> = {
         OPEN: "Open (Not Paid / Pending)",
         VOIDED: "Voided (Cancelled)",
-        PAID_TO_CASHIER: "Paid to Cashier",
-        TRANSFERRED_TO_OWNER: "Transferred to Owner",
+        PAID_TO_CASHIER: "Paid to Waiter",
+        TRANSFERRED_TO_OWNER: "Paid to Cashier",
         OWNER_CONFIRMED: "Owner Confirmed",
         DISPUTED: "Disputed",
       };
@@ -935,8 +935,8 @@ export default function ReportsPage() {
     const STATUS_LABELS: Record<string, string> = {
       OPEN: "Open (Not Paid / Pending)",
       VOIDED: "Voided (Cancelled)",
-      PAID_TO_CASHIER: "Paid to Cashier",
-      TRANSFERRED_TO_OWNER: "Transferred to Owner",
+      PAID_TO_CASHIER: "Paid to Waiter",
+      TRANSFERRED_TO_OWNER: "Paid to Cashier",
       OWNER_CONFIRMED: "Owner Confirmed",
       DISPUTED: "Disputed",
     };
@@ -1877,9 +1877,9 @@ export default function ReportsPage() {
                 <SelectContent>
                   <SelectItem value="ALL">All Statuses</SelectItem>
                   <SelectItem value="OPEN">Open</SelectItem>
-                  <SelectItem value="PAID_TO_CASHIER">Paid</SelectItem>
-                  <SelectItem value="TRANSFERRED_TO_OWNER">
-                    Transferred
+<SelectItem value="PAID_TO_CASHIER">Paid to Waiter</SelectItem>
+                <SelectItem value="TRANSFERRED_TO_OWNER">
+                  Paid to Cashier
                   </SelectItem>
                   <SelectItem value="OWNER_CONFIRMED">Confirmed</SelectItem>
                   <SelectItem value="VOIDED">Voided</SelectItem>

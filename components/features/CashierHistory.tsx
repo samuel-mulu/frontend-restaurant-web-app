@@ -89,7 +89,10 @@ import { PaymentMethod, PaymentMethodSelector } from "./PaymentMethodSelector";
 
 // -------------------- Types & Utilities -------------------- //
 
-export type ExtendedOrderStatus = OrderStatus | "PAID_WITHOUT_PRINT";
+export type ExtendedOrderStatus =
+  | OrderStatus
+  | "PAID_WITHOUT_PRINT"
+  | "TRANSFERRED_WITHOUT_PRINT";
 
 // localStorage utilities for persisting selected orders
 const getSelectedOrdersStorageKey = (cashierId: string) =>
@@ -195,17 +198,28 @@ const getStatusColor = (status: "Completed" | "Pending"): string => {
   }[status];
 };
 
-const getStatusBadgeText = (status: ExtendedOrderStatus): string => {
+const getStatusBadgeText = (
+  status: ExtendedOrderStatus,
+  paymentMethod?: "cash" | "mobile_banking",
+): string => {
   const statusMap: Partial<Record<ExtendedOrderStatus, string>> = {
     OPEN: "Open",
     VOIDED: "Voided",
-    PAID_TO_CASHIER: "Paid",
-    PAID_WITHOUT_PRINT: "Paid (without print)",
-    TRANSFERRED_TO_OWNER: "Transferred",
+    PAID_TO_CASHIER: "Paid to Waiter",
+    PAID_WITHOUT_PRINT: "Paid to Waiter (no print)",
+    TRANSFERRED_TO_OWNER: "Paid to Cashier",
+    TRANSFERRED_WITHOUT_PRINT: "Paid to Cashier (no print)",
     OWNER_CONFIRMED: "Confirmed",
     DISPUTED: "Disputed",
   };
-  return statusMap[status] || status;
+  let label = statusMap[status] || status;
+  if (
+    (status === "TRANSFERRED_TO_OWNER" || status === "TRANSFERRED_WITHOUT_PRINT") &&
+    paymentMethod
+  ) {
+    label += ` (${paymentMethod === "mobile_banking" ? "Mobile Banking" : "Cash"})`;
+  }
+  return label;
 };
 
 const getStatusIcon = (status: ExtendedOrderStatus) => {
@@ -215,6 +229,7 @@ const getStatusIcon = (status: ExtendedOrderStatus) => {
     PAID_TO_CASHIER: <CheckCircle2 className="h-4 w-4" />,
     PAID_WITHOUT_PRINT: <CheckCircle2 className="h-4 w-4 opacity-70" />,
     TRANSFERRED_TO_OWNER: <ArrowRightLeft className="h-4 w-4" />,
+    TRANSFERRED_WITHOUT_PRINT: <ArrowRightLeft className="h-4 w-4 opacity-70" />,
     OWNER_CONFIRMED: <CheckCircle2 className="h-4 w-4" />,
     DISPUTED: <XCircle className="h-4 w-4" />,
   };
@@ -749,13 +764,25 @@ export function CashierHistory() {
     }
 
     const ids = Array.from(selectedOrderIds);
-    const isWithoutPrintBulk = bulkStatusChange === "PAID_WITHOUT_PRINT";
-    const actualStatus = (isWithoutPrintBulk ? "PAID_TO_CASHIER" : bulkStatusChange) as OrderStatus;
+    const isWithoutPrintBulk =
+      bulkStatusChange === "PAID_WITHOUT_PRINT" ||
+      bulkStatusChange === "TRANSFERRED_WITHOUT_PRINT";
+    const actualStatus = (isWithoutPrintBulk
+      ? bulkStatusChange === "PAID_WITHOUT_PRINT"
+        ? "PAID_TO_CASHIER"
+        : "TRANSFERRED_TO_OWNER"
+      : bulkStatusChange) as OrderStatus;
+
+    const bulkPaymentMethod =
+      actualStatus === "TRANSFERRED_TO_OWNER"
+        ? (paymentMethods.get(ids[0]) as "cash" | "mobile_banking") || "cash"
+        : undefined;
 
     try {
       const result = await bulkUpdateOrderStatus({
         orderIds: ids,
         status: actualStatus,
+        ...(bulkPaymentMethod && { paymentMethod: bulkPaymentMethod }),
       }).unwrap();
 
       if (result.failed && result.failed.length > 0) {
@@ -766,24 +793,22 @@ export function CashierHistory() {
         toast.success(`Successfully updated ${result.updated.length} order(s)`);
       }
 
-      // Generate merged receipt if updating to PAID_TO_CASHIER and there's more than one successful update
+      // Print receipt when updating to PAID_TO_CASHIER or TRANSFERRED_TO_OWNER
       if (
-        actualStatus === "PAID_TO_CASHIER" &&
-        result.updated.length > 1 &&
-        !withoutPrint && !isWithoutPrintBulk
+        (actualStatus === "PAID_TO_CASHIER" || actualStatus === "TRANSFERRED_TO_OWNER") &&
+        !withoutPrint &&
+        !isWithoutPrintBulk
       ) {
-        if (result.mergedReceiptText) {
+        if (
+          actualStatus === "PAID_TO_CASHIER" &&
+          result.updated.length > 1 &&
+          result.mergedReceiptText
+        ) {
           handlePrintReceipt(result.mergedReceiptText, "Merged");
-        }
-      } else if (
-        actualStatus === "PAID_TO_CASHIER" &&
-        result.updated.length === 1 &&
-        !withoutPrint && !isWithoutPrintBulk
-      ) {
-        if (result.updated[0].receiptText) {
+        } else if (result.updated.length >= 1 && result.updated[0].receiptText) {
           handlePrintReceipt(
             result.updated[0].receiptText,
-            result.updated[0].orderNumber,
+            result.updated[0].orderNumber || "Receipt",
           );
         }
       }
@@ -809,12 +834,20 @@ export function CashierHistory() {
       return;
     }
 
-    // For PAID_TO_CASHIER status, check payment method
-    if (status === "PAID_TO_CASHIER" || status === "PAID_WITHOUT_PRINT") {
+    // For PAID_TO_CASHIER or TRANSFERRED, check payment method (mobile banking may need proof for PAID)
+    if (
+      status === "PAID_TO_CASHIER" ||
+      status === "PAID_WITHOUT_PRINT" ||
+      status === "TRANSFERRED_TO_OWNER" ||
+      status === "TRANSFERRED_WITHOUT_PRINT"
+    ) {
       const paymentMethod = paymentMethods.get(orderId) || "cash";
 
-      // If mobile banking, show image upload modal
-      if (paymentMethod === "mobile_banking") {
+      // If mobile banking for PAID_TO_CASHIER, show image upload modal
+      if (
+        (status === "PAID_TO_CASHIER" || status === "PAID_WITHOUT_PRINT") &&
+        paymentMethod === "mobile_banking"
+      ) {
         setPaymentImageOrderId(orderId);
         setPaymentImageStatus(status);
         setIsPaymentImageModalOpen(true);
@@ -822,7 +855,6 @@ export function CashierHistory() {
       }
     }
 
-    // For other statuses, update directly
     await executeStatusChange(orderId, status);
   };
 
@@ -835,8 +867,13 @@ export function CashierHistory() {
     try {
       const paymentMethod = paymentMethods.get(orderId) || "cash";
 
-      const isWithoutPrintRow = status === "PAID_WITHOUT_PRINT";
-      const actualStatus = isWithoutPrintRow ? "PAID_TO_CASHIER" : status as OrderStatus;
+      const isWithoutPrintRow =
+        status === "PAID_WITHOUT_PRINT" || status === "TRANSFERRED_WITHOUT_PRINT";
+      const actualStatus = isWithoutPrintRow
+        ? status === "PAID_WITHOUT_PRINT"
+          ? "PAID_TO_CASHIER"
+          : "TRANSFERRED_TO_OWNER"
+        : (status as OrderStatus);
 
       const result = await updateOrderStatus({
         id: orderId,
@@ -847,8 +884,13 @@ export function CashierHistory() {
       }).unwrap();
       toast.success("Order status updated successfully");
 
-      // Print receipt if status changed to PAID_TO_CASHIER and withoutPrint is not checked
-      if (actualStatus === "PAID_TO_CASHIER" && result.receiptText && !withoutPrint && !isWithoutPrintRow) {
+      // Print receipt if status changed to PAID_TO_CASHIER or TRANSFERRED_TO_OWNER and withoutPrint is not checked
+      if (
+        (actualStatus === "PAID_TO_CASHIER" || actualStatus === "TRANSFERRED_TO_OWNER") &&
+        result.receiptText &&
+        !withoutPrint &&
+        !isWithoutPrintRow
+      ) {
         handlePrintReceipt(result.receiptText, result.orderNumber);
       }
 
@@ -957,11 +999,17 @@ export function CashierHistory() {
     userRole: string,
   ): ExtendedOrderStatus[] => {
     const transitions: Partial<Record<OrderStatus, ExtendedOrderStatus[]>> = {
-      OPEN: ["PAID_TO_CASHIER", "PAID_WITHOUT_PRINT", "VOIDED"], // Swapped: Paid first, then Voided
+      OPEN: [
+        "PAID_TO_CASHIER",
+        "PAID_WITHOUT_PRINT",
+        "TRANSFERRED_TO_OWNER",
+        "TRANSFERRED_WITHOUT_PRINT",
+        "VOIDED",
+      ],
       VOIDED: [],
       PAID_TO_CASHIER:
         userRole === "cashier" || userRole === "owner"
-          ? ["TRANSFERRED_TO_OWNER", "DISPUTED"]
+          ? ["TRANSFERRED_TO_OWNER", "TRANSFERRED_WITHOUT_PRINT", "DISPUTED"]
           : [],
       TRANSFERRED_TO_OWNER: [],
       DISPUTED:
@@ -1382,7 +1430,7 @@ export function CashierHistory() {
                   <Select
                     value={bulkStatusChange}
                     onValueChange={(value) =>
-                      setBulkStatusChange(value as OrderStatus)
+                      setBulkStatusChange(value as ExtendedOrderStatus)
                     }
                   >
                     <SelectTrigger className="w-[200px]">
@@ -1547,7 +1595,13 @@ export function CashierHistory() {
                           <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(o.status)}>
-                              {getStatusBadgeText(o.backendStatus)}
+                              {getStatusBadgeText(
+                                        o.backendStatus,
+                                        o.paymentMethod as
+                                          | "cash"
+                                          | "mobile_banking"
+                                          | undefined,
+                                      )}
                             </Badge>
                           </TableCell>
                           <TableCell>{o.firstItemName || "N/A"}</TableCell>
@@ -1603,7 +1657,13 @@ export function CashierHistory() {
                                       <SelectItem value={o.backendStatus}>
                                         <div className="flex items-center gap-2">
                                           {getStatusIcon(o.backendStatus)}
-                                          {getStatusBadgeText(o.backendStatus)}
+                                          {getStatusBadgeText(
+                                        o.backendStatus,
+                                        o.paymentMethod as
+                                          | "cash"
+                                          | "mobile_banking"
+                                          | undefined,
+                                      )}
                                         </div>
                                       </SelectItem>
                                       {getAvailableStatuses(
@@ -1616,10 +1676,14 @@ export function CashierHistory() {
                                               {getStatusIcon(status)}
                                               {getStatusBadgeText(status)}
                                             </div>
-                                            {(status === "PAID_TO_CASHIER" || status === "PAID_WITHOUT_PRINT") && (
+                                            {(status === "PAID_TO_CASHIER" ||
+                                              status === "PAID_WITHOUT_PRINT" ||
+                                              status === "TRANSFERRED_TO_OWNER" ||
+                                              status === "TRANSFERRED_WITHOUT_PRINT") && (
                                               <div className="shrink-0 flex items-center text-gray-600 dark:text-gray-400">
                                                 {getPaymentMethodIcon(
                                                   paymentMethods.get(o.id) ||
+                                                  (o.paymentMethod as "cash" | "mobile_banking") ||
                                                   "cash",
                                                 )}
                                               </div>
@@ -1629,24 +1693,31 @@ export function CashierHistory() {
                                       ))}
                                     </SelectContent>
                                   </Select>
-                                  {o.backendStatus === "OPEN" &&
+                                  {(o.backendStatus === "OPEN" &&
                                     getAvailableStatuses(
                                       o.backendStatus,
                                       user?.role || "cashier",
-                                    ).includes("PAID_TO_CASHIER") && (
-                                      <PaymentMethodSelector
-                                        value={
-                                          paymentMethods.get(o.id) || "cash"
-                                        }
-                                        onChange={(method) => {
-                                          handlePaymentMethodChange(
-                                            o.id,
-                                            method,
-                                          );
-                                        }}
-                                        disabled={isUpdating}
-                                      />
-                                    )}
+                                    ).includes("PAID_TO_CASHIER")) ||
+                                  (o.backendStatus === "PAID_TO_CASHIER" &&
+                                    getAvailableStatuses(
+                                      o.backendStatus,
+                                      user?.role || "cashier",
+                                    ).includes("TRANSFERRED_TO_OWNER")) ? (
+                                    <PaymentMethodSelector
+                                      value={
+                                        paymentMethods.get(o.id) ||
+                                        (o.paymentMethod as "cash" | "mobile_banking") ||
+                                        "cash"
+                                      }
+                                      onChange={(method) => {
+                                        handlePaymentMethodChange(
+                                          o.id,
+                                          method,
+                                        );
+                                      }}
+                                      disabled={isUpdating}
+                                    />
+                                  ) : null}
                                 </div>
                               ) : (
                                 <span className="text-xs text-gray-400 dark:text-gray-500">

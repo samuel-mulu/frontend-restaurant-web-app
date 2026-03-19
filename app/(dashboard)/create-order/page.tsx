@@ -30,6 +30,7 @@ import { useCreateOrderMutation } from "@/stores/features/orders/ordersApi";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import { useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { useListTablesQuery } from "@/stores/features/tables/tablesApi";
+import { PaymentMethodSelector } from "@/components/features/PaymentMethodSelector";
 import { AlertCircle, Minus, Plus, Search, Star, Trash2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -108,6 +109,10 @@ export default function OrderPage() {
   const [orderNote, setOrderNote] = React.useState<string>("");
   const [markAsPaidToCashier, setMarkAsPaidToCashier] =
     React.useState<boolean>(false);
+  const [markAsTransferredToOwner, setMarkAsTransferredToOwner] =
+    React.useState<boolean>(false);
+  const [createOrderPaymentMethod, setCreateOrderPaymentMethod] =
+    React.useState<"cash" | "mobile_banking">("cash");
   const [withoutPrint, setWithoutPrint] = React.useState<boolean>(false);
   const [inventoryQuantities, setInventoryQuantities] = useState<
     Record<string, number>
@@ -450,6 +455,10 @@ export default function OrderPage() {
         customerChannel: "pos",
         clientId: requestId,
         ...(markAsPaidToCashier && { markAsPaidToCashier: true }),
+        ...(markAsTransferredToOwner && {
+          markAsTransferredToOwner: true,
+          paymentMethod: createOrderPaymentMethod,
+        }),
       };
 
       // Create order
@@ -486,6 +495,8 @@ export default function OrderPage() {
       setSelectedTable("");
       setOrderNote("");
       setMarkAsPaidToCashier(false);
+      setMarkAsTransferredToOwner(false);
+      setCreateOrderPaymentMethod("cash");
       setWithoutPrint(false);
       setInventoryQuantities({});
 
@@ -1174,18 +1185,51 @@ export default function OrderPage() {
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
                   checked={markAsPaidToCashier}
-                  onCheckedChange={(checked) =>
-                    setMarkAsPaidToCashier(checked === true)
-                  }
+                  onCheckedChange={(checked) => {
+                    const v = checked === true;
+                    setMarkAsPaidToCashier(v);
+                    if (v) setMarkAsTransferredToOwner(false);
+                  }}
                 />
                 <span className="text-sm font-medium text-foreground">
-                  Cash Recieved
+                  Paid to Waiter
                 </span>
               </label>
               {markAsPaidToCashier && (
                 <p className="text-xs text-muted-foreground mt-1 ml-6">
-                  Order will be created with &quot;Paid to Cashier&quot; status
+                  Order will be created with &quot;Paid to Waiter&quot; status
                 </p>
+              )}
+            </div>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={markAsTransferredToOwner}
+                  onCheckedChange={(checked) => {
+                    const v = checked === true;
+                    setMarkAsTransferredToOwner(v);
+                    if (v) setMarkAsPaidToCashier(false);
+                  }}
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Paid to Cashier
+                </span>
+              </label>
+              {markAsTransferredToOwner && (
+                <div className="mt-1 ml-6 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Payment:
+                    </span>
+                    <PaymentMethodSelector
+                      value={createOrderPaymentMethod}
+                      onChange={setCreateOrderPaymentMethod}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Order will be created with &quot;Paid to Cashier&quot; status
+                  </p>
+                </div>
               )}
             </div>
             <div>

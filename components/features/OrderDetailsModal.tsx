@@ -40,7 +40,10 @@ interface OrderDetailsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const getStatusBadge = (status: OrderStatus) => {
+const getStatusBadge = (
+  status: OrderStatus,
+  order?: { paymentMethod?: string },
+) => {
   const statusMap: Record<
     OrderStatus,
     { label: string; className: string; icon: React.ReactNode }
@@ -57,13 +60,13 @@ const getStatusBadge = (status: OrderStatus) => {
       icon: <Ban className="h-3 w-3" />,
     },
     PAID_TO_CASHIER: {
-      label: "Paid",
+      label: "Paid to Waiter",
       className:
         "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400",
       icon: <CheckCircle2 className="h-3 w-3" />,
     },
     TRANSFERRED_TO_OWNER: {
-      label: "Transferred",
+      label: "Paid to Cashier",
       className:
         "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",
       icon: <ArrowRightLeft className="h-3 w-3" />,
@@ -83,10 +86,14 @@ const getStatusBadge = (status: OrderStatus) => {
   };
 
   const statusInfo = statusMap[status] || statusMap.OPEN;
+  let label = statusInfo.label;
+  if (status === "TRANSFERRED_TO_OWNER" && order?.paymentMethod) {
+    label += ` (${order.paymentMethod === "mobile_banking" ? "Mobile Banking" : "Cash"})`;
+  }
   return (
     <Badge className={`${statusInfo.className} flex items-center gap-1 w-fit`}>
       {statusInfo.icon}
-      {statusInfo.label}
+      {label}
     </Badge>
   );
 };
@@ -124,7 +131,7 @@ export function OrderDetailsModal({
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Order Details</span>
-            {order && getStatusBadge(order.status)}
+            {order && getStatusBadge(order.status, order)}
           </DialogTitle>
           <DialogDescription>
             {order ? `Order #${order.orderNumber}` : "Loading order details..."}

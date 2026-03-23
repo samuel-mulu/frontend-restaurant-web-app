@@ -292,6 +292,79 @@ function AddItemsToOrderModalBody({
     }
   };
 
+  const handleSaveAndTransfer = async () => {
+    if (!order.id && !order._id) return;
+
+    if (cart.length === 0) {
+      toast.error("Order must have at least one item");
+      return;
+    }
+
+    for (const line of cart) {
+      const inv = inventoryById.get(line.itemId);
+      if (inv && line.qty > inv.quantity) {
+        toast.error(
+          `Insufficient stock for ${inv.name}. Available: ${inv.quantity} ${inv.unit}, Requested: ${line.qty}`,
+        );
+        return;
+      }
+    }
+
+    try {
+      await updateOrder({
+        id: order.id || order._id || "",
+        data: {
+          items: cart.map((l: CartLine) => ({
+            itemId: l.itemId,
+            qty: l.qty,
+            nameSnapshot: l.nameSnapshot,
+            priceSnapshot: l.priceSnapshot,
+          })),
+        },
+      }).unwrap();
+
+      const result = await updateOrderStatus({
+        id: order.id || order._id || "",
+        status: "TRANSFERRED_TO_OWNER",
+        paymentMethod: "cash",
+      }).unwrap();
+
+      toast.success("Order updated and transferred successfully");
+
+      if (result.receiptText) {
+        posPrinterService
+          .print(result.receiptText)
+          .then((printResult: any) => {
+            if (!printResult.success) {
+              toast.error(`Printer Error (Order #${result.orderNumber})`, {
+                description:
+                  printResult.error || "Could not print receipt locally.",
+              });
+            }
+          })
+          .catch(() => {
+            toast.error("Printer Error", {
+              description: "POS Printer Service is not reachable.",
+            });
+          });
+      }
+
+      onClose();
+      onSuccess?.();
+    } catch (err: unknown) {
+      const e = err as {
+        data?: { message?: string; error?: string };
+        message?: string;
+      };
+      toast.error(
+        e?.data?.message ||
+        e?.data?.error ||
+        e?.message ||
+        "Failed to update order",
+      );
+    }
+  };
+
   const filteredMenuItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return items
@@ -334,6 +407,20 @@ function AddItemsToOrderModalBody({
             </>
           ) : (
             "Save & Pay"
+          )}
+        </Button>
+        <Button
+          onClick={() => handleSaveAndTransfer()}
+          disabled={isAnyUpdating}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          {isUpdatingStatus ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Processing...
+            </>
+          ) : (
+            "Save & Pay to Cashier"
           )}
         </Button>
       </div>

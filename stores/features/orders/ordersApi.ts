@@ -402,6 +402,17 @@ export const ordersApi = createApiEndpoints({
       providesTags: (result, _error, id) => [{ type: "Order" as const, id }],
     }),
 
+    getOrderReceipt: build.query<{ receiptText: string }, string>({
+      query: (id) => ({
+        url: `/orders/${id}/receipt`,
+        method: "GET",
+      }),
+      transformResponse: (response: unknown): { receiptText: string } => {
+        const res = response as { receiptText?: string };
+        return { receiptText: res?.receiptText || "" };
+      },
+    }),
+
     createOrder: build.mutation<
       Order & { receiptText?: string },
       CreateOrderInput
@@ -704,6 +715,8 @@ export const {
   useListOrdersQuery,
   useGetOwnerOrdersQuery,
   useGetOrderQuery,
+  useGetOrderReceiptQuery,
+  useLazyGetOrderReceiptQuery,
   useCreateOrderMutation,
   useUpdateOrderMutation,
   useUpdateOrderStatusMutation,

@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +21,10 @@ import {
 import {
   OrderItem,
   OrderStatus,
-  useGetOrderQuery
+  useGetOrderQuery,
+  useLazyGetOrderReceiptQuery,
 } from "@/stores/features/orders/ordersApi";
+import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -30,9 +33,12 @@ import {
   Building2,
   CheckCircle2,
   CreditCard,
+  Loader2,
+  Printer,
   XCircle,
 } from "lucide-react";
 import React from "react";
+import { toast } from "sonner";
 
 interface OrderDetailsModalProps {
   orderId: string | null;
@@ -120,6 +126,31 @@ export function OrderDetailsModal({
   } = useGetOrderQuery(orderId || "", {
     skip: !orderId || !open,
   });
+  const [fetchReceipt, { isLoading: isPrinting }] = useLazyGetOrderReceiptQuery();
+
+  const handlePrint = async () => {
+    if (!orderId) return;
+    try {
+      const result = await fetchReceipt(orderId).unwrap();
+      if (result?.receiptText) {
+        const printResult = await posPrinterService.print(result.receiptText);
+        if (printResult.success) {
+          toast.success("Receipt sent to printer");
+        } else {
+          toast.error("Printer Error", {
+            description: printResult.error || "Could not print receipt.",
+          });
+        }
+      } else {
+        toast.error("Failed to get receipt");
+      }
+    } catch (err) {
+      const e = err as { data?: { message?: string }; message?: string };
+      toast.error(
+        e?.data?.message || e?.message || "Failed to get receipt",
+      );
+    }
+  };
 
   if (!orderId) {
     return null;
@@ -129,9 +160,27 @@ export function OrderDetailsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle className="flex items-center justify-between gap-4">
             <span>Order Details</span>
-            {order && getStatusBadge(order.status, order)}
+            <div className="flex items-center gap-2">
+              {order && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrint}
+                  disabled={isPrinting || !order}
+                  className="shrink-0"
+                >
+                  {isPrinting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Printer className="h-4 w-4 mr-1" />
+                  )}
+                  Print
+                </Button>
+              )}
+              {order && getStatusBadge(order.status, order)}
+            </div>
           </DialogTitle>
           <DialogDescription>
             {order ? `Order #${order.orderNumber}` : "Loading order details..."}

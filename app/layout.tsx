@@ -13,9 +13,9 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "kandino's kitchen | Management System",
+  title: "Restaurant & Lounge Management",
   description:
-    "Professional restaurant management system for kandino's kitchen - POS, inventory, and order tracking",
+    "Professional restaurant and lounge management system for POS, inventory, and order tracking",
 };
 
 export default function RootLayout({

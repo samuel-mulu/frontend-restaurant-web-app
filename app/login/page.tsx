@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useLoginMutation } from "@/stores/features/auth/authApi";
 import { selectIsAuthenticated } from "@/stores/features/auth/authSlice";
-import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertTriangle, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
@@ -33,6 +33,15 @@ export default function LoginPage() {
     password?: string;
     general?: string;
   }>({});
+
+  const copyCredential = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error(`Failed to copy ${label.toLowerCase()}`);
+    }
+  };
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -110,12 +119,12 @@ export default function LoginPage() {
           <div className="relative w-24 h-24 mb-4 rounded-2xl overflow-hidden shadow-2xl border-4 border-background bg-background">
             <img
               src="/logo1.jpg"
-              alt="kandino's kitchen"
+              alt="Restaurant & Lounge"
               className="w-full h-full object-cover"
             />
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-md">
-            kandino's kitchen
+            Restaurant & Lounge
           </h1>
           <p className="text-white/80 font-medium mt-1 uppercase tracking-widest text-xs">
             Management System
@@ -213,6 +222,64 @@ export default function LoginPage() {
                   "Sign In"
                 )}
               </Button>
+
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Demo Login Credentials
+                </p>
+
+                <div className="rounded-md bg-background/70 p-2 text-sm space-y-1">
+                  <p className="font-semibold">Owner</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs">+1234567890</span>
+                    <button
+                      type="button"
+                      onClick={() => copyCredential("+1234567890", "Owner phone")}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs">owner123</span>
+                    <button
+                      type="button"
+                      onClick={() => copyCredential("owner123", "Owner password")}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-md bg-background/70 p-2 text-sm space-y-1">
+                  <p className="font-semibold">Cashier</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs">0942629292</span>
+                    <button
+                      type="button"
+                      onClick={() => copyCredential("0942629292", "Cashier phone")}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs">44solabiy</span>
+                    <button
+                      type="button"
+                      onClick={() => copyCredential("44solabiy", "Cashier password")}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
             </form>
           </CardContent>
         </Card>

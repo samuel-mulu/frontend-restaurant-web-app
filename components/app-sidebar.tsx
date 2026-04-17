@@ -130,13 +130,13 @@ export function AppSidebar() {
         <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
           <img
             src="/logo1.jpg"
-            alt="kandino's kitchen"
+            alt="Restaurant & Lounge"
             className="w-full h-full object-cover"
           />
         </div>
         <div className="flex flex-col">
           <span className="text-gray-900 dark:text-white font-bold text-sm leading-tight">
-            kandino's kitchen
+            Restaurant & Lounge
           </span>
           <span className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold">
             Management

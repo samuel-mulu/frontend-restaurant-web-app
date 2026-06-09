@@ -33,7 +33,7 @@ export function formatReportForThermal(data: ReportData): string {
 
   // Lounge header
   text += `${centerAlign(branding.name)}\n`;
-  text += `${line}\n`;
+  
 
   // Report header
   text += `${centerAlign(data.title)}\n`;

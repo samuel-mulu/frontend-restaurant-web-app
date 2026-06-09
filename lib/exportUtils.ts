@@ -1,3 +1,5 @@
+import { branding } from "@/config/branding";
+
 /**
  * Utility to format report data into a text format suitable for thermal printers
  */
@@ -28,8 +30,12 @@ export function formatReportForThermal(data: ReportData): string {
   const dash = "--------------------------------";
   
   let text = "";
-  
-  // Header
+
+  // Lounge header
+  text += `${centerAlign(branding.name)}\n`;
+  text += `${line}\n`;
+
+  // Report header
   text += `${centerAlign(data.title)}\n`;
   text += `${centerAlign(data.dateRange)}\n`;
   text += `${line}\n\n`;

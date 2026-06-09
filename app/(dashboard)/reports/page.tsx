@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { branding, reportExportFilename } from "@/config/branding";
 import { convertToCSV, formatReportForThermal } from "@/lib/exportUtils";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import {
@@ -875,7 +876,7 @@ export default function ReportsPage() {
       selectedDate,
       viewType === "daily" ? "PPP" : "MMMM yyyy",
     );
-    const filename = `Kandino's Kitchen-${reportDate}-report`;
+    const filename = reportExportFilename(reportDate);
 
     // Open new window with the HTML content
     const printWindow = window.open("", "_blank");
@@ -1155,7 +1156,7 @@ export default function ReportsPage() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Restaurant Report</title>
+        <title>${branding.name}</title>
         <style>
           @page {
             size: A4;
@@ -1400,7 +1401,7 @@ export default function ReportsPage() {
       </head>
       <body>
         <div class="header">
-          <h1>Kandino's Kitchen</h1>
+          <h1>${branding.name}</h1>
           <h2>${viewType === "daily" ? "DAILY PERFORMANCE REPORT" : "MONTHLY PERFORMANCE REPORT"}</h2>
           <div class="header-meta-grid">
             <div class="header-meta-item">

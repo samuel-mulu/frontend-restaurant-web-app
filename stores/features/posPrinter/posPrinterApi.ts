@@ -1,3 +1,4 @@
+import { brandReceiptText, branding } from "@/config/branding";
 import {
     AvailableDevices,
     ConfigResponse,
@@ -46,7 +47,7 @@ export const posPrinterService = {
           "X-Print-Key": POS_PRINT_KEY,
         },
         body: JSON.stringify({
-          data,
+          data: brandReceiptText(data),
         }),
       });
 
@@ -70,7 +71,7 @@ export const posPrinterService = {
   // Test print
   async testPrint(): Promise<TestPrintResult> {
     const testReceipt = `================================================
-           3T JUICE
+        ${branding.name}
 ================================================
 
 TEST RECEIPT

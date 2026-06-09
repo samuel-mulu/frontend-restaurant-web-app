@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 /* Service Worker for offline asset caching */
 
-const CACHE_NAME = "restaurant-app-v1";
+const CACHE_NAME = "tekeze-hidat-lounge-v1";
 const STATIC_ASSETS = [
   "/",
   "/login",

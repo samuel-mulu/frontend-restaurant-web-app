@@ -39,6 +39,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { branding } from "@/config/branding";
 import { cn } from "@/lib/utils";
 import { useLogoutMutation } from "@/stores/features/auth/authApi";
 import {
@@ -129,14 +130,14 @@ export function AppSidebar() {
       <SidebarHeader className="px-6 py-4 h-20 flex items-center gap-3 border-b border-[#e5e9f2]/60 bg-white/95 backdrop-blur-md supports-backdrop-filter:bg-white/80 dark:bg-gray-900/95 dark:border-gray-800">
         <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
           <img
-            src="/logo1.jpg"
-            alt="Restaurant & Lounge"
+            src={branding.logo}
+            alt={branding.name}
             className="w-full h-full object-cover"
           />
         </div>
         <div className="flex flex-col">
           <span className="text-gray-900 dark:text-white font-bold text-sm leading-tight">
-            Restaurant & Lounge
+            {branding.name}
           </span>
           <span className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold">
             Management

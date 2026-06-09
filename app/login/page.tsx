@@ -9,10 +9,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { branding } from "@/config/branding";
 import { cn } from "@/lib/utils";
 import { useLoginMutation } from "@/stores/features/auth/authApi";
 import { selectIsAuthenticated } from "@/stores/features/auth/authSlice";
-import { AlertTriangle, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
@@ -33,15 +34,6 @@ export default function LoginPage() {
     password?: string;
     general?: string;
   }>({});
-
-  const copyCredential = async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success(`${label} copied`);
-    } catch {
-      toast.error(`Failed to copy ${label.toLowerCase()}`);
-    }
-  };
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -106,37 +98,27 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen relative flex flex-col items-center justify-center p-4">
-      {/* Background Image with Overlay */}
       <div
         className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: 'url("/background.jpg")' }}
-      >
-        <div className="absolute inset-0 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-[2px]" />
-      </div>
+        style={{ backgroundImage: `url("${branding.loginBackground}")` }}
+      />
 
-      <div className="relative z-10 w-full flex flex-col items-center">
-        <div className="mb-8 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-700">
-          <div className="relative w-24 h-24 mb-4 rounded-2xl overflow-hidden shadow-2xl border-4 border-background bg-background">
+      <div className="relative z-10 w-full max-w-md animate-in fade-in slide-in-from-top-4 duration-700">
+        <div className="rounded-3xl border border-white/25 bg-white/15 p-8 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-black/25">
+          <div className="mb-5 w-full">
             <img
-              src="/logo1.jpg"
-              alt="Restaurant & Lounge"
-              className="w-full h-full object-cover"
+              src={branding.logo}
+              alt={branding.name}
+              className="mx-auto block h-auto w-full max-h-72 object-contain drop-shadow-2xl"
             />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-md">
-            Restaurant & Lounge
-          </h1>
-          <p className="text-white/80 font-medium mt-1 uppercase tracking-widest text-xs">
-            Management System
-          </p>
-        </div>
 
-        <Card className="w-full max-w-md border-border/50 shadow-2xl backdrop-blur-md bg-card/90 dark:bg-card/85">
-          <CardHeader className="space-y-1 text-center pb-2">
-            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5">
+          <Card className="w-full border-white/20 bg-white/10 shadow-none backdrop-blur-none dark:bg-black/20">
+            <CardHeader className="space-y-1 text-center pb-2">
+              <CardTitle className="text-2xl font-bold text-white">Welcome Back</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-5">
               {errors.general && (
                 <div className="p-3 text-sm font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
@@ -145,7 +127,7 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm font-semibold font-lato">
+                <Label htmlFor="phone" className="text-sm font-semibold font-lato text-white">
                   Phone Number
                 </Label>
                 <div className="relative">
@@ -171,7 +153,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-semibold font-lato">
+                <Label htmlFor="password" className="text-sm font-semibold font-lato text-white">
                   Password
                 </Label>
                 <div className="relative">
@@ -222,67 +204,10 @@ export default function LoginPage() {
                   "Sign In"
                 )}
               </Button>
-
-              <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Demo Login Credentials
-                </p>
-
-                <div className="rounded-md bg-background/70 p-2 text-sm space-y-1">
-                  <p className="font-semibold">Owner</p>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs">+1234567890</span>
-                    <button
-                      type="button"
-                      onClick={() => copyCredential("+1234567890", "Owner phone")}
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs">owner123</span>
-                    <button
-                      type="button"
-                      onClick={() => copyCredential("owner123", "Owner password")}
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-md bg-background/70 p-2 text-sm space-y-1">
-                  <p className="font-semibold">Cashier</p>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs">0942629292</span>
-                    <button
-                      type="button"
-                      onClick={() => copyCredential("0942629292", "Cashier phone")}
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs">44solabiy</span>
-                    <button
-                      type="button"
-                      onClick={() => copyCredential("44solabiy", "Cashier password")}
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

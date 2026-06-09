@@ -1,6 +1,7 @@
 import ProtectedRoute from "@/components/protected-route";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/ui/toaster";
+import { branding } from "@/config/branding";
 import type { Metadata } from "next";
 import { Lato } from "next/font/google";
 import "./globals.css";
@@ -13,9 +14,15 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "Restaurant & Lounge Management",
-  description:
-    "Professional restaurant and lounge management system for POS, inventory, and order tracking",
+  title: {
+    default: branding.name,
+    template: `%s | ${branding.name}`,
+  },
+  description: `${branding.name} — lounge management for POS, inventory, and orders`,
+  openGraph: {
+    title: branding.name,
+    type: "website",
+  },
 };
 
 export default function RootLayout({

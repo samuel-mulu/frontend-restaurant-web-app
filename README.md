@@ -1,6 +1,8 @@
-# Restaurant Menu Management Frontend
+# Tekeze Hidat Lounge — Frontend
 
-This is a [Next.js](https://nextjs.org) project for managing restaurant menus, categories, orders, and inventory.
+Next.js frontend for **Tekeze Hidat Lounge**: lounge management for POS, menus, inventory, orders, analytics, and reporting.
+
+The production lounge name is set in one place: [`config/branding.ts`](./config/branding.ts) → `LOUNGE_NAME`.
 
 ## Getting Started
 
@@ -12,8 +14,8 @@ This is a [Next.js](https://nextjs.org) project for managing restaurant menus, c
 ### Installation
 
 ```bash
-npm inst
-# 
+npm install
+# or
 yarn install
 # or
 pnpm install
@@ -21,7 +23,7 @@ pnpm install
 
 ### Environment Setup
 
-Create a `.env.local` file in the `frontend/` directory:
+Create a `.env.local` file in the project root:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
@@ -43,13 +45,14 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 - `app/` - Next.js app router pages
 - `components/features/` - Feature-specific React components
-- `lib/api/` - API client functions for backend integration
-- `lib/types.ts` - TypeScript type definitions
+- `config/branding.ts` - Lounge name, assets, and receipt branding
+- `lib/` - Utilities, offline sync, and export helpers
+- `stores/` - Redux Toolkit API slices
 
 ## Documentation
 
-- **[Frontend Guide for Backend Developers](./FRONTEND_GUIDE_FOR_BACKEND.md)** - Comprehensive guide for backend developers on API integration, data formats, and expected response structures
-- **[Cashier View Flow](./CASHIER_VIEW_FLOW.md)** - Detailed explanation of the CashierView component flow and relationships
+- **[Frontend Guide for Backend Developers](./FRONTEND_GUIDE_FOR_BACKEND.md)** - API integration, data formats, and expected response structures
+- **[Cashier View Flow](./CASHIER_VIEW_FLOW.md)** - CashierView component flow and relationships
 
 ## Key Features
 
@@ -58,10 +61,14 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - **Cashier View** - Point-of-sale interface for creating orders
 - **Order History** - View and filter past orders
 - **Product Management** - Manage inventory products
+- **Analytics & Reports** - Lounge performance dashboards and PDF/thermal exports
 
-## API Integration
+## Assets
 
-All API calls go through centralized API clients in `lib/api/`. See [FRONTEND_GUIDE_FOR_BACKEND.md](./FRONTEND_GUIDE_FOR_BACKEND.md) for detailed API integration guidelines.
+Replace placeholder images in `public/` with production assets (paths are set in `config/branding.ts`):
+
+- `public/logo1.jpg` — lounge logo
+- `public/background.jpg` — login page background
 
 ## Learn More
 

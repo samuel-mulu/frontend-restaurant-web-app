@@ -1,5 +1,7 @@
 "use client";
 
+import { CalendarSystemProvider } from "@/hooks/useCalendarSystem";
+import { LanguageProvider } from "@/hooks/useLanguage";
 import { store } from "@/stores";
 import { Provider } from "react-redux";
 import { OfflineProvider } from "./offline/OfflineProvider";
@@ -14,7 +16,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
-        <OfflineProvider>{children}</OfflineProvider>
+        <LanguageProvider>
+          <CalendarSystemProvider>
+            <OfflineProvider>{children}</OfflineProvider>
+          </CalendarSystemProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </Provider>
   );

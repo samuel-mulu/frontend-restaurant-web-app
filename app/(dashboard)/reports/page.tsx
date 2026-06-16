@@ -63,6 +63,8 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { useCalendarSystem, formatDateWithSystem } from "@/hooks/useCalendarSystem";
+import { useLanguage } from "@/hooks/useLanguage";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import "./print-styles.css";
@@ -396,6 +398,8 @@ export default function ReportsPage() {
   const EXPENSES_PAGE_SIZE = 10;
   const [viewType, setViewType] = useState<"daily" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const { t } = useLanguage();
+  const { calSystem } = useCalendarSystem();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("TRANSFERRED_TO_OWNER");
@@ -613,7 +617,7 @@ export default function ReportsPage() {
         viewType === "daily"
           ? yesterdayExpensesQuery.data
           : lastMonthExpensesQuery.data;
-      const prevLabel = viewType === "daily" ? "Yesterday" : "Last Month";
+      const prevLabel = viewType === "daily" ? t("reports_yesterday") : t("reports_last_month");
       const prevTotalSales =
         prevReport?.orders?.reduce(
           (s: number, o: any) => s + (o.total || 0),
@@ -872,9 +876,10 @@ export default function ReportsPage() {
     const printHTML = generatePrintHTML();
 
     // Generate filename with restaurant name and date
-    const reportDate = formatDateForReport(
+    const reportDate = formatDateWithSystem(
+      calSystem,
       selectedDate,
-      viewType === "daily" ? "PPP" : "MMMM yyyy",
+      viewType === "daily" ? undefined : { monthYear: true },
     );
     const filename = reportExportFilename(reportDate);
 
@@ -905,9 +910,10 @@ export default function ReportsPage() {
 
   const generatePrintHTML = () => {
     const currentDate = new Date().toLocaleString();
-    const reportDate = formatDateForReport(
+    const reportDate = formatDateWithSystem(
+      calSystem,
       selectedDate,
-      viewType === "daily" ? "PPP" : "MMMM yyyy",
+      viewType === "daily" ? undefined : { monthYear: true },
     );
     const pdfFormatCurrency = (n: number) =>
       new Intl.NumberFormat("en-ET", {
@@ -922,7 +928,7 @@ export default function ReportsPage() {
       viewType === "daily"
         ? yesterdayExpensesQuery.data
         : lastMonthExpensesQuery.data;
-    const prevLabel = viewType === "daily" ? "Yesterday" : "Last Month";
+    const prevLabel = viewType === "daily" ? t("reports_yesterday") : t("reports_last_month");
     const prevTotalSales =
       prevReport?.orders?.reduce((s: number, o: any) => s + (o.total || 0), 0) ?? 0;
     const prevTotalExpenses =
@@ -1662,10 +1668,11 @@ export default function ReportsPage() {
           viewType === "daily"
             ? "DAILY PERFORMANCE REPORT"
             : "MONTHLY PERFORMANCE REPORT",
-        dateRange:
-          viewType === "daily"
-            ? formatDateForReport(selectedDate, "PPP")
-            : formatDateForReport(selectedDate, "MMMM yyyy"),
+        dateRange: formatDateWithSystem(
+          calSystem,
+          selectedDate,
+          viewType === "daily" ? undefined : { monthYear: true },
+        ),
         totalSales,
         totalExpenses,
         netRevenue,
@@ -1781,10 +1788,10 @@ export default function ReportsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-            Reports
+            {t("reports_title")}
           </h1>
           <p className="text-muted-foreground italic">
-            Professional restaurant performance tracking
+            {t("reports_subtitle")}
           </p>
         </div>
 
@@ -1809,26 +1816,26 @@ export default function ReportsPage() {
               <SelectTrigger className="w-[140px] bg-slate-900 border-slate-700 text-white hover:bg-slate-800 transition-colors">
                 <div className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
-                  <span>Export</span>
+                  <span>{t("reports_export")}</span>
                 </div>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="csv">
                   <div className="flex items-center gap-2">
                     <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
-                    <span>CSV / Excel</span>
+                    <span>{t("reports_export_csv")}</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="pdf">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-rose-500" />
-                    <span>PDF Document</span>
+                    <span>{t("reports_export_pdf")}</span>
                   </div>
                 </SelectItem>
                 <SelectItem value="print">
                   <div className="flex items-center gap-2">
                     <Printer className="h-4 w-4 text-blue-500" />
-                    <span>Thermal Print</span>
+                    <span>{t("reports_export_thermal")}</span>
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -1841,9 +1848,11 @@ export default function ReportsPage() {
             </Button>
             <div className="flex items-center gap-2 px-4 font-semibold text-sm">
               <CalendarIcon className="h-4 w-4 text-primary" />
-              {viewType === "daily"
-                ? formatDateForReport(selectedDate, "PPP")
-                : formatDateForReport(selectedDate, "MMMM yyyy")}
+              {formatDateWithSystem(
+                calSystem,
+                selectedDate,
+                viewType === "daily" ? undefined : { monthYear: true },
+              )}
             </div>
             <Button variant="ghost" size="icon" onClick={handleNextDate}>
               <ChevronRight className="h-4 w-4" />
@@ -1860,8 +1869,8 @@ export default function ReportsPage() {
         className="w-full"
       >
         <TabsList className="grid w-full max-w-[400px] grid-cols-2">
-          <TabsTrigger value="daily">Daily Report</TabsTrigger>
-          <TabsTrigger value="monthly">Monthly Report</TabsTrigger>
+          <TabsTrigger value="daily">{t("reports_daily")}</TabsTrigger>
+          <TabsTrigger value="monthly">{t("reports_monthly")}</TabsTrigger>
         </TabsList>
 
         <div className="mt-6 space-y-6">
@@ -1869,22 +1878,20 @@ export default function ReportsPage() {
             <CardContent className="p-4 flex flex-wrap gap-4 items-center">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-slate-500" />
-                <span className="text-sm font-medium">Filters:</span>
+                <span className="text-sm font-medium">{t("reports_filters")}:</span>
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[180px] bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-50">
                   <SelectValue placeholder="Order Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All Statuses</SelectItem>
-                  <SelectItem value="OPEN">Open</SelectItem>
-<SelectItem value="PAID_TO_CASHIER">Paid to Waiter</SelectItem>
-                <SelectItem value="TRANSFERRED_TO_OWNER">
-                  Paid to Cashier
-                  </SelectItem>
-                  <SelectItem value="OWNER_CONFIRMED">Confirmed</SelectItem>
-                  <SelectItem value="VOIDED">Voided</SelectItem>
-                  <SelectItem value="DISPUTED">Disputed</SelectItem>
+                  <SelectItem value="ALL">{t("reports_all_statuses")}</SelectItem>
+                  <SelectItem value="OPEN">{t("history_status_open")}</SelectItem>
+                  <SelectItem value="PAID_TO_CASHIER">{t("status_paid_to_waiter")}</SelectItem>
+                  <SelectItem value="TRANSFERRED_TO_OWNER">{t("status_paid_to_cashier")}</SelectItem>
+                  <SelectItem value="OWNER_CONFIRMED">{t("history_status_confirmed")}</SelectItem>
+                  <SelectItem value="VOIDED">{t("history_status_voided")}</SelectItem>
+                  <SelectItem value="DISPUTED">{t("history_status_disputed")}</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -1893,7 +1900,7 @@ export default function ReportsPage() {
                   <SelectValue placeholder="Payment Method" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL">All Payments</SelectItem>
+                  <SelectItem value="ALL">{t("reports_all_payments")}</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="mobile_banking">Mobile Banking</SelectItem>
                   <SelectItem value="unpaid">Unpaid / Pending</SelectItem>
@@ -1909,7 +1916,7 @@ export default function ReportsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-                      Total Sales
+                      {t("reports_total_sales")}
                     </p>
                     {isFetching ? (
                       <Skeleton className="h-8 w-32 mt-1" />
@@ -1931,7 +1938,7 @@ export default function ReportsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-                      Total Expenses
+                      {t("reports_total_expenses")}
                     </p>
                     {isExpensesFetching ? (
                       <Skeleton className="h-8 w-32 mt-1" />
@@ -1953,7 +1960,7 @@ export default function ReportsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-                      Net Revenue
+                      {t("reports_net_revenue")}
                     </p>
                     {isFetching || isExpensesFetching ? (
                       <Skeleton className="h-8 w-32 mt-1" />
@@ -1976,7 +1983,7 @@ export default function ReportsPage() {
               <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-primary" />
-                  Payment Breakdown
+                  {t("reports_payment_breakdown")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -1986,10 +1993,10 @@ export default function ReportsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Method</TableHead>
-                        <TableHead>Bank</TableHead>
-                        <TableHead className="text-right">Orders</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead>{t("reports_method")}</TableHead>
+                        <TableHead>{t("reports_bank")}</TableHead>
+                        <TableHead className="text-right">{t("reports_orders")}</TableHead>
+                        <TableHead className="text-right">{t("reports_total")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2015,7 +2022,7 @@ export default function ReportsPage() {
                             colSpan={4}
                             className="h-24 text-center text-muted-foreground"
                           >
-                            No sales recorded
+                            {t("reports_no_sales")}
                           </TableCell>
                         </TableRow>
                       )}
@@ -2029,7 +2036,7 @@ export default function ReportsPage() {
               <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <Banknote className="h-5 w-5 text-rose-500" />
-                  Expenses & Withdrawals
+                  {t("reports_expenses_withdrawals")}
                 </CardTitle>
                 <Select
                   value={expenseTypeFilter}
@@ -2042,7 +2049,7 @@ export default function ReportsPage() {
                     <SelectValue placeholder="Expense type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALL">All</SelectItem>
+                    <SelectItem value="ALL">{t("reports_all_expense_types")}</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="mobile_banking">Mobile Banking</SelectItem>
                   </SelectContent>
@@ -2055,9 +2062,9 @@ export default function ReportsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Reason / Details</TableHead>
-                        <TableHead>Payment</TableHead>
-                        <TableHead>Amount</TableHead>
+                        <TableHead>{t("reports_reason_details")}</TableHead>
+                        <TableHead>{t("reports_payment")}</TableHead>
+                        <TableHead>{t("reports_amount")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2090,7 +2097,7 @@ export default function ReportsPage() {
                             colSpan={3}
                             className="h-24 text-center text-muted-foreground"
                           >
-                            No expenses recorded
+                            {t("reports_no_expenses")}
                           </TableCell>
                         </TableRow>
                       )}
@@ -2100,7 +2107,7 @@ export default function ReportsPage() {
                 {flattenedExpenses.length > EXPENSES_PAGE_SIZE && (
                   <div className="flex items-center justify-between px-4 py-3 border-t">
                     <span className="text-sm text-muted-foreground">
-                      Page {expensesPage} of {totalExpensesPages}
+                      {t("reports_page_of")} {expensesPage} {t("reports_of")} {totalExpensesPages}
                     </span>
                     <div className="flex gap-2">
                       <Button
@@ -2112,7 +2119,7 @@ export default function ReportsPage() {
                         disabled={expensesPage <= 1}
                       >
                         <ChevronLeft className="h-4 w-4" />
-                        Prev
+                        {t("reports_prev")}
                       </Button>
                       <Button
                         variant="outline"
@@ -2124,7 +2131,7 @@ export default function ReportsPage() {
                         }
                         disabled={expensesPage >= totalExpensesPages}
                       >
-                        Next
+                        {t("reports_next")}
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
@@ -2139,7 +2146,7 @@ export default function ReportsPage() {
               <CardHeader className="border-b pb-4">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <Users className="h-5 w-5 text-primary" />
-                  Waiter Performance
+                  {t("reports_waiter_performance")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -2149,9 +2156,9 @@ export default function ReportsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="text-right">Orders</TableHead>
-                        <TableHead className="text-right">Revenue</TableHead>
+                        <TableHead>{t("reports_name")}</TableHead>
+                        <TableHead className="text-right">{t("reports_orders")}</TableHead>
+                        <TableHead className="text-right">{t("reports_revenue")}</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2195,7 +2202,7 @@ export default function ReportsPage() {
               <CardHeader className="border-b pb-4">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <Users className="h-5 w-5 text-blue-500" />
-                  Cashier Performance
+                  {t("reports_cashier_performance")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -2205,9 +2212,9 @@ export default function ReportsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="text-right">Orders</TableHead>
-                        <TableHead className="text-right">Settled</TableHead>
+                        <TableHead>{t("reports_name")}</TableHead>
+                        <TableHead className="text-right">{t("reports_orders")}</TableHead>
+                        <TableHead className="text-right">{t("reports_settled")}</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2252,7 +2259,7 @@ export default function ReportsPage() {
                 <div className="flex items-center justify-between gap-3">
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
                     <Package className="h-5 w-5 text-indigo-500" />
-                    Menu & Inventory Performance
+                    {t("reports_menu_inventory_performance")}
                   </CardTitle>
                   <Select
                     value={itemTypeFilter}
@@ -2264,9 +2271,9 @@ export default function ReportsPage() {
                       <SelectValue placeholder="Item Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">All Items</SelectItem>
-                      <SelectItem value="menu">Menu</SelectItem>
-                      <SelectItem value="inventory">Inventory</SelectItem>
+                      <SelectItem value="ALL">{t("reports_all_items")}</SelectItem>
+                      <SelectItem value="menu">{t("create_order_menu_items")}</SelectItem>
+                      <SelectItem value="inventory">{t("create_order_inventory_items")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2278,11 +2285,11 @@ export default function ReportsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Item Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Qty Sold</TableHead>
+                        <TableHead>{t("reports_item_name")}</TableHead>
+                        <TableHead>{t("reports_type")}</TableHead>
+                        <TableHead className="text-right">{t("reports_qty_sold")}</TableHead>
                         <TableHead className="text-right">
-                          Sales Amount
+                          {t("reports_sales_amount")}
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2311,7 +2318,7 @@ export default function ReportsPage() {
                             colSpan={4}
                             className="h-24 text-center text-muted-foreground"
                           >
-                            No sold items for selected filters
+                            {t("reports_no_sold_items")}
                           </TableCell>
                         </TableRow>
                       )}
@@ -2320,9 +2327,9 @@ export default function ReportsPage() {
                 )}
                 <div className="flex items-center justify-between border-t px-4 py-3">
                   <span className="text-xs text-muted-foreground">
-                    Page {soldItemsData.pagination.page} of{" "}
+                    {t("reports_page_of")} {soldItemsData.pagination.page} {t("reports_of")}{" "}
                     {soldItemsData.pagination.totalPages || 1} ·{" "}
-                    {soldItemsData.pagination.total} items
+                    {soldItemsData.pagination.total} {t("reports_items")}
                   </span>
                   <div className="flex items-center gap-2">
                     <Button
@@ -2333,7 +2340,7 @@ export default function ReportsPage() {
                         setSoldItemsPage((p) => Math.max(1, p - 1))
                       }
                     >
-                      Prev
+                      {t("reports_prev")}
                     </Button>
                     <Button
                       variant="outline"
@@ -2341,7 +2348,7 @@ export default function ReportsPage() {
                       disabled={!soldItemsData.pagination.hasNextPage}
                       onClick={() => setSoldItemsPage((p) => p + 1)}
                     >
-                      Next
+                      {t("reports_next")}
                     </Button>
                   </div>
                 </div>
@@ -2362,10 +2369,10 @@ export default function ReportsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl font-bold">
               <Users className="h-6 w-6 text-primary" />
-              {staffDetailModal.staffName} History
+              {staffDetailModal.staffName} {t("reports_staff_history")}
             </DialogTitle>
             <DialogDescription>
-              Detailed view of orders handled by this staff member.
+              {t("reports_staff_detail_desc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -2388,7 +2395,7 @@ export default function ReportsPage() {
                 setStaffDetailModal((prev) => ({ ...prev, isOpen: false }))
               }
             >
-              Close
+              {t("reports_close")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2403,22 +2410,22 @@ export default function ReportsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Printer className="h-5 w-5 text-primary" />
-              Thermal Print Options
+              {t("reports_thermal_options_title")}
             </DialogTitle>
             <DialogDescription>
-              Customize the sections to include in the printed receipt.
+              {t("reports_thermal_options_desc")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border">
               <div className="flex flex-col">
-                <span className="text-sm font-semibold">Financial Summary</span>
+                <span className="text-sm font-semibold">{t("reports_financial_summary")}</span>
                 <span className="text-xs text-muted-foreground">
-                  Required for report validity
+                  {t("reports_required_validity")}
                 </span>
               </div>
-              <Badge variant="secondary">Mandatory</Badge>
+              <Badge variant="secondary">{t("reports_mandatory")}</Badge>
             </div>
 
             <div className="space-y-2">

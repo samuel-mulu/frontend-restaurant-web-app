@@ -39,7 +39,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 import { branding } from "@/config/branding";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
+import { useLanguage } from "@/hooks/useLanguage";
 import { cn } from "@/lib/utils";
 import { useLogoutMutation } from "@/stores/features/auth/authApi";
 import {
@@ -49,29 +52,29 @@ import {
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 
-// Navigation items based on role
+// Navigation items based on role — keys map to i18n translation keys
 const getNavigationItems = (role?: string) => {
   const baseItems = [
-    { name: "Menus", href: "/menus", icon: Utensils },
-    { name: "Inventory", href: "/inventory", icon: Package },
-    { name: "Categories", href: "/categories", icon: List },
-    { name: "History", href: "/history", icon: History },
+    { nameKey: "nav_menus" as const, href: "/menus", icon: Utensils },
+    { nameKey: "nav_inventory" as const, href: "/inventory", icon: Package },
+    { nameKey: "nav_categories" as const, href: "/categories", icon: List },
+    { nameKey: "nav_history" as const, href: "/history", icon: History },
   ];
 
   if (role === "owner") {
     return [
-      { name: "Staff Management", href: "/staff-management", icon: Users },
-      { name: "Analytics", href: "/analytics", icon: BarChart3 },
-      { name: "Reports", href: "/reports", icon: ClipboardCheck },
-      { name: "Approvals", href: "/approvals", icon: ClipboardCheck },
+      { nameKey: "nav_staff_management" as const, href: "/staff-management", icon: Users },
+      { nameKey: "nav_analytics" as const, href: "/analytics", icon: BarChart3 },
+      { nameKey: "nav_reports" as const, href: "/reports", icon: ClipboardCheck },
+      { nameKey: "nav_approvals" as const, href: "/approvals", icon: ClipboardCheck },
       ...baseItems,
     ];
   }
 
   if (role === "cashier" || role === "waiter") {
     return [
-      { name: "Create Order", href: "/create-order", icon: ShoppingCart },
-      { name: "Printer", href: "/printer", icon: Printer },
+      { nameKey: "nav_create_order" as const, href: "/create-order", icon: ShoppingCart },
+      { nameKey: "nav_printer" as const, href: "/printer", icon: Printer },
       ...baseItems,
     ];
   }
@@ -86,6 +89,8 @@ export function AppSidebar() {
   const user = useSelector(selectUser);
   const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+  const { t } = useLanguage();
+  const { calSystem, setCalSystem } = useCalendarSystem();
 
   const handleLogoutClick = () => {
     setIsLogoutDialogOpen(true);
@@ -140,7 +145,7 @@ export function AppSidebar() {
             {branding.name}
           </span>
           <span className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold">
-            Management
+            {t("sidebar_management")}
           </span>
         </div>
       </SidebarHeader>
@@ -170,7 +175,7 @@ export function AppSidebar() {
                       >
                         <Icon className="h-5 w-5" />
                         <span className="text-sm font-lato leading-[22px] tracking-normal align-middle">
-                          {item.name}
+                          {t(item.nameKey)}
                         </span>
                       </Link>
                     </SidebarMenuButton>
@@ -183,9 +188,28 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-gray-200 dark:border-gray-800 p-2 space-y-2">
-        {/* Theme Toggle */}
+        {/* Theme Toggle + Language Toggle row */}
+        <div className="flex items-center gap-1">
+          <div className="flex-1">
+            <ThemeToggle />
+          </div>
+          <div className="flex-1">
+            <LanguageToggle />
+          </div>
+        </div>
+
+        {/* Calendar System Toggle */}
         <SidebarMenuItem>
-          <ThemeToggle />
+          <Button
+            variant="ghost"
+            onClick={() => setCalSystem(calSystem === "gc" ? "ec" : "gc")}
+            className="w-full justify-start py-2 px-4 rounded-sm font-lato font-normal leading-[22px] tracking-normal align-middle text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+          >
+            <span className="text-base mr-3">📅</span>
+            <span className="text-sm font-lato leading-[22px] tracking-normal align-middle">
+              {calSystem === "gc" ? t("cal_ec") : t("cal_gc")}
+            </span>
+          </Button>
         </SidebarMenuItem>
 
         {/* Profile Link */}
@@ -203,7 +227,7 @@ export function AppSidebar() {
             <Link href="/profile" className="flex items-center gap-3">
               <User className="h-5 w-5" />
               <span className="text-sm font-lato leading-[22px] tracking-normal align-middle">
-                Profile
+                {t("nav_profile")}
               </span>
             </Link>
           </SidebarMenuButton>
@@ -221,7 +245,7 @@ export function AppSidebar() {
         >
           <LogOut className="h-5 w-5 mr-3" />
           <span className="text-sm font-lato leading-[22px] tracking-normal align-middle">
-            Logout
+            {t("sidebar_logout")}
           </span>
         </Button>
 
@@ -232,7 +256,13 @@ export function AppSidebar() {
               {user.name}
             </div>
             <div className="text-gray-500 dark:text-gray-500 capitalize">
-              {user.role}
+              {user.role === "owner"
+                ? t("role_owner")
+                : user.role === "cashier"
+                ? t("role_cashier")
+                : user.role === "waiter"
+                ? t("role_waiter")
+                : user.role}
             </div>
           </div>
         )}
@@ -244,11 +274,10 @@ export function AppSidebar() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 dark:text-white">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Confirm Logout
+              {t("logout_confirm_title")}
             </DialogTitle>
             <DialogDescription className="dark:text-gray-400">
-              Are you sure you want to logout? You will need to login again to
-              access your account.
+              {t("logout_confirm_description")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -258,7 +287,7 @@ export function AppSidebar() {
               disabled={isLoggingOut}
               className="dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600"
             >
-              Cancel
+              {t("logout_cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -269,12 +298,12 @@ export function AppSidebar() {
               {isLoggingOut ? (
                 <>
                   <LogOut className="h-4 w-4 mr-2 animate-spin" />
-                  Logging out...
+                  {t("logout_loading")}
                 </>
               ) : (
                 <>
                   <LogOut className="h-4 w-4 mr-2" />
-                  Logout
+                  {t("logout_confirm_button")}
                 </>
               )}
             </Button>

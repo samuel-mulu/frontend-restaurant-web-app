@@ -2,6 +2,7 @@
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell } from "@/components/notification-bell";
+import { DateDisplay } from "@/components/ui/date-display";
 import { Loading } from "@/components/ui/loading";
 import {
     SidebarInset,
@@ -34,9 +35,10 @@ export default function DashboardLayout({
       <SidebarInset className="h-screen overflow-y-auto bg-background/80">
         <main className="flex-1 min-h-screen">
           <div className="page-shell">
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
               <SidebarTrigger className="rounded-full border border-border bg-card/80 text-muted-foreground shadow-sm backdrop-blur" />
               <NotificationBell />
+              <DateDisplay />
             </div>
             {children}
           </div>

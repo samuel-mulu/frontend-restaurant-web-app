@@ -41,6 +41,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
+import { useLanguage } from "@/hooks/useLanguage";
 import { formatDateLocal } from "@/lib/date-utils";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
 import { selectUser } from "@/stores/features/auth/authSlice";
@@ -198,21 +200,25 @@ const getStatusColor = (status: "Completed" | "Pending"): string => {
   }[status];
 };
 
+const STATUS_TRANSLATION_KEY: Partial<Record<ExtendedOrderStatus, string>> = {
+  OPEN: "status_open",
+  VOIDED: "status_voided",
+  PAID_TO_CASHIER: "status_paid_to_waiter",
+  PAID_WITHOUT_PRINT: "status_paid_to_waiter_no_print",
+  TRANSFERRED_TO_OWNER: "status_paid_to_cashier",
+  TRANSFERRED_WITHOUT_PRINT: "status_paid_to_cashier_no_print",
+  OWNER_CONFIRMED: "status_confirmed",
+  DISPUTED: "status_disputed",
+};
+
 const getStatusBadgeText = (
   status: ExtendedOrderStatus,
   paymentMethod?: "cash" | "mobile_banking",
+  tFn?: (key: string) => string,  // eslint-disable-line @typescript-eslint/no-explicit-any
 ): string => {
-  const statusMap: Partial<Record<ExtendedOrderStatus, string>> = {
-    OPEN: "Open",
-    VOIDED: "Voided",
-    PAID_TO_CASHIER: "Paid to Waiter",
-    PAID_WITHOUT_PRINT: "Paid to Waiter (no print)",
-    TRANSFERRED_TO_OWNER: "Paid to Cashier",
-    TRANSFERRED_WITHOUT_PRINT: "Paid to Cashier (no print)",
-    OWNER_CONFIRMED: "Confirmed",
-    DISPUTED: "Disputed",
-  };
-  let label = statusMap[status] || status;
+  const t = tFn || ((k: string) => k);
+  const key = STATUS_TRANSLATION_KEY[status];
+  let label = key ? t(key) : status;
   if (
     (status === "TRANSFERRED_TO_OWNER" || status === "TRANSFERRED_WITHOUT_PRINT") &&
     paymentMethod
@@ -309,6 +315,8 @@ const extractDates = (orders: DisplayOrder[]): string[] => {
 export function CashierHistory() {
   const user = useSelector(selectUser);
   const cashierId = user?.id || "";
+  const { t } = useLanguage();
+  const { formatDate } = useCalendarSystem();
 
   const [roleView, setRoleView] = useState<"all" | "waiter" | "owner">(
     "waiter",
@@ -1078,12 +1086,15 @@ export function CashierHistory() {
     );
   }
 
+  const tStatus = (status: ExtendedOrderStatus, paymentMethod?: "cash" | "mobile_banking") =>
+    getStatusBadgeText(status, paymentMethod, t as (key: string) => string);
+
   return (
     <div className="flex flex-col gap-4">
       <header className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-semibold text-foreground">
-            Cashier History
+            {t("history_title")}
           </h1>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span
@@ -1091,9 +1102,9 @@ export function CashierHistory() {
                 }`}
             />
             <span>
-              Realtime: {isRealtimeConnected ? "Connected" : "Disconnected"}
+              {t("history_realtime_label")}: {isRealtimeConnected ? t("history_realtime_connected") : t("history_realtime_disconnected")}
             </span>
-            {isFetching && <span>· Syncing…</span>}
+            {isFetching && <span>· {t("history_syncing")}</span>}
           </div>
         </div>
         <div className="flex items-start gap-4">
@@ -1109,10 +1120,10 @@ export function CashierHistory() {
                   }`}
               >
                 {r === "all"
-                  ? "All"
+                  ? t("history_view_all")
                   : r === "waiter"
-                    ? "From Waiters"
-                    : "To Owner"}
+                    ? t("history_view_from_waiters")
+                    : t("history_view_to_owner")}
               </button>
             ))}
           </div>
@@ -1123,7 +1134,7 @@ export function CashierHistory() {
         <ErrorState message={errorMessage} onRetry={() => refetch()} />
       )}
 
-      {isLoading && <LoadingState message="Loading orders..." />}
+      {isLoading && <LoadingState message={t("history_loading")} />}
 
       {!isLoading && !errorMessage && (
         <>
@@ -1257,7 +1268,7 @@ export function CashierHistory() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 h-4 w-4" />
               <Input
                 type="text"
-                placeholder="Search by order number, table, or waiter..."
+                placeholder={t("history_search_placeholder")}
                 value={searchQuery}
                 onChange={(e) => handleSearchQueryChange(e.target.value)}
                 className="pl-10 pr-10 rounded-full"
@@ -1281,73 +1292,73 @@ export function CashierHistory() {
                 <SelectContent>
                   {roleView === "owner" ? (
                     <>
-                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="all">{t("history_all_statuses")}</SelectItem>
                       <SelectItem value="PAID_TO_CASHIER">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4" />
-                          Paid
+                          {t("history_status_paid")}
                         </div>
                       </SelectItem>
                       <SelectItem value="TRANSFERRED_TO_OWNER">
                         <div className="flex items-center gap-2">
                           <ArrowRightLeft className="h-4 w-4" />
-                          Transferred
+                          {t("history_status_transferred")}
                         </div>
                       </SelectItem>
                     </>
                   ) : roleView === "waiter" ? (
                     <>
-                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="all">{t("history_all_statuses")}</SelectItem>
                       <SelectItem value="OPEN">
                         <div className="flex items-center gap-2">
                           <AlertCircle className="h-4 w-4" />
-                          Open
+                          {t("history_status_open")}
                         </div>
                       </SelectItem>
                       <SelectItem value="PAID_TO_CASHIER">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4" />
-                          Paid
+                          {t("history_status_paid")}
                         </div>
                       </SelectItem>
                     </>
                   ) : (
                     <>
-                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="all">{t("history_all_statuses")}</SelectItem>
                       <SelectItem value="OPEN">
                         <div className="flex items-center gap-2">
                           <AlertCircle className="h-4 w-4" />
-                          Open
+                          {t("history_status_open")}
                         </div>
                       </SelectItem>
                       <SelectItem value="PAID_TO_CASHIER">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4" />
-                          Paid
+                          {t("history_status_paid")}
                         </div>
                       </SelectItem>
                       <SelectItem value="TRANSFERRED_TO_OWNER">
                         <div className="flex items-center gap-2">
                           <ArrowRightLeft className="h-4 w-4" />
-                          Transferred
+                          {t("history_status_transferred")}
                         </div>
                       </SelectItem>
                       <SelectItem value="OWNER_CONFIRMED">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4" />
-                          Confirmed
+                          {t("history_status_confirmed")}
                         </div>
                       </SelectItem>
                       <SelectItem value="VOIDED">
                         <div className="flex items-center gap-2">
                           <Ban className="h-4 w-4" />
-                          Voided
+                          {t("history_status_voided")}
                         </div>
                       </SelectItem>
                       <SelectItem value="DISPUTED">
                         <div className="flex items-center gap-2">
                           <XCircle className="h-4 w-4" />
-                          Disputed
+                          {t("history_status_disputed")}
                         </div>
                       </SelectItem>
                     </>
@@ -1364,13 +1375,13 @@ export function CashierHistory() {
                   <SelectValue placeholder="Date" />
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
-                  <SelectItem value="all">All Dates</SelectItem>
+                  <SelectItem value="all">{t("history_all_dates")}</SelectItem>
                   <SelectItem value="latest">
-                    Latest Date {dates[0] ? `(${dates[0]})` : ""}
+                    {t("history_latest_date")} {dates[0] ? `(${formatDate(dates[0], { short: true })})` : ""}
                   </SelectItem>
                   {dates.map((d: string) => (
                     <SelectItem key={d} value={d}>
-                      {d}
+                      {formatDate(d, { short: true })}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1386,7 +1397,7 @@ export function CashierHistory() {
                     <SelectValue placeholder="Waiter" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Waiters</SelectItem>
+                    <SelectItem value="all">{t("history_all_waiters")}</SelectItem>
                     {waiterList.map((w: { id: string; name: string }) => (
                       <SelectItem key={w.id} value={w.id}>
                         {w.name}
@@ -1407,7 +1418,7 @@ export function CashierHistory() {
                   onClick={selectAll}
                   className="text-blue-700 dark:text-blue-400 whitespace-nowrap"
                 >
-                  Select All (
+                  {t("history_select_all")} (
                   {selectedOrdersStatus
                     ? orders.filter(
                       (o: DisplayOrder) =>
@@ -1417,10 +1428,10 @@ export function CashierHistory() {
                   )
                 </Button>
                 <span className="text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap">
-                  {selectedOrderIds.size} selected
+                  {selectedOrderIds.size} {t("history_selected")}
                   {selectedOrdersStatus && (
                     <span className="ml-2 text-xs">
-                      (Status: {getStatusBadgeText(selectedOrdersStatus)})
+                      (Status: {tStatus(selectedOrdersStatus)})
                     </span>
                   )}
                 </span>
@@ -1434,7 +1445,7 @@ export function CashierHistory() {
                     }
                   >
                     <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Change status to..." />
+                      <SelectValue placeholder={t("history_change_status_to")} />
                     </SelectTrigger>
                     <SelectContent>
                       {getAvailableStatuses(
@@ -1444,7 +1455,7 @@ export function CashierHistory() {
                         <SelectItem key={status} value={status}>
                           <div className="flex items-center gap-2">
                             {getStatusIcon(status)}
-                            {getStatusBadgeText(status)}
+                            {tStatus(status)}
                           </div>
                         </SelectItem>
                       ))}
@@ -1458,10 +1469,10 @@ export function CashierHistory() {
                     {isBulkUpdating ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Updating...
+                        {t("history_updating")}
                       </>
                     ) : (
-                      "Update Status"
+                      t("history_update_status")
                     )}
                   </Button>
                 </div>
@@ -1476,7 +1487,7 @@ export function CashierHistory() {
                     {withoutPrint && <CheckSquare className="h-3.5 w-3.5" />}
                   </div>
                   <span className="text-sm font-medium text-foreground select-none pointer-events-none">
-                    Without Print
+                    {t("history_without_print")}
                   </span>
                 </label>
               </div>
@@ -1489,7 +1500,7 @@ export function CashierHistory() {
                 className="text-gray-600 dark:text-gray-400 whitespace-nowrap"
               >
                 <Square className="h-4 w-4 mr-2" />
-                Unselect All
+                {t("history_unselect_all")}
               </Button>
             </div>
           )}
@@ -1517,12 +1528,12 @@ export function CashierHistory() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
-                    <TableHead>Order #</TableHead>
-                    <TableHead>Waiter</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Order Items</TableHead>
-                    <TableHead className="w-32">Actions</TableHead>
+                    <TableHead>{t("history_col_order")}</TableHead>
+                    <TableHead>{t("history_col_waiter")}</TableHead>
+                    <TableHead>{t("history_col_total")}</TableHead>
+                    <TableHead>{t("history_col_status")}</TableHead>
+                    <TableHead>{t("history_col_items")}</TableHead>
+                    <TableHead className="w-32">{t("history_col_actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1532,7 +1543,7 @@ export function CashierHistory() {
                         colSpan={7}
                         className="text-center py-8 text-gray-500 dark:text-gray-400"
                       >
-                        No orders found
+                        {t("history_no_orders")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -1591,11 +1602,11 @@ export function CashierHistory() {
                           <TableCell className="font-medium">
                             {o.orderNumber}
                           </TableCell>
-                          <TableCell>{o.waiterName || "N/A"}</TableCell>
+                          <TableCell>{o.waiterName || t("history_na")}</TableCell>
                           <TableCell>{o.totalPrice.toFixed(2)} Br</TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(o.status)}>
-                              {getStatusBadgeText(
+                              {tStatus(
                                         o.backendStatus,
                                         o.paymentMethod as
                                           | "cash"
@@ -1604,7 +1615,7 @@ export function CashierHistory() {
                                       )}
                             </Badge>
                           </TableCell>
-                          <TableCell>{o.firstItemName || "N/A"}</TableCell>
+                          <TableCell>{o.firstItemName || t("history_na")}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Button
@@ -1657,7 +1668,7 @@ export function CashierHistory() {
                                       <SelectItem value={o.backendStatus}>
                                         <div className="flex items-center gap-2">
                                           {getStatusIcon(o.backendStatus)}
-                                          {getStatusBadgeText(
+                                          {tStatus(
                                         o.backendStatus,
                                         o.paymentMethod as
                                           | "cash"
@@ -1674,7 +1685,7 @@ export function CashierHistory() {
                                           <div className="flex items-center justify-between gap-2 w-full">
                                             <div className="flex items-center gap-2">
                                               {getStatusIcon(status)}
-                                              {getStatusBadgeText(status)}
+                                              {tStatus(status)}
                                             </div>
                                             {(status === "PAID_TO_CASHIER" ||
                                               status === "PAID_WITHOUT_PRINT" ||

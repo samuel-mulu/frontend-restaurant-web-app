@@ -18,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useLanguage } from "@/hooks/useLanguage";
+import { useCalendarSystem, formatDateWithSystem } from "@/hooks/useCalendarSystem";
 import { useCreateExpenseMutation } from "@/stores/features/statistics/statisticsApi";
 import { Plus } from "lucide-react";
 import { useState } from "react";
@@ -30,6 +32,8 @@ interface WithdrawalModalProps {
 }
 
 export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger }: WithdrawalModalProps) {
+  const { t } = useLanguage();
+  const { calSystem } = useCalendarSystem();
   const [isOpen, setIsOpen] = useState(false);
   const [isPinVerified, setIsPinVerified] = useState(false);
   const [pin, setPin] = useState("");
@@ -109,7 +113,7 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
         {trigger || (
           <Button className="gap-2 shadow-sm bg-rose-600 hover:bg-rose-700 text-white border-none">
             <Plus className="h-4 w-4" />
-            Record Cashout
+            {t("cashout_record")}
           </Button>
         )}
       </div>
@@ -119,20 +123,20 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
           {!isPinVerified ? (
             <>
               <DialogHeader>
-                <DialogTitle>Verify PIN</DialogTitle>
+                <DialogTitle>{t("cashout_verify_pin_title")}</DialogTitle>
                 <DialogDescription>
-                  Enter the owner's PIN code to proceed with recording a cashout.
+                  {t("cashout_verify_pin_desc")}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="pin" className="text-sm font-semibold">
-                    PIN Code
+                    {t("cashout_pin_label")}
                   </Label>
                   <Input
                     id="pin"
                     type="password"
-                    placeholder="Enter PIN"
+                    placeholder={t("cashout_pin_placeholder")}
                     className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-50"
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
@@ -142,30 +146,25 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsOpen(false)}>
-                  Cancel
+                  {t("cashout_cancel")}
                 </Button>
                 <Button onClick={handleVerifyPin} className="bg-primary hover:bg-primary/90">
-                  Verify PIN
+                  {t("cashout_verify_btn")}
                 </Button>
               </DialogFooter>
             </>
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>Record Cashout / Expense</DialogTitle>
+                <DialogTitle>{t("cashout_title")}</DialogTitle>
                 <DialogDescription>
-                  Record withdrawals or other expenses for {selectedDate.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}.
+                  {formatDateWithSystem(calSystem, selectedDate)}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="amount" className="text-sm font-semibold">
-                    Amount (ETB)
+                    {t("cashout_amount_label")}
                   </Label>
                   <Input
                     id="amount"
@@ -178,28 +177,28 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="reason" className="text-sm font-semibold">
-                    Reason
+                    {t("cashout_reason_label")}
                   </Label>
                   <Select
                     value={newExpense.reason}
                     onValueChange={(v) => setNewExpense({ ...newExpense, reason: v })}
                   >
                     <SelectTrigger id="reason">
-                      <SelectValue placeholder="Select reason" />
+                      <SelectValue placeholder={t("cashout_reason_placeholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="withdrawal">General Withdrawal</SelectItem>
-                      <SelectItem value="inventory">Inventory Purchase</SelectItem>
-                      <SelectItem value="salary_advance">Salary Advance</SelectItem>
-                      <SelectItem value="broke_products">Broke Products</SelectItem>
-                      <SelectItem value="utility">Utilities / Repairs</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="withdrawal">{t("cashout_reason_withdrawal")}</SelectItem>
+                      <SelectItem value="inventory">{t("cashout_reason_inventory")}</SelectItem>
+                      <SelectItem value="salary_advance">{t("cashout_reason_salary")}</SelectItem>
+                      <SelectItem value="broke_products">{t("cashout_reason_broke")}</SelectItem>
+                      <SelectItem value="utility">{t("cashout_reason_utility")}</SelectItem>
+                      <SelectItem value="other">{t("cashout_reason_other")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="expenseType" className="text-sm font-semibold">
-                    Expense Type
+                    {t("cashout_expense_type_label")}
                   </Label>
                   <Select
                     value={newExpense.expenseType}
@@ -218,11 +217,11 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="description" className="text-sm font-semibold">
-                    Description (Optional)
+                    {t("cashout_description_label")}
                   </Label>
                   <Input
                     id="description"
-                    placeholder="Additional details..."
+                    placeholder={t("cashout_description_placeholder")}
                     value={newExpense.description}
                     className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-50"
                     onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
@@ -231,14 +230,14 @@ export function WithdrawalModal({ onSuccess, selectedDate = new Date(), trigger 
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsOpen(false)}>
-                  Cancel
+                  {t("cashout_cancel")}
                 </Button>
                 <Button
                   onClick={handleAddExpense}
                   disabled={isCreatingExpense}
                   className="bg-rose-600 hover:bg-rose-700 text-white"
                 >
-                  {isCreatingExpense ? "Recording..." : "Save Transaction"}
+                  {isCreatingExpense ? t("cashout_saving") : t("cashout_save")}
                 </Button>
               </DialogFooter>
             </>

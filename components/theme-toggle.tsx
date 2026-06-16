@@ -5,10 +5,12 @@ import { useTheme } from "next-themes"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
+import { useLanguage } from "@/hooks/useLanguage"
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
+  const { t } = useLanguage()
 
   // Avoid hydration mismatch
   React.useEffect(() => {
@@ -34,14 +36,14 @@ export function ThemeToggle() {
         <>
           <Moon className="h-5 w-5 mr-3" />
           <span className="text-sm font-lato leading-[22px] tracking-normal align-middle">
-            Dark Mode
+            {t("sidebar_dark_mode")}
           </span>
         </>
       ) : (
         <>
           <Sun className="h-5 w-5 mr-3" />
           <span className="text-sm font-lato leading-[22px] tracking-normal align-middle">
-            Light Mode
+            {t("sidebar_light_mode")}
           </span>
         </>
       )}

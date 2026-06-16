@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { clearCart, loadCart, saveCart } from "@/lib/cart-storage";
+import { useLanguage } from "@/hooks/useLanguage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Menu } from "@/lib/menu-store";
 import { Category, Inventory } from "@/lib/types";
@@ -91,6 +92,7 @@ export default function OrderPage() {
     redirectTo: "/",
   });
 
+  const { t } = useLanguage();
   const restoredFromStorageRef = React.useRef(false);
   const [cart, setCart] = React.useState<CartItem[]>(() => {
     const stored = loadCart() as CartItem[] | null;
@@ -546,11 +548,11 @@ export default function OrderPage() {
         <div className="lg:col-span-3 bg-card rounded-lg shadow-sm border border-border">
           <div className="px-6 pt-5 pb-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <h2 className="text-2xl font-semibold">Create Order</h2>
+              <h2 className="text-2xl font-semibold">{t("create_order_title")}</h2>
               <div className="relative w-full max-w-sm">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Search by name..."
+                  placeholder={t("create_order_search_placeholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 rounded-full h-10 border-border bg-background focus:ring-primary/20"
@@ -562,8 +564,8 @@ export default function OrderPage() {
               onValueChange={(v) => setActiveTab(v as "menu" | "inventory")}
             >
               <TabsList className="grid w-full max-w-md grid-cols-2 mb-4">
-                <TabsTrigger value="menu">Menu Items</TabsTrigger>
-                <TabsTrigger value="inventory">Inventory Items</TabsTrigger>
+                <TabsTrigger value="menu">{t("create_order_menu_items")}</TabsTrigger>
+                <TabsTrigger value="inventory">{t("create_order_inventory_items")}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="menu" className="mt-0">
@@ -576,11 +578,11 @@ export default function OrderPage() {
                         : "text-muted-foreground hover:text-foreground hover:bg-accent"
                     }`}
                   >
-                    All Categories
+                    {t("create_order_all_categories")}
                   </button>
                   {categoriesLoading ? (
                     <div className="text-muted-foreground text-sm">
-                      Loading categories...
+                      {t("create_order_loading_categories")}
                     </div>
                   ) : (
                     categories
@@ -631,15 +633,15 @@ export default function OrderPage() {
                 <div className="divide-y divide-border mt-4">
                   {itemsLoading ? (
                     <div className="px-6 py-8 text-center text-muted-foreground">
-                      Loading items...
+                      {t("create_order_loading_items")}
                     </div>
                   ) : itemsError ? (
                     <div className="px-6 py-8 text-center text-destructive">
-                      Failed to load items
+                      {t("create_order_failed_items")}
                     </div>
                   ) : items.length === 0 ? (
                     <div className="px-6 py-8 text-center text-muted-foreground">
-                      No items available
+                      {t("create_order_no_items")}
                     </div>
                   ) : (
                     visibleMenuItems.map((item: Menu) => (
@@ -688,7 +690,7 @@ export default function OrderPage() {
                                 aria-label={`Add ${item.name}`}
                               >
                                 <Plus size={16} className="mr-1.5" />
-                                Add Item
+                                {t("create_order_add_item")}
                               </Button>
                             </div>
                           </div>
@@ -709,11 +711,11 @@ export default function OrderPage() {
                         : "text-muted-foreground hover:text-foreground hover:bg-accent"
                     }`}
                   >
-                    All Categories
+                    {t("create_order_all_categories")}
                   </button>
                   {categoriesLoading ? (
                     <div className="text-muted-foreground text-sm">
-                      Loading categories...
+                      {t("create_order_loading_categories")}
                     </div>
                   ) : (
                     categories
@@ -765,15 +767,15 @@ export default function OrderPage() {
                 <div className="divide-y divide-border mt-4">
                   {inventoryLoading ? (
                     <div className="px-6 py-8 text-center text-muted-foreground">
-                      Loading inventory...
+                      {t("create_order_loading_inventory")}
                     </div>
                   ) : inventoryError ? (
                     <div className="px-6 py-8 text-center text-destructive">
-                      Failed to load inventory
+                      {t("create_order_failed_inventory")}
                     </div>
                   ) : inventoryItems.length === 0 ? (
                     <div className="px-6 py-8 text-center text-muted-foreground">
-                      No inventory items available
+                      {t("create_order_no_inventory")}
                     </div>
                   ) : (
                     visibleInventoryItems.map((item: Inventory) => {
@@ -800,7 +802,7 @@ export default function OrderPage() {
                                       className="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-200 dark:border-amber-800"
                                     >
                                       <AlertCircle className="h-3 w-3 mr-1" />
-                                      Low Stock
+                                      {t("create_order_low_stock")}
                                     </Badge>
                                   )}
                                   {isOutOfStock && (
@@ -808,7 +810,7 @@ export default function OrderPage() {
                                       variant="outline"
                                       className="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200 dark:border-red-800"
                                     >
-                                      Out of Stock
+                                      {t("create_order_out_of_stock")}
                                     </Badge>
                                   )}
                                 </div>
@@ -819,7 +821,7 @@ export default function OrderPage() {
                                 )}
                                 <div className="flex items-center gap-4 mt-2">
                                   <div className="text-sm text-muted-foreground">
-                                    <span className="font-medium">Stock:</span>{" "}
+                                    <span className="font-medium">{t("create_order_stock")}:</span>{" "}
                                     {item.quantity} {item.unit}
                                   </div>
                                   <div className="text-primary font-semibold text-base">
@@ -828,7 +830,7 @@ export default function OrderPage() {
                                 </div>
                                 <div className="flex items-center gap-2 mt-3">
                                   <label className="text-sm font-medium text-foreground">
-                                    Quantity:
+                                    {t("create_order_quantity")}:
                                   </label>
                                   <Input
                                     type="number"
@@ -850,7 +852,7 @@ export default function OrderPage() {
                                     disabled={isOutOfStock}
                                   />
                                   <span className="text-xs text-muted-foreground">
-                                    Max: {maxQuantity}
+                                    {t("create_order_max")}: {maxQuantity}
                                   </span>
                                 </div>
                               </div>
@@ -868,7 +870,7 @@ export default function OrderPage() {
                                   }
                                 >
                                   <Plus size={16} className="mr-1.5" />
-                                  Add Item
+                                  {t("create_order_add_item")}
                                 </Button>
                               </div>
                             </div>
@@ -887,7 +889,7 @@ export default function OrderPage() {
         <aside className="lg:col-span-2 bg-card rounded-lg shadow-sm border border-border px-6 py-2 flex flex-col h-fit max-h-[96vh] sticky top-4">
           <div className="flex justify-between items-center shrink-0">
             <h3 className="text-foreground text-2xl font-semibold">
-              Your Order
+              {t("create_order_your_order")}
             </h3>
             <Button
               size={"sm"}
@@ -902,7 +904,7 @@ export default function OrderPage() {
                 setInventoryQuantities({});
               }}
             >
-              Clear
+              {t("create_order_clear")}
             </Button>
           </div>
 
@@ -915,7 +917,7 @@ export default function OrderPage() {
                 disabled={loading}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select waiter" />
+                  <SelectValue placeholder={t("create_order_select_waiter")} />
                 </SelectTrigger>
                 <SelectContent>
                   {waiters
@@ -975,7 +977,7 @@ export default function OrderPage() {
                 disabled={loading}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select table (optional)" />
+                  <SelectValue placeholder={t("create_order_select_table")} />
                 </SelectTrigger>
                 <SelectContent>
                   {tables
@@ -1001,7 +1003,7 @@ export default function OrderPage() {
                             key={tableId || `table-${index}`}
                             value={tableId}
                           >
-                            Table {table.tableNumber}
+                            {t("create_order_table")} {table.tableNumber}
                           </SelectItem>
                         );
                       },
@@ -1013,7 +1015,7 @@ export default function OrderPage() {
 
           <div className="mt-3 px-1 flex items-center justify-between shrink-0">
             <div className="text-foreground font-semibold text-sm">
-              Total ({totalItems} {totalItems === 1 ? "item" : "items"})
+              {t("create_order_total")} ({totalItems} {totalItems === 1 ? t("create_order_item") : t("create_order_items")})
             </div>
             <div className="text-primary font-bold text-lg">
               Br {total.toFixed(2)}
@@ -1027,7 +1029,7 @@ export default function OrderPage() {
             <div className="space-y-4">
               {cart.length === 0 ? (
                 <div className="text-muted-foreground text-sm text-center py-8">
-                  Your cart is empty
+                  {t("create_order_cart_empty")}
                 </div>
               ) : (
                 <>
@@ -1035,7 +1037,7 @@ export default function OrderPage() {
                   {cart.filter((item) => item.type === "menu").length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-2">
-                        Menu Items
+                        {t("create_order_menu_items")}
                       </h4>
                       <div className="space-y-3">
                         {cart
@@ -1092,7 +1094,7 @@ export default function OrderPage() {
                     0 && (
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-2">
-                        Inventory Items
+                        {t("create_order_inventory_items")}
                       </h4>
                       <div className="space-y-3">
                         {cart
@@ -1119,7 +1121,7 @@ export default function OrderPage() {
                                   </p>
                                   {cartQty > availableQty && (
                                     <p className="text-xs text-destructive mt-1">
-                                      Available: {availableQty} {item.unit}
+                                      {t("create_order_available")}: {availableQty} {item.unit}
                                     </p>
                                   )}
                                 </div>
@@ -1169,11 +1171,11 @@ export default function OrderPage() {
 
           <div className="mt-2 shrink-0">
             <label className="text-sm font-medium text-foreground mb-2 block">
-              Order Note (Optional)
+              {t("create_order_order_note")}
             </label>
             <Input
               type="text"
-              placeholder="Add a note to this order..."
+              placeholder={t("create_order_note_placeholder")}
               value={orderNote}
               onChange={(e) => setOrderNote(e.target.value)}
               className="w-full"
@@ -1192,12 +1194,12 @@ export default function OrderPage() {
                   }}
                 />
                 <span className="text-sm font-medium text-foreground">
-                  Paid to Waiter
+                  {t("create_order_paid_to_waiter")}
                 </span>
               </label>
               {markAsPaidToCashier && (
                 <p className="text-xs text-muted-foreground mt-1 ml-6">
-                  Order will be created with &quot;Paid to Waiter&quot; status
+                  {t("create_order_paid_to_waiter_desc")}
                 </p>
               )}
             </div>
@@ -1212,14 +1214,14 @@ export default function OrderPage() {
                   }}
                 />
                 <span className="text-sm font-medium text-foreground">
-                  Paid to Cashier
+                  {t("create_order_paid_to_cashier")}
                 </span>
               </label>
               {markAsTransferredToOwner && (
                 <div className="mt-1 ml-6 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">
-                      Payment:
+                      {t("create_order_payment")}:
                     </span>
                     <PaymentMethodSelector
                       value={createOrderPaymentMethod}
@@ -1227,7 +1229,7 @@ export default function OrderPage() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Order will be created with &quot;Paid to Cashier&quot; status
+                    {t("create_order_paid_to_cashier_desc")}
                   </p>
                 </div>
               )}
@@ -1241,12 +1243,12 @@ export default function OrderPage() {
                   }
                 />
                 <span className="text-sm font-medium text-foreground">
-                  Without Print
+                  {t("create_order_without_print")}
                 </span>
               </label>
               {withoutPrint && (
                 <p className="text-xs text-muted-foreground mt-1 ml-6">
-                  Order will be created without printing a receipt
+                  {t("create_order_without_print_desc")}
                 </p>
               )}
             </div>
@@ -1258,7 +1260,7 @@ export default function OrderPage() {
             disabled={cart.length === 0 || !selectedWaiter || isCreatingOrder}
             className="mt-4 w-full rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0 h-10"
           >
-            {isCreatingOrder ? "Creating Order..." : "Create Order"}
+            {isCreatingOrder ? t("create_order_submitting") : t("create_order_submit")}
           </Button>
         </aside>
       </div>

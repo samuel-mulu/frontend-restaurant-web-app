@@ -25,6 +25,7 @@ import {
   useLazyGetOrderReceiptQuery,
 } from "@/stores/features/orders/ordersApi";
 import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -104,21 +105,14 @@ const getStatusBadge = (
   );
 };
 
-const formatDate = (dateString?: string): string => {
-  if (!dateString) return "N/A";
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  } catch {
-    return dateString;
-  }
-};
-
 export function OrderDetailsModal({
   orderId,
   open,
   onOpenChange,
 }: OrderDetailsModalProps) {
+  const { formatDate: formatCalendarDate } = useCalendarSystem();
+  const formatDate = (dateString?: string): string =>
+    dateString ? formatCalendarDate(dateString, { dateTime: true }) : "N/A";
   const {
     data: order,
     isLoading,

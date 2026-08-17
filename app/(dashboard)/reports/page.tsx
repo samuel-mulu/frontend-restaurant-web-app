@@ -909,7 +909,9 @@ export default function ReportsPage() {
     s.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 
   const generatePrintHTML = () => {
-    const currentDate = new Date().toLocaleString();
+    const currentDate = formatDateWithSystem(calSystem, new Date(), {
+      dateTime: true,
+    });
     const reportDate = formatDateWithSystem(
       calSystem,
       selectedDate,

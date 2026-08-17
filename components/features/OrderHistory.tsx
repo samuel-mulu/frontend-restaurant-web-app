@@ -48,6 +48,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { formatDateLocal } from "@/lib/date-utils";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
@@ -70,14 +71,8 @@ interface DisplayOrder {
   paymentMethod?: "cash" | "mobile_banking";
 }
 
-const formatDate = (date: string): string => {
-  try {
-    const d = new Date(date);
-    return formatDateLocal(d);
-  } catch {
-    return date.includes(" ") ? date.split(" ")[0] : date.split("T")[0];
-  }
-};
+const extractDates = (orders: DisplayOrder[]): string[] =>
+  [...new Set(orders.map((o) => formatDateLocal(o.date)))].sort().reverse();
 
 /**
  * Map backend status to frontend display status
@@ -176,13 +171,11 @@ function transformOrder(order: RTKOrder): DisplayOrder {
   };
 }
 
-const extractDates = (orders: DisplayOrder[]): string[] =>
-  [...new Set(orders.map((o) => formatDate(o.date)))].sort().reverse();
-
 // -------------------- Main Component -------------------- //
 export function OrderHistory() {
   const user = useSelector(selectUser);
   const userRole = user?.role || "waiter";
+  const { formatDate } = useCalendarSystem();
 
   const [roleView, setRoleView] = useState<"waiter" | "owner" | "all">("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -339,7 +332,7 @@ export function OrderHistory() {
       if (waiterFilter !== "all" && o.waiterId !== waiterFilter) return false;
 
       // Date filter
-      if (dateFilter !== "all" && formatDate(o.date) !== dateFilter)
+      if (dateFilter !== "all" && formatDateLocal(o.date) !== dateFilter)
         return false;
 
       // Role-based filtering
@@ -720,7 +713,7 @@ export function OrderHistory() {
                   <SelectItem value="all">All Dates</SelectItem>
                   {dates.map((d: string) => (
                     <SelectItem key={d} value={d}>
-                      {d}
+                      {formatDate(d, { short: true })}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -921,7 +914,7 @@ export function OrderHistory() {
                               {getStatusBadgeText(o.backendStatus, o.paymentMethod)}
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatDate(o.date)}</TableCell>
+                          <TableCell>{formatDate(o.date, { short: true })}</TableCell>
                           <TableCell>
                             {getAvailableStatuses(o.backendStatus, userRole)
                               .length > 0 ? (

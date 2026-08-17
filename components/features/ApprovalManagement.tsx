@@ -29,12 +29,14 @@ import {
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 
 interface ApprovalManagementProps {
   type: "menu" | "inventory";
 }
 
 export function ApprovalManagement({ type }: ApprovalManagementProps) {
+  const { formatDate } = useCalendarSystem();
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   // Menu items queries
@@ -315,7 +317,7 @@ export function ApprovalManagement({ type }: ApprovalManagementProps) {
                     </TableCell>
                     <TableCell>
                       {item.createdAt
-                        ? new Date(item.createdAt).toLocaleDateString()
+                        ? formatDate(item.createdAt, { short: true })
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right">

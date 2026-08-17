@@ -1,4 +1,5 @@
 import { brandReceiptText, branding } from "@/config/branding";
+import { formatDateWithSystem, getStoredCalendarSystem } from "@/lib/calendar";
 import {
     AvailableDevices,
     ConfigResponse,
@@ -75,7 +76,7 @@ export const posPrinterService = {
 ================================================
 
 TEST RECEIPT
-Date: ${new Date().toLocaleString()}
+Date: ${formatDateWithSystem(getStoredCalendarSystem(), new Date(), { dateTime: true })}
 
 This is a test print from the
 POS Printer Service Dashboard.

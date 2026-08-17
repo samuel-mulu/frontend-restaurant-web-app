@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 import React, { useEffect, useMemo, useState } from "react";
 // Textarea component - using Input for now, can be replaced with proper Textarea component
 import { CountdownProgress } from "@/components/features/CountdownProgress";
@@ -376,6 +377,7 @@ function SalaryForm({
 }
 
 export default function SalaryManagementPage() {
+  const { formatDate } = useCalendarSystem();
   const auth = useRequireAuth({
     allowedRoles: ["owner"],
     redirectTo: "/",
@@ -733,14 +735,6 @@ export default function SalaryManagementPage() {
     return "Unknown";
   };
 
-  const formatDate = (dateString: string): string => {
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
-    }
-  };
-
   // Delete handler
   const handleDeleteClick = (salary: Salary) => {
     setSalaryToDelete(salary);
@@ -1035,7 +1029,7 @@ export default function SalaryManagementPage() {
                         <TableCell>
                           {salary.createdAt ? (
                             <span className="text-sm font-medium">
-                              {salary.createdAt.split("T")[0]}
+                              {formatDate(salary.createdAt, { short: true })}
                             </span>
                           ) : (
                             <span className="text-gray-400">-</span>
@@ -1044,7 +1038,7 @@ export default function SalaryManagementPage() {
                         <TableCell>
                           {salary.paymentDate ? (
                             <span className="text-sm font-medium">
-                              {salary.paymentDate.split("T")[0]}
+                              {formatDate(salary.paymentDate, { short: true })}
                             </span>
                           ) : (
                             <span className="text-gray-400">-</span>
@@ -1237,7 +1231,7 @@ export default function SalaryManagementPage() {
                     nextPaymentDate={countdown.nextPaymentDate.gregorian}
                   />
                   <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    <p>Registered: {countdown.registeredDateGregorian?.split("T")[0] || countdown.registeredDate}</p>
+                    <p>Registered: {formatDate(countdown.registeredDateGregorian || countdown.registeredDate, { short: true })}</p>
                     <p>
                       Period:{" "}
                       {countdown.salaryPeriod === "monthly"
@@ -1246,7 +1240,7 @@ export default function SalaryManagementPage() {
                     </p>
                     <p>
                       Next Payment:{" "}
-                      {countdown.nextPaymentDate.gregorian.split("T")[0]}
+                      {formatDate(countdown.nextPaymentDate.gregorian, { short: true })}
                     </p>
                   </div>
                 </div>

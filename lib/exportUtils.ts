@@ -1,4 +1,5 @@
 import { branding } from "@/config/branding";
+import { formatDateWithSystem, getStoredCalendarSystem } from "@/lib/calendar";
 
 /**
  * Utility to format report data into a text format suitable for thermal printers
@@ -128,7 +129,7 @@ export function formatReportForThermal(data: ReportData): string {
   }
   
   text += `\n\n${centerAlign("END OF REPORT")}\n`;
-  text += `${centerAlign(new Date().toLocaleString())}\n\n\n\n\n`; // Extra spacing for tear-off
+  text += `${centerAlign(formatDateWithSystem(getStoredCalendarSystem(), new Date(), { dateTime: true }))}\n\n\n\n\n`;
   
   return text;
 }

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 
 export interface Withdrawal {
   _id?: string;
@@ -46,13 +47,7 @@ export function WithdrawalHistory({
   onDelete,
   isLoading = false,
 }: WithdrawalHistoryProps) {
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
-    }
-  };
+  const { formatDate } = useCalendarSystem();
 
   const totalWithdrawals = withdrawals.reduce((sum, w) => sum + w.amount, 0);
 
@@ -91,7 +86,7 @@ export function WithdrawalHistory({
             {withdrawals.map((withdrawal) => (
               <TableRow key={withdrawal._id || withdrawal.id}>
                 <TableCell className="text-sm">
-                  {formatDate(withdrawal.createdAt)}
+                  {formatDate(withdrawal.createdAt, { short: true })}
                 </TableCell>
                 <TableCell className="font-medium text-red-600 dark:text-red-400">
                   {withdrawal.amount.toFixed(2)} Br

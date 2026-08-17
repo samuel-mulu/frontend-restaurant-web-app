@@ -37,8 +37,10 @@ import { useSelector } from "react-redux";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 
 export default function ProfilePage() {
+  const { formatDate } = useCalendarSystem();
   const user = useSelector(selectUser);
   const { data: profileData, isLoading, error, refetch } = useGetProfileQuery();
   const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
@@ -181,20 +183,6 @@ export default function ProfilePage() {
     );
   }
 
-  const formatDate = (date?: Date | string) => {
-    if (!date) return "N/A";
-    try {
-      const d = typeof date === "string" ? new Date(date) : date;
-      return d.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch {
-      return "N/A";
-    }
-  };
-
   const getRoleDisplay = (role?: string) => {
     if (!role) return "N/A";
     return role.charAt(0).toUpperCase() + role.slice(1);
@@ -292,7 +280,9 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-md border dark:border-gray-700">
                   <Calendar className="h-4 w-4 text-gray-400" />
                   <span className="text-gray-900 dark:text-white">
-                    {formatDate(displayUser.createdAt)}
+                    {displayUser.createdAt
+                      ? formatDate(displayUser.createdAt)
+                      : "N/A"}
                   </span>
                 </div>
               </div>

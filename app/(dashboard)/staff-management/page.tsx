@@ -31,6 +31,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 import { cn } from "@/lib/utils";
 import {
     useCreateStaffMutation,
@@ -474,6 +475,7 @@ function StaffForm({
 }
 
 export default function StaffManagementPage() {
+  const { formatDate } = useCalendarSystem();
   // Route protection - Owners and cashiers can access this page
   const auth = useRequireAuth({
     allowedRoles: ["owner", "cashier"],
@@ -856,19 +858,6 @@ export default function StaffManagementPage() {
     }
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "N/A";
-    try {
-      return new Date(dateString).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
   const formatRole = (role: string) => {
     return role.charAt(0).toUpperCase() + role.slice(1);
   };
@@ -1029,7 +1018,7 @@ export default function StaffManagementPage() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Created: {formatDate(staffMember.createdAt)}
+                Created: {staffMember.createdAt ? formatDate(staffMember.createdAt, { short: true }) : "N/A"}
               </p>
             </div>
           ))}
@@ -1099,7 +1088,7 @@ export default function StaffManagementPage() {
                       {staffMember.salary?.toFixed(2)} Br
                     </TableCell>
                     <TableCell className="py-1.5 pl-1 pr-1">
-                      {formatDate(staffMember.createdAt)}
+                      {staffMember.createdAt ? formatDate(staffMember.createdAt, { short: true }) : "N/A"}
                     </TableCell>
                     <TableCell className="py-1.5 pl-1">
                       <div className="flex gap-2">

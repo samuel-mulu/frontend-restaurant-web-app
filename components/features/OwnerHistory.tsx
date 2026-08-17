@@ -30,11 +30,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 import { formatDateLocal } from "@/lib/date-utils";
-import {
-  formatEthiopianDate,
-  gregorianToEthiopian,
-} from "@/lib/utils/ethiopianCalendar";
 import {
   OrderItem,
   OrderStatus,
@@ -163,26 +160,6 @@ type StaffOption = {
   name: string;
 };
 
-const formatDate = (date?: string) => {
-  if (!date) return "—";
-  return formatDateLocal(new Date(date));
-};
-
-// Date conversion helper for Ethiopian calendar
-const formatDateForDisplay = (date: string | undefined, mode: "gregorian" | "ethiopian"): string => {
-  if (!date) return "—";
-  try {
-    const gregorianDate = new Date(date);
-    if (mode === "ethiopian") {
-      const ethiopianDate = gregorianToEthiopian(gregorianDate);
-      return formatEthiopianDate(ethiopianDate);
-    }
-    return formatDate(date);
-  } catch {
-    return formatDate(date);
-  }
-};
-
 const getDateRange = () => {
   const today = new Date();
   const startOfWeek = new Date(today);
@@ -191,30 +168,18 @@ const getDateRange = () => {
 
   return {
     today: {
-      start: formatDate(today.toISOString()),
-      end: formatDate(today.toISOString()),
+      start: formatDateLocal(today),
+      end: formatDateLocal(today),
     },
     thisWeek: {
-      start: formatDate(startOfWeek.toISOString()),
-      end: formatDate(today.toISOString()),
+      start: formatDateLocal(startOfWeek),
+      end: formatDateLocal(today),
     },
     thisMonth: {
-      start: formatDate(startOfMonth.toISOString()),
-      end: formatDate(today.toISOString()),
+      start: formatDateLocal(startOfMonth),
+      end: formatDateLocal(today),
     },
   };
-};
-
-const formatDateTime = (date?: string) => {
-  if (!date) return "—";
-  return new Date(date).toLocaleString(undefined, {
-    weekday: "short",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 };
 
 const formatCurrency = (amount: number) =>
@@ -260,6 +225,7 @@ const getErrorMessage = (err: unknown) => {
 // -------------------- Main Component -------------------- //
 
 export function OwnerHistory() {
+  const { formatDate } = useCalendarSystem();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [cashierFilter, setCashierFilter] = useState("all");
@@ -275,7 +241,6 @@ export function OwnerHistory() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [calendarMode, setCalendarMode] = useState<"gregorian" | "ethiopian">("gregorian");
   const prevFiltersRef = useRef({
     statusFilter,
     cashierFilter,
@@ -698,30 +663,6 @@ export function OwnerHistory() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg border bg-white dark:bg-slate-800 p-1">
-              <Button
-                variant={calendarMode === "gregorian" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCalendarMode("gregorian")}
-                className={`h-7 px-3 text-xs ${calendarMode === "gregorian"
-                  ? "bg-blue-600 hover:bg-blue-700 text-white"
-                  : "text-gray-600 dark:text-gray-400"
-                  }`}
-              >
-                Gregorian
-              </Button>
-              <Button
-                variant={calendarMode === "ethiopian" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCalendarMode("ethiopian")}
-                className={`h-7 px-3 text-xs ${calendarMode === "ethiopian"
-                  ? "bg-blue-600 hover:bg-blue-700 text-white"
-                  : "text-gray-600 dark:text-gray-400"
-                  }`}
-              >
-                Ethiopian
-              </Button>
-            </div>
             <Select
               value={dateRangePreset}
               onValueChange={handleDateRangePresetChange}
@@ -1011,7 +952,7 @@ export function OwnerHistory() {
                               <span className="ml-1">{o.statusText}</span>
                             </Badge>
                           </TableCell>
-                          <TableCell>{formatDateForDisplay(o.date, calendarMode)}</TableCell>
+                          <TableCell>{formatDate(o.date, { short: true })}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Button
@@ -1176,9 +1117,7 @@ export function OwnerHistory() {
                     #{detailOrder.orderNumber || detailOrder.id.slice(-6)}
                   </DialogTitle>
                   <DialogDescription>
-                    {calendarMode === "ethiopian"
-                      ? formatDateForDisplay(detailOrder.date, calendarMode)
-                      : formatDateTime(detailOrder.date)}
+                    {formatDate(detailOrder.date, { dateTime: true })}
                   </DialogDescription>
                   <p className="text-xs">
                     <span className="font-bold">Table </span> -{" "}

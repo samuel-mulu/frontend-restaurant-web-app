@@ -88,4 +88,10 @@ describe("ICU / JDN Ethiopian calendar", () => {
       formatEthiopianDate(actual),
     );
   });
+
+  test("missing dates format as an em dash", () => {
+    expect(formatDateWithSystem("gc", undefined)).toBe("—");
+    expect(formatDateWithSystem("ec", null)).toBe("—");
+    expect(formatDateWithSystem("gc", "")).toBe("—");
+  });
 });

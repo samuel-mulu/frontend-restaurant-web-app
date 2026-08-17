@@ -301,9 +301,12 @@ function toAddisInstant(input: Date | string): Date {
  */
 export function formatDateWithSystem(
   calSystem: CalendarSystem,
-  date: Date | string,
+  date: Date | string | null | undefined,
   options?: FormatDateOptions,
 ): string {
+  if (date == null || date === "") {
+    return "—";
+  }
   try {
     const instant = toAddisInstant(date);
 
@@ -371,7 +374,7 @@ export function formatDateWithSystem(
       timeZone: ADDIS_TIMEZONE,
     }).format(instant);
   } catch {
-    return typeof date === "string" ? date : String(date);
+    return typeof date === "string" ? date : "—";
   }
 }
 

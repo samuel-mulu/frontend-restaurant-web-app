@@ -14,7 +14,10 @@ interface CalendarSystemContextValue {
   calSystem: CalendarSystem;
   setCalSystem: (cal: CalendarSystem) => void;
   formattedDate: string;
-  formatDate: (date: Date | string, options?: FormatDateOptions) => string;
+  formatDate: (
+    date: Date | string | null | undefined,
+    options?: FormatDateOptions,
+  ) => string;
 }
 
 const CalendarSystemContext =
@@ -51,8 +54,10 @@ export function CalendarSystemProvider({
     localStorage.setItem(CALENDAR_STORAGE_KEY, cal);
   };
 
-  const formatDate = (date: Date | string, options?: FormatDateOptions) =>
-    formatDateWithSystem(calSystem, date, options);
+  const formatDate = (
+    date: Date | string | null | undefined,
+    options?: FormatDateOptions,
+  ) => formatDateWithSystem(calSystem, date, options);
 
   return (
     <CalendarSystemContext.Provider

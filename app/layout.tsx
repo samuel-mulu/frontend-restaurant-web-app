@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     default: branding.name,
     template: `%s | ${branding.name}`,
   },
-  description: `${branding.name} — lounge management for POS, inventory, and orders`,
+  description: `${branding.name} — juice-house management for POS, inventory, and orders`,
   openGraph: {
     title: branding.name,
     type: "website",

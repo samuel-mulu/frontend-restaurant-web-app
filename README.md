@@ -1,8 +1,8 @@
-# Tekeze Hidat Lounge — Frontend
+# 3T Juice House — Frontend
 
-Next.js frontend for **Tekeze Hidat Lounge**: lounge management for POS, menus, inventory, orders, analytics, and reporting.
+Next.js frontend for **3T Juice House**: juice-house management for POS, menus, inventory, orders, analytics, and reporting.
 
-The production lounge name is set in one place: [`config/branding.ts`](./config/branding.ts) → `LOUNGE_NAME`.
+The production name is set in one place: [`config/branding.ts`](./config/branding.ts) → `LOUNGE_NAME`.
 
 ## Getting Started
 
@@ -45,7 +45,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 - `app/` - Next.js app router pages
 - `components/features/` - Feature-specific React components
-- `config/branding.ts` - Lounge name, assets, and receipt branding
+- `config/branding.ts` - Juice house name, assets, and receipt branding
 - `lib/` - Utilities, offline sync, and export helpers
 - `stores/` - Redux Toolkit API slices
 
@@ -61,13 +61,13 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - **Cashier View** - Point-of-sale interface for creating orders
 - **Order History** - View and filter past orders
 - **Product Management** - Manage inventory products
-- **Analytics & Reports** - Lounge performance dashboards and PDF/thermal exports
+- **Analytics & Reports** - Performance dashboards and PDF/thermal exports
 
 ## Assets
 
 Replace placeholder images in `public/` with production assets (paths are set in `config/branding.ts`):
 
-- `public/logo1.jpg` — lounge logo
+- `public/logo1.png` — juice house logo
 - `public/background.jpg` — login page background
 
 ## Learn More

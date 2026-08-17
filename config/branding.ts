@@ -1,7 +1,7 @@
 /**
- * Production lounge name — change this one value to rebrand the app.
+ * Juice house name — change this one value to rebrand the app.
  */
-export const LOUNGE_NAME = "Tekeze Hidat Lounge";
+export const LOUNGE_NAME = "3T Juice House";
 
 export const branding = {
   name: LOUNGE_NAME,
@@ -11,14 +11,13 @@ export const branding = {
 
 /** Legacy / old names replaced with the production name on receipts. */
 const LEGACY_RECEIPT_NAMES = [
-  "3T JUICE",
-  "3T Juice",
   "kandino's kitchen",
   "Kandino's Kitchen",
   "Restaurant & Lounge",
   "TEKEZE HIDAT MANAGEMENT SYSTEM",
   "Tekeze Hidat Management System",
   "TEKEZE HIDAT",
+  "Tekeze Hidat Lounge",
   "Tekeze Hidat",
 ] as const;
 

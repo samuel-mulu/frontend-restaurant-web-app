@@ -137,7 +137,7 @@ type OwnerOrderRow = {
   orderNumber?: string;
   tableNumber?: string | number;
   totalPrice: number;
-  date?: string;
+  date: string;
   waiterName?: string;
   cashierName?: string;
   backendStatus: OrderStatus;

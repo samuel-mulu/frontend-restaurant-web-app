@@ -172,14 +172,15 @@ export const createStaffSchema = z
       .min(6, "Password must be at least 6 characters")
       .optional(),
     phone: phoneSchema.optional().nullable(),
-    role: z.enum(["cashier", "waiter", "staff"]),
+    role: z.enum(["cashier", "waiter", "staff", "barman"]),
     salary: z.number().min(0, "Salary must be non-negative"),
   })
   .refine(
     (data) => {
-      // Password is required for cashier and waiter roles
       if (
-        (data.role === "cashier" || data.role === "waiter") &&
+        (data.role === "cashier" ||
+          data.role === "waiter" ||
+          data.role === "barman") &&
         !data.password
       ) {
         return false;
@@ -187,15 +188,16 @@ export const createStaffSchema = z
       return true;
     },
     {
-      message: "Password is required for cashier and waiter roles",
+      message: "Password is required for cashier, waiter, and barman roles",
       path: ["password"],
     }
   )
   .refine(
     (data) => {
-      // Phone is required for cashier and waiter roles
       if (
-        (data.role === "cashier" || data.role === "waiter") &&
+        (data.role === "cashier" ||
+          data.role === "waiter" ||
+          data.role === "barman") &&
         (!data.phone || !data.phone.trim())
       ) {
         return false;
@@ -203,7 +205,7 @@ export const createStaffSchema = z
       return true;
     },
     {
-      message: "Phone is required for cashier and waiter roles",
+      message: "Phone is required for cashier, waiter, and barman roles",
       path: ["phone"],
     }
   );
@@ -211,7 +213,7 @@ export const createStaffSchema = z
 export const updateStaffSchema = z.object({
   phone: phoneSchema.optional().nullable(),
   salary: z.number().min(0).optional(),
-  role: z.enum(["cashier", "waiter", "staff"]).optional(),
+  role: z.enum(["cashier", "waiter", "staff", "barman"]).optional(),
 });
 
 // ==================== SALARY VALIDATION ====================

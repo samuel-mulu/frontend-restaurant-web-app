@@ -55,7 +55,7 @@ import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-type StaffRole = "cashier" | "waiter" | "staff";
+type StaffRole = "cashier" | "waiter" | "staff" | "barman";
 
 interface FormData {
   name: string;
@@ -102,12 +102,18 @@ function StaffForm({
   mode,
 }: StaffFormProps) {
   const requiresPassword = useMemo(
-    () => formData.role === "cashier" || formData.role === "waiter",
+    () =>
+      formData.role === "cashier" ||
+      formData.role === "waiter" ||
+      formData.role === "barman",
     [formData.role],
   );
 
   const requiresPhone = useMemo(
-    () => formData.role === "cashier" || formData.role === "waiter",
+    () =>
+      formData.role === "cashier" ||
+      formData.role === "waiter" ||
+      formData.role === "barman",
     [formData.role],
   );
 
@@ -171,6 +177,7 @@ function StaffForm({
             <SelectContent>
               <SelectItem value="cashier">Cashier</SelectItem>
               <SelectItem value="waiter">Waiter</SelectItem>
+              <SelectItem value="barman">BarMan</SelectItem>
               <SelectItem value="staff">Staff</SelectItem>
             </SelectContent>
           </Select>
@@ -201,6 +208,7 @@ function StaffForm({
             <SelectContent>
               <SelectItem value="cashier">Cashier</SelectItem>
               <SelectItem value="waiter">Waiter</SelectItem>
+              <SelectItem value="barman">BarMan</SelectItem>
               <SelectItem value="staff">Staff</SelectItem>
             </SelectContent>
           </Select>
@@ -532,12 +540,18 @@ export default function StaffManagementPage() {
 
   // Determine if password and phone are required based on role
   const requiresPassword = useMemo(
-    () => formData.role === "cashier" || formData.role === "waiter",
+    () =>
+      formData.role === "cashier" ||
+      formData.role === "waiter" ||
+      formData.role === "barman",
     [formData.role],
   );
 
   const requiresPhone = useMemo(
-    () => formData.role === "cashier" || formData.role === "waiter",
+    () =>
+      formData.role === "cashier" ||
+      formData.role === "waiter" ||
+      formData.role === "barman",
     [formData.role],
   );
 
@@ -929,6 +943,7 @@ export default function StaffManagementPage() {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="cashier">Cashier</SelectItem>
                 <SelectItem value="waiter">Waiter</SelectItem>
+                <SelectItem value="barman">BarMan</SelectItem>
                 <SelectItem value="staff">Staff</SelectItem>
               </SelectContent>
             </Select>

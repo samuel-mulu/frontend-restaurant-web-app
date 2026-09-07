@@ -5,6 +5,7 @@ import {
   BarChart3,
   ClipboardCheck,
   History,
+  KeyRound,
   List,
   LogOut,
   Package,
@@ -67,6 +68,12 @@ const getNavigationItems = (role?: string) => {
       { nameKey: "nav_analytics" as const, href: "/analytics", icon: BarChart3 },
       { nameKey: "nav_reports" as const, href: "/reports", icon: ClipboardCheck },
       { nameKey: "nav_approvals" as const, href: "/approvals", icon: ClipboardCheck },
+      {
+        nameKey: "nav_barman_assignments" as const,
+        href: "/barman-assignments",
+        icon: ClipboardCheck,
+      },
+      { nameKey: "nav_password_config" as const, href: "/config", icon: KeyRound },
       ...baseItems,
     ];
   }
@@ -75,7 +82,26 @@ const getNavigationItems = (role?: string) => {
     return [
       { nameKey: "nav_create_order" as const, href: "/create-order", icon: ShoppingCart },
       { nameKey: "nav_printer" as const, href: "/printer", icon: Printer },
+      ...(role === "cashier"
+        ? [
+            {
+              nameKey: "nav_barman_assignments" as const,
+              href: "/barman-assignments",
+              icon: ClipboardCheck,
+            },
+          ]
+        : []),
       ...baseItems,
+    ];
+  }
+
+  if (role === "barman") {
+    return [
+      {
+        nameKey: "nav_barman_assignments" as const,
+        href: "/barman-assignments",
+        icon: ClipboardCheck,
+      },
     ];
   }
 
@@ -262,6 +288,8 @@ export function AppSidebar() {
                 ? t("role_cashier")
                 : user.role === "waiter"
                 ? t("role_waiter")
+                : user.role === "barman"
+                ? t("role_barman")
                 : user.role}
             </div>
           </div>

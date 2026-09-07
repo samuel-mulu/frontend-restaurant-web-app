@@ -32,8 +32,10 @@ import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { useCanManageResource } from "@/hooks/useCanManageResource";
 
 export default function CategoryManagement() {
+  const { canManage } = useCanManageResource("categories");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
@@ -231,6 +233,8 @@ export default function CategoryManagement() {
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    {canManage && (
+                      <>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -245,6 +249,8 @@ export default function CategoryManagement() {
                       itemName={category.name}
                       onConfirm={() => handleDelete(category.id)}
                     />
+                      </>
+                    )}
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -265,7 +271,9 @@ export default function CategoryManagement() {
                 <TableHead>Category Name</TableHead>
                 <TableHead>Products</TableHead>
                 <TableHead>Updated At</TableHead>
-                <TableHead className="w-24">Actions</TableHead>
+                {canManage && (
+                  <TableHead className="w-24">Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -282,6 +290,7 @@ export default function CategoryManagement() {
                     </TableCell>
                     <TableCell>{category.products}</TableCell>
                     <TableCell>{category.updatedAt}</TableCell>
+                    {canManage && (
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
@@ -300,6 +309,7 @@ export default function CategoryManagement() {
                         />
                       </div>
                     </TableCell>
+                    )}
                   </TableRow>
                 )
               )}

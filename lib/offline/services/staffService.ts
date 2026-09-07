@@ -13,7 +13,7 @@ export interface CreateStaffInput {
   email?: string | null;
   password?: string;
   phone?: string | null;
-  role: "cashier" | "waiter" | "staff";
+  role: "cashier" | "waiter" | "staff" | "barman";
   salary: number;
   clientId?: string;
 }
@@ -21,11 +21,11 @@ export interface CreateStaffInput {
 export interface UpdateStaffInput {
   phone?: string | null;
   salary?: number;
-  role?: "cashier" | "waiter" | "staff";
+  role?: "cashier" | "waiter" | "staff" | "barman";
 }
 
 export interface ListStaffFilters {
-  role?: "cashier" | "waiter" | "staff";
+  role?: "cashier" | "waiter" | "staff" | "barman";
   search?: string;
   page?: number;
   limit?: number;
@@ -132,8 +132,10 @@ export async function updateStaff(id: string, data: UpdateStaffInput): Promise<S
 
   // Validate role if provided
   if (validatedData.role) {
-    if (!["cashier", "waiter", "staff"].includes(validatedData.role)) {
-      const error: any = new Error("Role must be cashier, waiter, or staff");
+    if (!["cashier", "waiter", "staff", "barman"].includes(validatedData.role)) {
+      const error: any = new Error(
+        "Role must be cashier, waiter, staff, or barman",
+      );
       error.status = 400;
       throw error;
     }
@@ -236,8 +238,10 @@ export async function listStaff(filters: ListStaffFilters = {}): Promise<{
   if (filters.role) {
     query = query.filter((staff) => staff.role === filters.role);
   } else {
-    // Only staff roles (cashier, waiter, staff)
-    query = query.filter((staff) => ["cashier", "waiter", "staff"].includes(staff.role));
+    // Only staff roles (cashier, waiter, staff, barman)
+    query = query.filter((staff) =>
+      ["cashier", "waiter", "staff", "barman"].includes(staff.role),
+    );
   }
 
   // Exclude deleted
@@ -290,7 +294,7 @@ export async function getStaffById(id: string): Promise<StaffRecord | null> {
   }
 
   // Validate it's a staff member
-  if (!["cashier", "waiter", "staff"].includes(staff.role)) {
+  if (!["cashier", "waiter", "staff", "barman"].includes(staff.role)) {
     const error: any = new Error("User is not a staff member");
     error.status = 400;
     throw error;

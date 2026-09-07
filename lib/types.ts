@@ -30,6 +30,8 @@ export interface Inventory {
   price: number;
   description?: string;
   isLowStock?: boolean;
+  isBarman?: boolean;
+  availableQuantity?: number;
   approvalStatus?: "pendingapproval" | "approved" | "rejected";
   updatedAt: string;
 }

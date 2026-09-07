@@ -17,7 +17,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const auth = useRequireAuth({
-    allowedRoles: ["owner", "cashier", "waiter"],
+    allowedRoles: ["owner", "cashier", "waiter", "barman"],
     redirectTo: "/login",
   });
 

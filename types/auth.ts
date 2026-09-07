@@ -1,5 +1,5 @@
 // User roles as defined in backend
-export type Role = "owner" | "cashier" | "waiter";
+export type Role = "owner" | "cashier" | "waiter" | "barman";
 
 // User interface matching backend structure
 export interface User {

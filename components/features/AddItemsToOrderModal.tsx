@@ -34,6 +34,13 @@ type CartLine = {
   priceSnapshot: number;
 };
 
+function getInventoryAvailableQty(item: Inventory): number {
+  if (item.isBarman) {
+    return item.availableQuantity ?? 0;
+  }
+  return item.quantity;
+}
+
 function getOrderItemId(item: OrderItem): string {
   if (typeof item.itemId === "string") return item.itemId;
   if (!item.itemId) return "";
@@ -76,7 +83,7 @@ function AddItemsToOrderModalBody({
   });
 
   const { data: inventoryItems = [], isLoading: isInventoryLoading } =
-    useListInventoryQuery(undefined);
+    useListInventoryQuery({ forOrder: true });
 
   const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
   const [updateOrderStatus, { isLoading: isUpdatingStatus }] = useUpdateOrderStatusMutation();
@@ -144,9 +151,9 @@ function AddItemsToOrderModalBody({
       return;
     }
 
-    if (desiredQty > item.quantity) {
+    if (desiredQty > getInventoryAvailableQty(item)) {
       toast.error(
-        `Insufficient stock. Available: ${item.quantity} ${item.unit}`,
+        `Insufficient stock. Available: ${getInventoryAvailableQty(item)} ${item.unit}`,
       );
       return;
     }
@@ -160,9 +167,9 @@ function AddItemsToOrderModalBody({
       const existing = prev.find((l: CartLine) => l.itemId === item.id);
       if (existing) {
         const nextQty = existing.qty + desiredQty;
-        if (nextQty > item.quantity) {
+        if (nextQty > getInventoryAvailableQty(item)) {
           toast.error(
-            `Cannot add more. Available: ${item.quantity} ${item.unit}`,
+            `Cannot add more. Available: ${getInventoryAvailableQty(item)} ${item.unit}`,
           );
           return prev;
         }
@@ -196,9 +203,9 @@ function AddItemsToOrderModalBody({
         return prev.filter((l: CartLine) => l.itemId !== itemId);
       }
 
-      if (inv && nextQty > inv.quantity) {
+      if (inv && nextQty > getInventoryAvailableQty(inv)) {
         toast.error(
-          `Cannot increase quantity. Available: ${inv.quantity} ${inv.unit}`,
+          `Cannot increase quantity. Available: ${getInventoryAvailableQty(inv)} ${inv.unit}`,
         );
         return prev;
       }
@@ -225,9 +232,9 @@ function AddItemsToOrderModalBody({
 
     for (const line of cart) {
       const inv = inventoryById.get(line.itemId);
-      if (inv && line.qty > inv.quantity) {
+      if (inv && line.qty > getInventoryAvailableQty(inv)) {
         toast.error(
-          `Insufficient stock for ${inv.name}. Available: ${inv.quantity} ${inv.unit}, Requested: ${line.qty}`,
+          `Insufficient stock for ${inv.name}. Available: ${getInventoryAvailableQty(inv)} ${inv.unit}, Requested: ${line.qty}`,
         );
         return;
       }
@@ -302,9 +309,9 @@ function AddItemsToOrderModalBody({
 
     for (const line of cart) {
       const inv = inventoryById.get(line.itemId);
-      if (inv && line.qty > inv.quantity) {
+      if (inv && line.qty > getInventoryAvailableQty(inv)) {
         toast.error(
-          `Insufficient stock for ${inv.name}. Available: ${inv.quantity} ${inv.unit}, Requested: ${line.qty}`,
+          `Insufficient stock for ${inv.name}. Available: ${getInventoryAvailableQty(inv)} ${inv.unit}, Requested: ${line.qty}`,
         );
         return;
       }
@@ -499,7 +506,8 @@ function AddItemsToOrderModalBody({
                 ) : (
                   filteredInventoryItems.map((inv: Inventory) => {
                     const currentQty = inventoryQuantities[inv.id] || 1;
-                    const isOut = inv.quantity === 0;
+                    const availableQty = getInventoryAvailableQty(inv);
+                    const isOut = availableQty === 0;
                     return (
                       <div
                         key={inv.id}
@@ -529,7 +537,7 @@ function AddItemsToOrderModalBody({
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground mt-1">
-                            Stock: {inv.quantity} {inv.unit} ·{" "}
+                            Stock: {availableQty} {inv.unit} ·{" "}
                             {formatMoney(inv.price)}
                           </div>
                           <div className="mt-2 flex items-center gap-2">
@@ -539,13 +547,13 @@ function AddItemsToOrderModalBody({
                             <Input
                               type="number"
                               min={1}
-                              max={inv.quantity}
+                              max={availableQty}
                               value={currentQty}
                               onChange={(e) => {
                                 const n = parseInt(e.target.value) || 1;
                                 const clamped = Math.max(
                                   1,
-                                  Math.min(n, Math.max(1, inv.quantity)),
+                                  Math.min(n, Math.max(1, availableQty)),
                                 );
                                 setInventoryQuantities((p) => ({
                                   ...p,
@@ -560,7 +568,7 @@ function AddItemsToOrderModalBody({
                         <Button
                           size="sm"
                           onClick={() => addInventoryItem(inv)}
-                          disabled={isOut || currentQty > inv.quantity}
+                          disabled={isOut || currentQty > availableQty}
                           className="shrink-0"
                         >
                           <Plus className="h-4 w-4 mr-1" />
@@ -597,9 +605,13 @@ function AddItemsToOrderModalBody({
                 <div className="space-y-3">
                   {cart.map((line: CartLine) => {
                     const inv = inventoryById.get(line.itemId);
-                    const stockText = inv
-                      ? `Stock: ${inv.quantity} ${inv.unit}`
-                      : null;
+                    const available = inv
+                      ? getInventoryAvailableQty(inv)
+                      : undefined;
+                    const stockText =
+                      inv && available !== undefined
+                        ? `Stock: ${available} ${inv.unit}`
+                        : null;
 
                     return (
                       <div
@@ -614,7 +626,9 @@ function AddItemsToOrderModalBody({
                             {formatMoney(line.priceSnapshot)}
                             {stockText ? ` · ${stockText}` : ""}
                           </div>
-                          {inv && line.qty > inv.quantity && (
+                          {inv &&
+                            available !== undefined &&
+                            line.qty > available && (
                             <div className="text-xs text-destructive mt-1">
                               Requested exceeds stock
                             </div>

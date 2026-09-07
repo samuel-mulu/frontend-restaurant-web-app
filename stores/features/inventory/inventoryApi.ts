@@ -11,6 +11,8 @@ export interface InventoryResponse {
   quantity: number;
   unit: string;
   price: number;
+  isBarman?: boolean;
+  availableQuantity?: number;
   isLowStock?: boolean;
   stockStatus?: "low" | "normal";
   approvalStatus?: "pendingapproval" | "approved" | "rejected";
@@ -28,6 +30,7 @@ interface ApiResponse<T> {
 
 export interface InventoryListQuery {
   lowStock?: boolean;
+  forOrder?: boolean;
 }
 
 export interface CreateInventoryInput {
@@ -36,6 +39,7 @@ export interface CreateInventoryInput {
   quantity: number;
   unit: string;
   price: number;
+  isBarman?: boolean;
 }
 
 export interface UpdateInventoryInput {
@@ -44,6 +48,7 @@ export interface UpdateInventoryInput {
   quantity?: number;
   unit?: string;
   price?: number;
+  isBarman?: boolean;
 }
 
 /**
@@ -78,6 +83,13 @@ function transformInventory(item: any): Inventory {
     price: item.price ?? 0, // Fallback for migration period only
     description: item.description,
     isLowStock,
+    isBarman: Boolean(item.isBarman),
+    availableQuantity:
+      item.availableQuantity !== undefined
+        ? item.availableQuantity
+        : item.isBarman
+          ? 0
+          : item.quantity,
     approvalStatus: item.approvalStatus,
     updatedAt,
   };
@@ -89,6 +101,7 @@ export const inventoryApi = createApiEndpoints({
       query: (params) => {
         const queryParams = new URLSearchParams();
         if (params?.lowStock) queryParams.append("lowStock", "true");
+        if (params?.forOrder) queryParams.append("forOrder", "true");
 
         const qs = queryParams.toString();
         return {
@@ -157,6 +170,7 @@ export const inventoryApi = createApiEndpoints({
             quantity: body.quantity,
             unit: body.unit,
             price: body.price,
+            isBarman: body.isBarman,
             clientId,
           },
         };
@@ -179,6 +193,7 @@ export const inventoryApi = createApiEndpoints({
         if (data.quantity !== undefined) updateData.quantity = data.quantity;
         if (data.unit !== undefined) updateData.unit = data.unit;
         if (data.price !== undefined) updateData.price = data.price;
+        if (data.isBarman !== undefined) updateData.isBarman = data.isBarman;
 
         return {
           url: `/inventory/${id}`,

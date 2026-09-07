@@ -27,7 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Edit2, Filter, Loader2, Search, Trash2, X } from "lucide-react";
+import { Edit2, Filter, Loader2, Search, Trash2, UserPlus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -35,6 +35,7 @@ import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
+import { useCanManageResource } from "@/hooks/useCanManageResource";
 import { Inventory } from "@/lib/types";
 import {
   useCreateInventoryMutation,
@@ -42,6 +43,10 @@ import {
   useListInventoryQuery,
   useUpdateInventoryMutation,
 } from "@/stores/features/inventory/inventoryApi";
+import { useAssignInventoryMutation } from "@/stores/features/inventory/inventoryAssignmentsApi";
+import { useListStaffQuery } from "@/stores/features/staff/staffApi";
+import { selectUser } from "@/stores/features/auth/authSlice";
+import { useSelector } from "react-redux";
 
 interface InventoryFormData {
   name: string;
@@ -49,9 +54,14 @@ interface InventoryFormData {
   quantity: string;
   unit: string;
   price: string;
+  isBarman: boolean;
 }
 
 export function InventoryManagement() {
+  const { canManage } = useCanManageResource("inventory");
+  const user = useSelector(selectUser);
+  const canAssign =
+    user?.role === "owner" || user?.role === "cashier";
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingInventoryId, setEditingInventoryId] = useState<string | null>(
@@ -65,7 +75,11 @@ export function InventoryManagement() {
     quantity: "",
     unit: "",
     price: "",
+    isBarman: false,
   });
+  const [assignItem, setAssignItem] = useState<Inventory | null>(null);
+  const [assignBarmanId, setAssignBarmanId] = useState("");
+  const [assignQuantity, setAssignQuantity] = useState("");
 
   // Redux Toolkit hooks
   const {
@@ -75,11 +89,18 @@ export function InventoryManagement() {
     refetch: refetchInventory,
   } = useListInventoryQuery();
 
+  const { data: barmenData } = useListStaffQuery(
+    { role: "barman", limit: 100 },
+    { skip: !canAssign }
+  );
+
   const [createInventory, { isLoading: isCreating }] =
     useCreateInventoryMutation();
   const [updateInventory, { isLoading: isUpdating }] =
     useUpdateInventoryMutation();
   const [deleteInventory] = useDeleteInventoryMutation();
+  const [assignInventory, { isLoading: isAssigning }] =
+    useAssignInventoryMutation();
 
   const isSubmitting = isCreating || isUpdating;
   const isLoading = isLoadingInventory;
@@ -88,6 +109,7 @@ export function InventoryManagement() {
       ? (inventoryError.data as { message?: string })?.message ||
       "An error occurred"
       : null;
+  const barmen = barmenData?.staff || [];
 
   // Client-side filtering for search and low stock
   const filteredItems = useMemo(() => {
@@ -155,6 +177,7 @@ export function InventoryManagement() {
         quantity,
         unit: formData.unit.trim(),
         price,
+        isBarman: formData.isBarman,
       }).unwrap();
 
       resetForm();
@@ -180,6 +203,7 @@ export function InventoryManagement() {
         quantity: item.quantity.toString(),
         unit: item.unit,
         price: item.price.toString(),
+        isBarman: Boolean(item.isBarman),
       });
       setIsEditOpen(true);
     }
@@ -218,6 +242,7 @@ export function InventoryManagement() {
           quantity,
           unit: formData.unit.trim(),
           price,
+          isBarman: formData.isBarman,
         },
       }).unwrap();
 
@@ -281,7 +306,50 @@ export function InventoryManagement() {
       quantity: "",
       unit: "",
       price: "",
+      isBarman: false,
     });
+  };
+
+  const openAssignDialog = (item: Inventory) => {
+    setAssignItem(item);
+    setAssignBarmanId("");
+    setAssignQuantity("");
+  };
+
+  const handleAssign = async () => {
+    if (!assignItem) return;
+    if (!assignBarmanId) {
+      toast.error("Please select a barman");
+      return;
+    }
+    const qty = parseFloat(assignQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast.error("Please enter a valid quantity");
+      return;
+    }
+    if (qty > assignItem.quantity) {
+      toast.error(
+        `Quantity cannot exceed warehouse stock (${assignItem.quantity})`
+      );
+      return;
+    }
+
+    try {
+      await assignInventory({
+        inventoryId: assignItem.id,
+        barmanId: assignBarmanId,
+        assignedQuantity: qty,
+      }).unwrap();
+      toast.success("Assigned to barman successfully");
+      setAssignItem(null);
+      setAssignBarmanId("");
+      setAssignQuantity("");
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string }; message?: string };
+      toast.error(
+        error?.data?.message || error?.message || "Failed to assign inventory"
+      );
+    }
   };
 
   return (
@@ -292,13 +360,15 @@ export function InventoryManagement() {
             Inventory
           </h1>
         </div>
-        <Button
-          onClick={() => setIsCreateOpen(true)}
-          disabled={isLoading}
-          className={cn(isLoading ? "spin-in" : "")}
-        >
-          Create Inventory Item
-        </Button>
+        {canManage && (
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            disabled={isLoading}
+            className={cn(isLoading ? "spin-in" : "")}
+          >
+            Create Inventory Item
+          </Button>
+        )}
       </header>
 
       {error && !isLoading && (
@@ -390,6 +460,19 @@ export function InventoryManagement() {
                   )}
                 </div>
                 <div className="flex gap-2">
+                  {canAssign && item.isBarman && item.quantity > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => openAssignDialog(item)}
+                      title="Assign to BarMan"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canManage && (
+                    <>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -402,7 +485,7 @@ export function InventoryManagement() {
                     title="Delete Inventory Item?"
                     description="This action cannot be undone. This will permanently delete the inventory item"
                     itemName={item.name}
-                    expectedPin="1219"
+                    requireSecurityPin
                     onConfirm={() => handleDelete(item.id)}
                     trigger={
                       <Button
@@ -414,6 +497,8 @@ export function InventoryManagement() {
                       </Button>
                     }
                   />
+                    </>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
@@ -464,6 +549,11 @@ export function InventoryManagement() {
                           ? "Rejected"
                           : "—"}
                   </Badge>
+                  {item.isBarman && (
+                    <Badge variant="secondary" className="text-xs">
+                      BarMan
+                    </Badge>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <span className="text-gray-600 dark:text-gray-400">
@@ -504,9 +594,11 @@ export function InventoryManagement() {
                   <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
                     Approval
                   </TableHead>
-                  <TableHead className="w-auto min-w-[100px] pl-1 py-2">
-                    Actions
-                  </TableHead>
+                  {(canManage || canAssign) && (
+                    <TableHead className="w-auto min-w-[100px] pl-1 py-2">
+                      Actions
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -516,7 +608,14 @@ export function InventoryManagement() {
                     className="hover:bg-gray-50 dark:hover:bg-slate-700"
                   >
                     <TableCell className="font-medium py-1.5 pl-3 pr-0">
-                      {item.name}
+                      <div className="flex items-center gap-2">
+                        <span>{item.name}</span>
+                        {item.isBarman && (
+                          <Badge variant="secondary" className="text-xs">
+                            BarMan
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="py-1.5 pl-1 pr-2">
                       {item.quantity}
@@ -562,8 +661,22 @@ export function InventoryManagement() {
                               : "—"}
                       </Badge>
                     </TableCell>
+                    {canManage || canAssign ? (
                     <TableCell className="py-1.5 pl-1">
                       <div className="flex gap-1">
+                        {canAssign && item.isBarman && item.quantity > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openAssignDialog(item)}
+                            title="Assign to BarMan"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canManage && (
+                          <>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -576,7 +689,7 @@ export function InventoryManagement() {
                           title="Delete Inventory Item?"
                           description="This action cannot be undone. This will permanently delete the inventory item"
                           itemName={item.name}
-                          expectedPin="1219"
+                          requireSecurityPin
                           onConfirm={() => handleDelete(item.id)}
                           trigger={
                             <Button
@@ -588,8 +701,11 @@ export function InventoryManagement() {
                             </Button>
                           }
                         />
+                          </>
+                        )}
                       </div>
                     </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
@@ -667,6 +783,87 @@ export function InventoryManagement() {
                 </>
               ) : (
                 "Update Item"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign to BarMan Modal */}
+      <Dialog
+        open={Boolean(assignItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignItem(null);
+            setAssignBarmanId("");
+            setAssignQuantity("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md w-[95vw] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl">
+          <DialogHeader>
+            <DialogTitle>Assign to BarMan</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              {assignItem?.name} — warehouse: {assignItem?.quantity}{" "}
+              {assignItem?.unit}
+            </p>
+            <div>
+              <Label>BarMan *</Label>
+              <Select value={assignBarmanId} onValueChange={setAssignBarmanId}>
+                <SelectTrigger className="mt-2 min-h-[44px]">
+                  <SelectValue placeholder="Select barman" />
+                </SelectTrigger>
+                <SelectContent>
+                  {barmen.length === 0 ? (
+                    <SelectItem value="__none" disabled>
+                      No barman users found
+                    </SelectItem>
+                  ) : (
+                    barmen.map((b: { _id?: string; id?: string; name: string }) => (
+                      <SelectItem key={b._id || b.id} value={b._id || b.id || ""}>
+                        {b.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="assign-qty">Quantity *</Label>
+              <Input
+                id="assign-qty"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={assignQuantity}
+                onChange={(e) => setAssignQuantity(e.target.value)}
+                className="mt-2 min-h-[44px]"
+                placeholder="Quantity to assign"
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setAssignItem(null)}
+              className="min-h-[44px] w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssign}
+              disabled={isAssigning}
+              className="min-h-[44px] w-full sm:w-auto"
+            >
+              {isAssigning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                "Assign"
               )}
             </Button>
           </DialogFooter>
@@ -751,6 +948,20 @@ function InventoryForm({
           className="mt-2 min-h-[44px]"
           required
         />
+      </div>
+      <div className="flex items-center gap-2 pt-1">
+        <input
+          id="inventory-is-barman"
+          type="checkbox"
+          checked={formData.isBarman}
+          onChange={(e) =>
+            setFormData({ ...formData, isBarman: e.target.checked })
+          }
+          className="h-4 w-4 rounded border-gray-300"
+        />
+        <Label htmlFor="inventory-is-barman" className="font-normal">
+          BarMan item (requires assignment before Create Order)
+        </Label>
       </div>
     </div>
   );

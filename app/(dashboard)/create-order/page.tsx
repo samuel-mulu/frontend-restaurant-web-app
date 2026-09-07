@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { clearCart, loadCart, saveCart } from "@/lib/cart-storage";
+import { useCashierStatusVisibility } from "@/hooks/useCashierStatusVisibility";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Menu } from "@/lib/menu-store";
@@ -43,6 +44,13 @@ type InventoryCartItem = Inventory & {
   type: "inventory";
 };
 type CartItem = MenuCartItem | InventoryCartItem;
+
+function getInventoryAvailableQty(item: Inventory): number {
+  if (item.isBarman) {
+    return item.availableQuantity ?? 0;
+  }
+  return item.quantity;
+}
 
 const CREATE_ORDER_QUERY_OPTIONS = {
   refetchOnFocus: false,
@@ -93,6 +101,12 @@ export default function OrderPage() {
   });
 
   const { t } = useLanguage();
+  const {
+    visibility,
+    createDefaults,
+    isLoading: isStatusSettingsLoading,
+  } = useCashierStatusVisibility();
+  const defaultsAppliedRef = React.useRef(false);
   const restoredFromStorageRef = React.useRef(false);
   const [cart, setCart] = React.useState<CartItem[]>(() => {
     const stored = loadCart() as CartItem[] | null;
@@ -160,11 +174,7 @@ export default function OrderPage() {
     error: inventoryError,
     refetch: refetchInventory,
   } = useListInventoryQuery(
-    selectedInventoryCategory &&
-      selectedInventoryCategory !== "all" &&
-      selectedInventoryCategory.trim() !== ""
-      ? { categoryId: selectedInventoryCategory }
-      : undefined,
+    { forOrder: true },
     CREATE_ORDER_QUERY_OPTIONS,
   );
 
@@ -218,7 +228,7 @@ export default function OrderPage() {
     if (inventoryCartItems.length === 0) return;
     const unavailable = inventoryCartItems.filter((item) => {
       const inv = inventoryItems.find((inv: Inventory) => inv.id === item.id);
-      return !inv || item.quantity > inv.quantity;
+      return !inv || item.quantity > getInventoryAvailableQty(inv);
     });
     if (unavailable.length > 0) {
       toast.error(
@@ -227,6 +237,67 @@ export default function OrderPage() {
     }
     restoredFromStorageRef.current = false;
   }, [cart, inventoryItems]);
+
+  // Apply owner Config create-order defaults once settings load
+  React.useEffect(() => {
+    if (isStatusSettingsLoading || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+    setMarkAsPaidToCashier(createDefaults.markAsPaidToCashier);
+    setMarkAsTransferredToOwner(createDefaults.markAsTransferredToOwner);
+    if (
+      !createDefaults.markAsPaidToCashier &&
+      !createDefaults.markAsTransferredToOwner
+    ) {
+      setWithoutPrint(false);
+    }
+  }, [isStatusSettingsLoading, createDefaults]);
+
+  // Keep selection valid when visibility changes (e.g. owner flips toggles live)
+  React.useEffect(() => {
+    if (isStatusSettingsLoading) return;
+
+    if (!visibility.cashierShowPaidToWaiter && markAsPaidToCashier) {
+      setMarkAsPaidToCashier(false);
+      if (visibility.cashierShowPaidToCashier) {
+        setMarkAsTransferredToOwner(true);
+      } else if (visibility.cashierShowOpen) {
+        setMarkAsTransferredToOwner(false);
+      }
+    }
+
+    if (!visibility.cashierShowPaidToCashier && markAsTransferredToOwner) {
+      setMarkAsTransferredToOwner(false);
+      if (visibility.cashierShowPaidToWaiter) {
+        setMarkAsPaidToCashier(true);
+      } else if (visibility.cashierShowOpen) {
+        setMarkAsPaidToCashier(false);
+      } else {
+        setMarkAsTransferredToOwner(true);
+      }
+    }
+
+    if (
+      !visibility.cashierShowOpen &&
+      !markAsPaidToCashier &&
+      !markAsTransferredToOwner
+    ) {
+      if (visibility.cashierShowPaidToWaiter) {
+        setMarkAsPaidToCashier(true);
+      } else if (visibility.cashierShowPaidToCashier) {
+        setMarkAsTransferredToOwner(true);
+      }
+    }
+
+    if (!visibility.cashierShowWithoutPrint && withoutPrint) {
+      setWithoutPrint(false);
+    }
+  }, [
+    isStatusSettingsLoading,
+    visibility,
+    markAsPaidToCashier,
+    markAsTransferredToOwner,
+    withoutPrint,
+  ]);
 
   const toggleFavoriteMenu = async (item: Menu) => {
     try {
@@ -255,6 +326,15 @@ export default function OrderPage() {
       toast.error("Failed to update favorite status");
     }
   };
+
+  const paidToWaiterLocked =
+    !visibility.cashierShowOpen &&
+    visibility.cashierShowPaidToWaiter &&
+    !visibility.cashierShowPaidToCashier;
+  const paidToCashierLocked =
+    !visibility.cashierShowOpen &&
+    !visibility.cashierShowPaidToWaiter &&
+    visibility.cashierShowPaidToCashier;
 
   // Show loading while checking authorization
   if (auth.isChecking || !auth.hydrated) {
@@ -289,9 +369,9 @@ export default function OrderPage() {
       return;
     }
 
-    if (quantity > item.quantity) {
+    if (quantity > getInventoryAvailableQty(item)) {
       toast.error(
-        `Insufficient stock. Available: ${item.quantity} ${item.unit}`,
+        `Insufficient stock. Available: ${getInventoryAvailableQty(item)} ${item.unit}`,
       );
       return;
     }
@@ -309,9 +389,9 @@ export default function OrderPage() {
       if (existingItem) {
         const newQuantity =
           (existingItem as InventoryCartItem).quantity + quantity;
-        if (newQuantity > item.quantity) {
+        if (newQuantity > getInventoryAvailableQty(item)) {
           toast.error(
-            `Cannot add more. Available: ${item.quantity} ${item.unit}`,
+            `Cannot add more. Available: ${getInventoryAvailableQty(item)} ${item.unit}`,
           );
           return c;
         }
@@ -339,10 +419,11 @@ export default function OrderPage() {
           (inv: Inventory) => inv.id === itemId,
         );
         if (inventoryItem) {
+          const available = getInventoryAvailableQty(inventoryItem);
           const newQuantity = item.quantity + delta;
-          if (newQuantity > inventoryItem.quantity) {
+          if (newQuantity > available) {
             toast.error(
-              `Cannot increase quantity. Available: ${inventoryItem.quantity} ${inventoryItem.unit}`,
+              `Cannot increase quantity. Available: ${available} ${inventoryItem.unit}`,
             );
             return c;
           }
@@ -781,8 +862,9 @@ export default function OrderPage() {
                     visibleInventoryItems.map((item: Inventory) => {
                       const currentQuantity = inventoryQuantities[item.id] || 1;
                       const isLowStock = item.isLowStock || false;
-                      const isOutOfStock = item.quantity === 0;
-                      const maxQuantity = item.quantity;
+                      const availableQty = getInventoryAvailableQty(item);
+                      const isOutOfStock = availableQty === 0;
+                      const maxQuantity = availableQty;
 
                       return (
                         <div
@@ -822,7 +904,7 @@ export default function OrderPage() {
                                 <div className="flex items-center gap-4 mt-2">
                                   <div className="text-sm text-muted-foreground">
                                     <span className="font-medium">{t("create_order_stock")}:</span>{" "}
-                                    {item.quantity} {item.unit}
+                                    {availableQty} {item.unit}
                                   </div>
                                   <div className="text-primary font-semibold text-base">
                                     Br {item.price.toFixed(2)}
@@ -1103,7 +1185,9 @@ export default function OrderPage() {
                             const inventoryItem = inventoryItems.find(
                               (inv: Inventory) => inv.id === item.id,
                             );
-                            const availableQty = inventoryItem?.quantity || 0;
+                            const availableQty = inventoryItem
+                              ? getInventoryAvailableQty(inventoryItem)
+                              : 0;
                             const cartQty = item.quantity;
 
                             return (
@@ -1183,14 +1267,37 @@ export default function OrderPage() {
           </div>
 
           <div className="mt-3 shrink-0 flex items-start gap-6 flex-wrap">
+            {visibility.cashierShowPaidToWaiter && (
             <div>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label
+                className={`flex items-center gap-2 ${
+                  paidToWaiterLocked
+                    ? "cursor-not-allowed opacity-80"
+                    : "cursor-pointer"
+                }`}
+              >
                 <Checkbox
                   checked={markAsPaidToCashier}
+                  disabled={paidToWaiterLocked}
                   onCheckedChange={(checked) => {
+                    if (paidToWaiterLocked) return;
                     const v = checked === true;
                     setMarkAsPaidToCashier(v);
                     if (v) setMarkAsTransferredToOwner(false);
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      visibility.cashierShowPaidToCashier
+                    ) {
+                      setMarkAsTransferredToOwner(true);
+                    }
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      !visibility.cashierShowPaidToCashier
+                    ) {
+                      setMarkAsPaidToCashier(true);
+                    }
                   }}
                 />
                 <span className="text-sm font-medium text-foreground">
@@ -1203,14 +1310,38 @@ export default function OrderPage() {
                 </p>
               )}
             </div>
+            )}
+            {visibility.cashierShowPaidToCashier && (
             <div>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label
+                className={`flex items-center gap-2 ${
+                  paidToCashierLocked
+                    ? "cursor-not-allowed opacity-80"
+                    : "cursor-pointer"
+                }`}
+              >
                 <Checkbox
                   checked={markAsTransferredToOwner}
+                  disabled={paidToCashierLocked}
                   onCheckedChange={(checked) => {
+                    if (paidToCashierLocked) return;
                     const v = checked === true;
                     setMarkAsTransferredToOwner(v);
                     if (v) setMarkAsPaidToCashier(false);
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      visibility.cashierShowPaidToWaiter
+                    ) {
+                      setMarkAsPaidToCashier(true);
+                    }
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      !visibility.cashierShowPaidToWaiter
+                    ) {
+                      setMarkAsTransferredToOwner(true);
+                    }
                   }}
                 />
                 <span className="text-sm font-medium text-foreground">
@@ -1234,6 +1365,9 @@ export default function OrderPage() {
                 </div>
               )}
             </div>
+            )}
+            {visibility.cashierShowWithoutPrint &&
+              (markAsPaidToCashier || markAsTransferredToOwner) && (
             <div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -1252,6 +1386,7 @@ export default function OrderPage() {
                 </p>
               )}
             </div>
+            )}
           </div>
 
           <Button

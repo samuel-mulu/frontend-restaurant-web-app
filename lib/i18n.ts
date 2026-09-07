@@ -13,6 +13,8 @@ export const translations = {
     nav_analytics: "Analytics",
     nav_reports: "Reports",
     nav_approvals: "Approvals",
+    nav_password_config: "Config",
+    nav_barman_assignments: "BarMan Assignments",
     nav_profile: "Profile",
 
     // Sidebar header / footer
@@ -26,6 +28,7 @@ export const translations = {
     role_owner: "Owner",
     role_cashier: "Cashier",
     role_waiter: "Waiter",
+    role_barman: "BarMan",
 
     // Logout dialog
     logout_confirm_title: "Confirm Logout",
@@ -208,6 +211,49 @@ export const translations = {
     cashout_saving: "Recording...",
     cashout_save: "Save Transaction",
 
+    pin_config_title: "Config",
+    pin_config_desc:
+      "Manage security PINs, cashier edit access, and which order statuses cashiers can use.",
+    pin_config_void_label: "Void Order PIN",
+    pin_config_expense_label: "Expense / Cashout PIN",
+    pin_config_placeholder: "4-digit PIN",
+    pin_config_save: "Save PINs",
+    pin_config_saving: "Saving...",
+    pin_config_both_saved: "Security PINs updated successfully",
+    pin_config_invalid: "Each PIN must be exactly 4 digits",
+    pin_config_configured: "Configured",
+    pin_config_hint: "Leave a field blank to keep the current PIN unchanged.",
+    pin_config_pins_section: "Security PINs",
+    pin_config_cashier_section: "Cashier Actions",
+    pin_config_cashier_desc:
+      "When off, cashiers cannot see or use Edit/Delete on that page. Owners always have access.",
+    pin_config_cashier_menus: "Menus edit / delete",
+    pin_config_cashier_categories: "Categories edit / delete",
+    pin_config_cashier_inventory: "Inventory edit / delete",
+    pin_config_on: "On",
+    pin_config_off: "Off",
+    pin_config_perms_saved: "Cashier permissions updated",
+    pin_config_updating: "Updating...",
+    pin_config_status_section: "Cashier Status Options",
+    pin_config_status_desc:
+      "Show or hide statuses for cashiers on Create Order and History. At least one of Open, Paid to Waiter, or Paid to Cashier must stay on. Owner views and reports are unchanged.",
+    pin_config_status_open: "Open",
+    pin_config_status_paid_waiter: "Paid to Waiter",
+    pin_config_status_paid_cashier: "Paid to Cashier",
+    pin_config_status_without_print: "Without Print",
+    pin_config_status_voided: "Voided",
+    pin_config_status_disputed: "Disputed",
+    pin_config_status_confirmed: "Confirmed",
+    pin_config_status_saved: "Status options updated",
+    pin_config_status_need_one:
+      "At least one of Open, Paid to Waiter, or Paid to Cashier must stay on",
+    pin_config_history_tab_section: "Cashier History Default Tab",
+    pin_config_history_tab_desc:
+      "Which tab cashiers see first when they open History.",
+    pin_config_history_tab_waiter: "From Waiters",
+    pin_config_history_tab_owner: "To Owner",
+    pin_config_history_tab_saved: "History default tab updated",
+
     // Payment dialog
     payment_dialog_title: "Record Payment",
     payment_amount_label: "Amount (Br)",
@@ -232,6 +278,46 @@ export const translations = {
     payment_cancel: "Cancel",
     payment_submit: "Record Payment",
     payment_submitting: "Recording...",
+
+    // BarMan assignments page
+    barman_title: "My Stock",
+    barman_subtitle_self:
+      "See what you have left, and approve new stock from the cashier.",
+    barman_subtitle_other:
+      "View barman stock assignments and remaining quantities.",
+    barman_refresh: "Refresh",
+    barman_total_remaining: "Total remaining",
+    barman_across_items: "Across {count} items",
+    barman_across_item: "Across {count} item",
+    barman_loading: "Loading assignments...",
+    barman_tab_remaining: "Remaining",
+    barman_tab_pending: "Pending",
+    barman_no_approved: "No approved stock yet.",
+    barman_pending_review:
+      "You have {count} pending assignments to review.",
+    barman_pending_review_one:
+      "You have {count} pending assignment to review.",
+    barman_no_pending: "No pending assignments.",
+    barman_item_fallback: "Item",
+    barman_label_barman: "BarMan",
+    barman_status_empty: "Empty",
+    barman_status_in_stock: "In stock",
+    barman_label_remaining: "Remaining",
+    barman_label_approved: "Approved",
+    barman_label_used: "Used",
+    barman_needs_approval: "Needs approval",
+    barman_cashier_sent: "Cashier sent",
+    barman_from: "from",
+    barman_confirm_qty: "Confirm quantity received",
+    barman_approve: "Approve",
+    barman_reject: "Reject",
+    barman_toast_approved: "Assignment approved",
+    barman_toast_rejected: "Assignment rejected",
+    barman_toast_approve_failed: "Failed to approve",
+    barman_toast_reject_failed: "Failed to reject",
+    barman_toast_invalid_qty: "Enter a valid approved quantity",
+    barman_toast_qty_exceeds:
+      "Cannot approve more than assigned ({count})",
   },
 
   am: {
@@ -246,6 +332,8 @@ export const translations = {
     nav_analytics: "ትንተና",
     nav_reports: "ሪፖርቶች",
     nav_approvals: "ፈቃዶች",
+    nav_password_config: "ቅንብሮች",
+    nav_barman_assignments: "ባርማን ምደባዎች",
     nav_profile: "መገለጫ",
 
     // Sidebar header / footer
@@ -259,6 +347,7 @@ export const translations = {
     role_owner: "ባለቤት",
     role_cashier: "ካሸር",
     role_waiter: "አስተናጋጅ",
+    role_barman: "ባርማን",
 
     // Logout dialog
     logout_confirm_title: "መውጫ ያረጋግጡ",
@@ -441,6 +530,48 @@ export const translations = {
     cashout_saving: "እየተቀመጠ ነው...",
     cashout_save: "ግብይት አስቀምጥ",
 
+    pin_config_title: "ቅንብሮች",
+    pin_config_desc:
+      "የደህንነት ፒኖችን፣ የካሽየር አርትዕ ፈቃድ እና የትዕዛዝ ሁኔታ አማራጮችን ያቀናብሩ።",
+    pin_config_void_label: "የትዕዛዝ መሰረዣ ፒን",
+    pin_config_expense_label: "የወጪ / ጥሬ ገንዘብ ፒን",
+    pin_config_placeholder: "4 አሃዝ ፒን",
+    pin_config_save: "ፒኖችን አስቀምጥ",
+    pin_config_saving: "እየተቀመጠ ነው...",
+    pin_config_both_saved: "የደህንነት ፒኖች በተሳካ ሁኔታ ተዘምነዋል",
+    pin_config_invalid: "እያንዳንዱ ፒን በትክክል 4 አሃዝ መሆን አለበት",
+    pin_config_configured: "ተዋቅሯል",
+    pin_config_hint: "አሁን ያለውን ፒን ለማቆየት መስኩን ባዶ ይተዉት።",
+    pin_config_pins_section: "የደህንነት ፒኖች",
+    pin_config_cashier_section: "የካሽየር እርምጃዎች",
+    pin_config_cashier_desc:
+      "ሲጠፋ ካሽየሮች በዚያ ገጽ ላይ አርትዕ/ሰርዝ አያዩም። ባለቤት ሁልጊዜ መዳረሻ አለው።",
+    pin_config_cashier_menus: "ሜኑ አርትዕ / ሰርዝ",
+    pin_config_cashier_categories: "ምድቦች አርትዕ / ሰርዝ",
+    pin_config_cashier_inventory: "ኢንቬንቶሪ አርትዕ / ሰርዝ",
+    pin_config_on: "በርቷል",
+    pin_config_off: "ጠፍቷል",
+    pin_config_perms_saved: "የካሽየር ፈቃዶች ተዘምነዋል",
+    pin_config_updating: "እየተዘመነ ነው...",
+    pin_config_status_section: "የካሽየር ሁኔታ አማራጮች",
+    pin_config_status_desc:
+      "በትዕዛዝ ፍጠር እና ሂሳብ ላይ ለካሽየሮች ሁኔታዎችን አሳይ/ደብቅ። ከክፍት፣ ለዌተር የተከፈለ፣ ወይም ለካሽየር የተከፈለ ቢያንስ አንዱ መቆየት አለበት። የባለቤት እይታ እና ሪፖርቶች አይለወጡም።",
+    pin_config_status_open: "ክፍት",
+    pin_config_status_paid_waiter: "ለዌተር የተከፈለ",
+    pin_config_status_paid_cashier: "ለካሽየር የተከፈለ",
+    pin_config_status_without_print: "ያለ ህትመት",
+    pin_config_status_voided: "ተሰርዟል",
+    pin_config_status_disputed: "አለመግባባት",
+    pin_config_status_confirmed: "ተረጋግጧል",
+    pin_config_status_saved: "የሁኔታ አማራጮች ተዘምነዋል",
+    pin_config_status_need_one:
+      "ከክፍት፣ ለዌተር የተከፈለ፣ ወይም ለካሽየር የተከፈለ ቢያንስ አንዱ መቆየት አለበት",
+    pin_config_history_tab_section: "የካሽየር ሂሳብ ነባሪ ትር",
+    pin_config_history_tab_desc: "ካሽየሮች ሂሳብ ሲከፍቱ መጀመሪያ የሚያዩት ትር።",
+    pin_config_history_tab_waiter: "ከዌተሮች",
+    pin_config_history_tab_owner: "ወደ ባለቤት",
+    pin_config_history_tab_saved: "የሂሳብ ነባሪ ትር ተዘምኗል",
+
     // Payment dialog
     payment_dialog_title: "ክፍያ ያስቀምጡ",
     payment_amount_label: "መጠን (ብር)",
@@ -465,6 +596,42 @@ export const translations = {
     payment_cancel: "ሰርዝ",
     payment_submit: "ክፍያ ያስቀምጡ",
     payment_submitting: "እየተቀመጠ ነው...",
+
+    // BarMan assignments page
+    barman_title: "የኔ ክምችት",
+    barman_subtitle_self:
+      "ያለዎትን ቀሪ ይመልከቱ፣ እና ከካሸር የመጣ አዲስ ክምችት ያጽድቁ።",
+    barman_subtitle_other: "የባርማን ክምችት ምደባዎችን እና ቀሪ መጠን ይመልከቱ።",
+    barman_refresh: "አድስ",
+    barman_total_remaining: "ጠቅላላ ቀሪ",
+    barman_across_items: "በ{count} ዕቃዎች ላይ",
+    barman_across_item: "በ{count} ዕቃ ላይ",
+    barman_loading: "ምደባዎች በመጫን ላይ...",
+    barman_tab_remaining: "ቀሪ",
+    barman_tab_pending: "በመጠባበቅ ላይ",
+    barman_no_approved: "እስካሁን የጸደቀ ክምችት የለም።",
+    barman_pending_review: "{count} በመጠባበቅ ላይ ያሉ ምደባዎች አሉዎት።",
+    barman_pending_review_one: "{count} በመጠባበቅ ላይ ያለ ምደባ አለዎት።",
+    barman_no_pending: "በመጠባበቅ ላይ ያለ ምደባ የለም።",
+    barman_item_fallback: "ዕቃ",
+    barman_label_barman: "ባርማን",
+    barman_status_empty: "ባዶ",
+    barman_status_in_stock: "አለ",
+    barman_label_remaining: "ቀሪ",
+    barman_label_approved: "ጸድቋል",
+    barman_label_used: "ጥቅም ላይ የዋለ",
+    barman_needs_approval: "ማጽደቅ ይፈልጋል",
+    barman_cashier_sent: "ካሸር ልኳል",
+    barman_from: "ከ",
+    barman_confirm_qty: "የደረሰዎትን መጠን ያረጋግጡ",
+    barman_approve: "አጽድቅ",
+    barman_reject: "አትቀበል",
+    barman_toast_approved: "ምደባው ጸድቋል",
+    barman_toast_rejected: "ምደባው ተቀባይነት አላገኘም",
+    barman_toast_approve_failed: "ማጽደቅ አልተሳካም",
+    barman_toast_reject_failed: "መቀበል አልተሳካም",
+    barman_toast_invalid_qty: "ትክክለኛ የጸደቀ መጠን ያስገቡ",
+    barman_toast_qty_exceeds: "ከተመደበው መጠን በላይ ማጽደቅ አይቻልም ({count})",
   },
 } as const;
 

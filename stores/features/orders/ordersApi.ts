@@ -173,6 +173,15 @@ export interface CashierReport {
   ordersTransferred: number;
 }
 
+/** Full filtered cashier history totals (ignores pagination). */
+export interface CashierOrdersSummary {
+  totalOrders: number;
+  totalAmount: number;
+  byStatus: Partial<
+    Record<OrderStatus, { count: number; total: number }>
+  >;
+}
+
 export interface WaiterReport {
   waiterId: string;
   waiterName?: string;
@@ -476,6 +485,7 @@ export const ordersApi = createApiEndpoints({
         paymentMethod?: "cash" | "mobile_banking";
         paymentProofImage?: File;
         paymentBankName?: string;
+        pin?: string;
       }
     >({
       query: ({
@@ -484,6 +494,7 @@ export const ordersApi = createApiEndpoints({
         paymentMethod,
         paymentProofImage,
         paymentBankName,
+        pin,
       }) => {
         // If payment proof image or bank name is provided, use FormData
         if (paymentProofImage || paymentBankName) {
@@ -495,6 +506,9 @@ export const ordersApi = createApiEndpoints({
           }
           if (paymentBankName) {
             formData.append("paymentBankName", paymentBankName);
+          }
+          if (pin) {
+            formData.append("pin", pin);
           }
 
           return {
@@ -511,6 +525,7 @@ export const ordersApi = createApiEndpoints({
           body: {
             status,
             paymentMethod: paymentMethod || "cash",
+            ...(pin ? { pin } : {}),
           },
         };
       },
@@ -521,6 +536,7 @@ export const ordersApi = createApiEndpoints({
       invalidatesTags: (result, _error, { id }) => [
         { type: "Order", id },
         { type: "Order", id: "LIST" },
+        { type: "Order", id: "CASHIER_LIST" },
       ],
     }),
 
@@ -532,12 +548,17 @@ export const ordersApi = createApiEndpoints({
         mergedReceiptText?: string;
         message: string;
       },
-      { orderIds: string[]; status: OrderStatus; paymentMethod?: "cash" | "mobile_banking" }
+      { orderIds: string[]; status: OrderStatus; paymentMethod?: "cash" | "mobile_banking"; pin?: string }
     >({
-      query: ({ orderIds, status, paymentMethod }) => ({
+      query: ({ orderIds, status, paymentMethod, pin }) => ({
         url: "/orders/bulk/status",
         method: "PATCH",
-        body: { orderIds, status, ...(paymentMethod && { paymentMethod }) },
+        body: {
+          orderIds,
+          status,
+          ...(paymentMethod && { paymentMethod }),
+          ...(pin && { pin }),
+        },
       }),
       transformResponse: (response: unknown) => {
         return response as {
@@ -650,6 +671,48 @@ export const ordersApi = createApiEndpoints({
       },
     }),
 
+    // Cashier history summary cards (same filters as list, no pagination)
+    getOrdersByCashierSummary: build.query<
+      CashierOrdersSummary,
+      {
+        cashierId: string;
+        status?: OrderStatus | OrderStatus[];
+        waiterId?: string;
+        startDate?: string;
+        endDate?: string;
+        search?: string;
+      }
+    >({
+      query: ({ cashierId, status, waiterId, startDate, endDate, search }) => {
+        const queryParams = new URLSearchParams();
+        if (status) {
+          if (Array.isArray(status)) {
+            queryParams.append("status", status.join(","));
+          } else {
+            queryParams.append("status", status);
+          }
+        }
+        if (waiterId) queryParams.append("waiterId", waiterId);
+        if (startDate) queryParams.append("startDate", startDate);
+        if (endDate) queryParams.append("endDate", endDate);
+        if (search?.trim()) queryParams.append("search", search.trim());
+        const qs = queryParams.toString();
+        return {
+          url: `/orders/cashier/${cashierId}/summary${qs ? `?${qs}` : ""}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: unknown): CashierOrdersSummary => {
+        const data = (response || {}) as Partial<CashierOrdersSummary>;
+        return {
+          totalOrders: data.totalOrders ?? 0,
+          totalAmount: data.totalAmount ?? 0,
+          byStatus: data.byStatus ?? {},
+        };
+      },
+      providesTags: [{ type: "Order", id: "CASHIER_LIST" }],
+    }),
+
     // Get cashier report
     getCashierReport: build.query<
       CashierReport,
@@ -722,6 +785,7 @@ export const {
   useUpdateOrderStatusMutation,
   useBulkUpdateOrderStatusMutation,
   useGetOrdersByCashierQuery,
+  useGetOrdersByCashierSummaryQuery,
   useGetCashierReportQuery,
   useGetWaiterReportQuery,
   useGetDateRangeReportQuery,

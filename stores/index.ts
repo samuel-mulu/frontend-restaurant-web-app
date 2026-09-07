@@ -8,6 +8,8 @@ import "@/stores/features/tables/tablesApi";
 import "@/stores/features/categories/categoriesApi";
 import "@/stores/features/items/itemsApi";
 import "@/stores/features/inventory/inventoryApi";
+import "@/stores/features/inventory/inventoryAssignmentsApi";
+import "@/stores/features/settings/settingsApi";
 
 export const store = configureStore({
   reducer: {

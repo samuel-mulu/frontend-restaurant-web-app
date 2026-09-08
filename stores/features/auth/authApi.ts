@@ -20,13 +20,13 @@ function normalizeDate(date: Date | string | undefined): string | undefined {
 
 export const authApi = createApiEndpoints({
   endpoints: (build) => ({
-    createStaff: build.mutation<
+    createAuthStaff: build.mutation<
       { success: boolean; message: string; data?: User },
       {
         name: string;
         email?: string;
         password: string;
-        role?: "cashier" | "waiter";
+        role?: "cashier" | "waiter" | "barman";
         phone: string;
       }
     >({
@@ -277,7 +277,7 @@ export const authApi = createApiEndpoints({
 });
 
 export const {
-  useCreateStaffMutation,
+  useCreateAuthStaffMutation,
   useLoginMutation,
   useRefreshMutation,
   useLogoutMutation,

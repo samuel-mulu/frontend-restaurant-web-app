@@ -3,6 +3,8 @@ import { setupListeners } from "@reduxjs/toolkit/query";
 import { apiSlice } from "@/stores/baseApi";
 import authReducer from "@/stores/features/auth/authSlice";
 // Import API endpoints to ensure they are injected
+// authApi first — must not collide with staffApi.createStaff (renamed to createAuthStaff)
+import "@/stores/features/auth/authApi";
 import "@/stores/features/staff/staffApi";
 import "@/stores/features/tables/tablesApi";
 import "@/stores/features/categories/categoriesApi";

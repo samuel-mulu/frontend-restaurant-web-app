@@ -15,6 +15,7 @@ import {
     TopSellingItemsChart,
 } from "@/components/features/AnalyticsCharts";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { RoleGuard } from "@/components/shared/RoleGuard";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,7 +44,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const [startDate, setStartDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() - 30);
@@ -734,6 +735,14 @@ function ComparisonCard({
         </div>
       )}
     </Card>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <RoleGuard allowedRoles={["owner"]}>
+      <AnalyticsPageContent />
+    </RoleGuard>
   );
 }
 

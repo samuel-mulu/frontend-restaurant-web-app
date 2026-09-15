@@ -1,9 +1,11 @@
 "use client";
 
 import { ErrorState } from "@/components/shared/ErrorState";
+import { RoleGuard } from "@/components/shared/RoleGuard";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { WithdrawalModal } from "@/components/shared/WithdrawalModal";
+import { CalendarPicker } from "@/components/ui/calendar-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,10 +40,10 @@ import { posPrinterService } from "@/stores/features/posPrinter/posPrinterApi";
 import {
   ReportStaffOrderDetail,
   SoldItemsPerformanceResponse,
-  useCreateExpenseMutation,
   useGetDailyReportQuery,
   useGetExpensesQuery,
   useGetMonthlyReportQuery,
+  useGetRangeReportQuery,
   useGetReportStaffOrdersQuery,
   useGetSoldItemsPerformanceQuery,
 } from "@/stores/features/statistics/statisticsApi";
@@ -77,6 +79,7 @@ interface StaffOrderDetailsProps {
   endDate: string;
   statusFilter: string;
   paymentFilter: string;
+  itemTypeFilter: "ALL" | "menu" | "inventory";
 }
 
 const formatCurrencyValue = (amount: number) =>
@@ -92,6 +95,7 @@ function StaffOrderDetails({
   endDate,
   statusFilter,
   paymentFilter,
+  itemTypeFilter,
 }: StaffOrderDetailsProps) {
   const statusQuery = statusFilter === "ALL" ? undefined : statusFilter;
   const paymentQuery = paymentFilter === "ALL" ? undefined : paymentFilter;
@@ -108,6 +112,7 @@ function StaffOrderDetails({
       endDate,
       status: statusQuery,
       paymentMethod: paymentQuery,
+      itemType: itemTypeFilter,
     },
     {
       skip: !staffId || !startDate || !endDate,
@@ -357,6 +362,9 @@ const subMonths = (date: Date, months: number): Date => {
   return result;
 };
 
+type ReportViewType = "daily" | "monthly" | "range";
+type ReportItemTypeFilter = "ALL" | "menu" | "inventory";
+
 const getReportDateRange = (
   date: Date,
   viewType: "daily" | "monthly",
@@ -376,6 +384,24 @@ const getReportDateRange = (
   };
 };
 
+const startOfDay = (date: Date): Date =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const inclusiveDayCount = (start: Date, end: Date): number => {
+  const ms = startOfDay(end).getTime() - startOfDay(start).getTime();
+  return Math.max(1, Math.round(ms / 86400000) + 1);
+};
+
+const previousRange = (
+  start: Date,
+  end: Date,
+): { start: Date; end: Date } => {
+  const days = inclusiveDayCount(start, end);
+  const prevEnd = subDays(startOfDay(start), 1);
+  const prevStart = subDays(prevEnd, days - 1);
+  return { start: prevStart, end: prevEnd };
+};
+
 const REASON_LABELS: Record<string, string> = {
   inventory: "Inventory Purchase",
   withdrawal: "General Withdrawal",
@@ -393,11 +419,13 @@ const EXPENSE_CATEGORY_ORDER = [
   "other",
 ];
 
-export default function ReportsPage() {
+function ReportsPageContent() {
   const SOLD_ITEMS_PAGE_SIZE = 20;
   const EXPENSES_PAGE_SIZE = 10;
-  const [viewType, setViewType] = useState<"daily" | "monthly">("daily");
+  const [viewType, setViewType] = useState<ReportViewType>("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [rangeStart, setRangeStart] = useState(new Date());
+  const [rangeEnd, setRangeEnd] = useState(new Date());
   const { t } = useLanguage();
   const { calSystem } = useCalendarSystem();
 
@@ -405,12 +433,43 @@ export default function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("TRANSFERRED_TO_OWNER");
   const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
   const [expenseTypeFilter, setExpenseTypeFilter] = useState<string>("ALL");
-  const [itemTypeFilter, setItemTypeFilter] = useState<
-    "ALL" | "menu" | "inventory"
-  >("ALL");
+  const [itemTypeFilter, setItemTypeFilter] = useState<ReportItemTypeFilter>(
+    "ALL",
+  );
   const selectedStatus = statusFilter === "ALL" ? undefined : statusFilter;
+  const showExpenses = itemTypeFilter === "ALL";
   const [soldItemsPage, setSoldItemsPage] = useState(1);
   const [expensesPage, setExpensesPage] = useState(1);
+
+  const detailRange =
+    viewType === "range"
+      ? {
+          startDate: formatDateForReport(rangeStart, "yyyy-MM-dd"),
+          endDate: formatDateForReport(rangeEnd, "yyyy-MM-dd"),
+        }
+      : getReportDateRange(selectedDate, viewType);
+
+  const prevWindow =
+    viewType === "range" ? previousRange(rangeStart, rangeEnd) : null;
+  const prevRangeDates = prevWindow
+    ? {
+        startDate: formatDateForReport(prevWindow.start, "yyyy-MM-dd"),
+        endDate: formatDateForReport(prevWindow.end, "yyyy-MM-dd"),
+      }
+    : null;
+
+  const currentPeriodLabel =
+    viewType === "daily"
+      ? "Today"
+      : viewType === "monthly"
+        ? "This Month"
+        : t("reports_this_range");
+  const prevPeriodLabel =
+    viewType === "daily"
+      ? t("reports_yesterday")
+      : viewType === "monthly"
+        ? t("reports_last_month")
+        : t("reports_previous_period");
 
   // Staff detail modal state
   const [staffDetailModal, setStaffDetailModal] = useState<{
@@ -470,6 +529,7 @@ export default function ReportsPage() {
     {
       date: formatDateForReport(selectedDate, "yyyy-MM-dd"),
       status: selectedStatus,
+      itemType: itemTypeFilter,
     },
     { skip: viewType !== "daily" },
   );
@@ -479,19 +539,34 @@ export default function ReportsPage() {
       year: selectedDate.getFullYear(),
       month: selectedDate.getMonth() + 1,
       status: selectedStatus,
+      itemType: itemTypeFilter,
     },
     { skip: viewType !== "monthly" },
   );
 
+  const rangeQuery = useGetRangeReportQuery(
+    {
+      startDate: detailRange.startDate,
+      endDate: detailRange.endDate,
+      status: selectedStatus,
+      itemType: itemTypeFilter,
+    },
+    { skip: viewType !== "range" },
+  );
+
   const yesterdayDate = subDays(selectedDate, 1);
   const yesterdayDateStr = formatDateForReport(yesterdayDate, "yyyy-MM-dd");
-  const yesterdayRange = getReportDateRange(yesterdayDate, viewType);
+  const yesterdayRange = getReportDateRange(yesterdayDate, "daily");
 
   const lastMonthDate = subMonths(selectedDate, 1);
-  const lastMonthRange = getReportDateRange(lastMonthDate, viewType);
+  const lastMonthRange = getReportDateRange(lastMonthDate, "monthly");
 
   const yesterdayReportQuery = useGetDailyReportQuery(
-    { date: yesterdayDateStr, status: selectedStatus },
+    {
+      date: yesterdayDateStr,
+      status: selectedStatus,
+      itemType: itemTypeFilter,
+    },
     { skip: viewType !== "daily" },
   );
   const yesterdayExpensesQuery = useGetExpensesQuery(
@@ -500,7 +575,7 @@ export default function ReportsPage() {
       endDate: yesterdayRange.endDate,
       expenseType: expenseTypeFilter,
     },
-    { skip: viewType !== "daily" },
+    { skip: viewType !== "daily" || !showExpenses },
   );
 
   const lastMonthReportQuery = useGetMonthlyReportQuery(
@@ -508,6 +583,7 @@ export default function ReportsPage() {
       year: lastMonthDate.getFullYear(),
       month: lastMonthDate.getMonth() + 1,
       status: selectedStatus,
+      itemType: itemTypeFilter,
     },
     { skip: viewType !== "monthly" },
   );
@@ -517,11 +593,24 @@ export default function ReportsPage() {
       endDate: lastMonthRange.endDate,
       expenseType: expenseTypeFilter,
     },
-    { skip: viewType !== "monthly" },
+    { skip: viewType !== "monthly" || !showExpenses },
+  );
+
+  const prevRangeReportQuery = useGetRangeReportQuery(
+    {
+      startDate: prevRangeDates?.startDate ?? detailRange.startDate,
+      endDate: prevRangeDates?.endDate ?? detailRange.endDate,
+      status: selectedStatus,
+      itemType: itemTypeFilter,
+    },
+    { skip: viewType !== "range" || !prevRangeDates },
   );
 
   const ordersByStatusQuery = useGetDailyReportQuery(
-    { date: formatDateForReport(selectedDate, "yyyy-MM-dd") },
+    {
+      date: formatDateForReport(selectedDate, "yyyy-MM-dd"),
+      itemType: itemTypeFilter,
+    },
     { skip: viewType !== "daily" },
   );
 
@@ -529,16 +618,28 @@ export default function ReportsPage() {
     {
       year: selectedDate.getFullYear(),
       month: selectedDate.getMonth() + 1,
+      itemType: itemTypeFilter,
     },
     { skip: viewType !== "monthly" },
   );
 
-  const detailRange = getReportDateRange(selectedDate, viewType);
-  const expensesQuery = useGetExpensesQuery({
-    startDate: detailRange.startDate,
-    endDate: detailRange.endDate,
-    expenseType: expenseTypeFilter,
-  });
+  const rangeOrdersByStatusQuery = useGetRangeReportQuery(
+    {
+      startDate: detailRange.startDate,
+      endDate: detailRange.endDate,
+      itemType: itemTypeFilter,
+    },
+    { skip: viewType !== "range" },
+  );
+
+  const expensesQuery = useGetExpensesQuery(
+    {
+      startDate: detailRange.startDate,
+      endDate: detailRange.endDate,
+      expenseType: expenseTypeFilter,
+    },
+    { skip: !showExpenses },
+  );
   const soldItemsQuery = useGetSoldItemsPerformanceQuery({
     startDate: detailRange.startDate,
     endDate: detailRange.endDate,
@@ -561,11 +662,12 @@ export default function ReportsPage() {
   });
   const allSoldItems = allSoldItemsQuery.data?.items ?? [];
 
-  const [createExpense, { isLoading: isCreatingExpense }] =
-    useCreateExpenseMutation();
-
   const { data, isLoading, isFetching, error, refetch } =
-    viewType === "daily" ? dailyQuery : monthlyQuery;
+    viewType === "daily"
+      ? dailyQuery
+      : viewType === "monthly"
+        ? monthlyQuery
+        : rangeQuery;
   const {
     data: expensesList = [],
     isFetching: isExpensesFetching,
@@ -573,11 +675,19 @@ export default function ReportsPage() {
 
   useEffect(() => {
     setSoldItemsPage(1);
-  }, [viewType, selectedDate, statusFilter, paymentFilter, itemTypeFilter]);
+  }, [
+    viewType,
+    selectedDate,
+    rangeStart,
+    rangeEnd,
+    statusFilter,
+    paymentFilter,
+    itemTypeFilter,
+  ]);
 
   useEffect(() => {
     setExpensesPage(1);
-  }, [viewType, selectedDate, expenseTypeFilter]);
+  }, [viewType, selectedDate, rangeStart, rangeEnd, expenseTypeFilter]);
 
   const handlePrevDate = () => {
     setSelectedDate((prev) =>
@@ -591,6 +701,46 @@ export default function ReportsPage() {
     );
   };
 
+  const handleViewTypeChange = (value: string) => {
+    const next = value as ReportViewType;
+    if (next === "range") {
+      if (viewType === "daily") {
+        setRangeStart(selectedDate);
+        setRangeEnd(selectedDate);
+      } else if (viewType === "monthly") {
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        setRangeStart(new Date(year, month, 1));
+        setRangeEnd(new Date(year, month + 1, 0));
+      }
+    }
+    setViewType(next);
+  };
+
+  const formatReportPeriodLabel = () => {
+    if (viewType === "daily") {
+      return formatDateWithSystem(calSystem, selectedDate);
+    }
+    if (viewType === "monthly") {
+      return formatDateWithSystem(calSystem, selectedDate, { monthYear: true });
+    }
+    return `${formatDateWithSystem(calSystem, rangeStart)} – ${formatDateWithSystem(calSystem, rangeEnd)}`;
+  };
+
+  const reportTitle =
+    viewType === "daily"
+      ? "DAILY PERFORMANCE REPORT"
+      : viewType === "monthly"
+        ? "MONTHLY PERFORMANCE REPORT"
+        : "RANGE PERFORMANCE REPORT";
+
+  const performanceTitle =
+    itemTypeFilter === "menu"
+      ? t("reports_menu_performance")
+      : itemTypeFilter === "inventory"
+        ? t("reports_inventory_performance")
+        : t("reports_menu_inventory_performance");
+
   const handleExportCSV = () => {
     try {
       const csvSections: string[] = [];
@@ -600,55 +750,66 @@ export default function ReportsPage() {
         );
 
       // === SUMMARY ===
-      const summaryData = [
-        { Metric: "Total Sales", Value: totalSales.toFixed(2) },
-        { Metric: "Total Expenses", Value: totalExpenses.toFixed(2) },
-        { Metric: "Net Revenue", Value: netRevenue.toFixed(2) },
-      ];
+      const summaryData = showExpenses
+        ? [
+            { Metric: "Total Sales", Value: totalSales.toFixed(2) },
+            { Metric: "Total Expenses", Value: totalExpenses.toFixed(2) },
+            { Metric: "Net Revenue", Value: netRevenue.toFixed(2) },
+          ]
+        : [{ Metric: "Total Sales", Value: totalSales.toFixed(2) }];
       csvSections.push("=== SUMMARY ===");
       csvSections.push(convertToCSV(summaryData));
 
-      // === YESTERDAY / LAST MONTH COMPARISON ===
+      // === YESTERDAY / LAST MONTH / PREVIOUS RANGE COMPARISON ===
       const prevReport =
         viewType === "daily"
           ? yesterdayReportQuery.data
-          : lastMonthReportQuery.data;
+          : viewType === "monthly"
+            ? lastMonthReportQuery.data
+            : prevRangeReportQuery.data;
       const prevExpenses =
         viewType === "daily"
           ? yesterdayExpensesQuery.data
-          : lastMonthExpensesQuery.data;
-      const prevLabel = viewType === "daily" ? t("reports_yesterday") : t("reports_last_month");
+          : viewType === "monthly"
+            ? lastMonthExpensesQuery.data
+            : undefined;
+      const prevLabel = prevPeriodLabel;
       const prevTotalSales =
         prevReport?.orders?.reduce(
           (s: number, o: any) => s + (o.total || 0),
           0,
         ) ?? 0;
-      const prevTotalExpenses =
-        prevExpenses?.reduce((s: number, e: any) => s + (e.amount || 0), 0) ?? 0;
-      const prevNetRevenue = prevTotalSales - prevTotalExpenses;
+      const prevTotalExpenses = showExpenses
+        ? (prevExpenses?.reduce((s: number, e: any) => s + (e.amount || 0), 0) ??
+          0)
+        : 0;
+      const prevNetRevenue = showExpenses
+        ? prevTotalSales - prevTotalExpenses
+        : prevTotalSales;
       if (prevReport) {
         const comparisonData = [
           {
             Metric: "Revenue",
-            [viewType === "daily" ? "Today" : "This Month"]:
-              totalSales.toFixed(2),
+            [currentPeriodLabel]: totalSales.toFixed(2),
             [prevLabel]: prevTotalSales.toFixed(2),
             Change: (totalSales - prevTotalSales).toFixed(2),
           },
-          {
-            Metric: "Expenses",
-            [viewType === "daily" ? "Today" : "This Month"]:
-              totalExpenses.toFixed(2),
-            [prevLabel]: prevTotalExpenses.toFixed(2),
-            Change: (totalExpenses - prevTotalExpenses).toFixed(2),
-          },
-          {
-            Metric: "Net Revenue",
-            [viewType === "daily" ? "Today" : "This Month"]:
-              netRevenue.toFixed(2),
-            [prevLabel]: prevNetRevenue.toFixed(2),
-            Change: (netRevenue - prevNetRevenue).toFixed(2),
-          },
+          ...(showExpenses
+            ? [
+                {
+                  Metric: "Expenses",
+                  [currentPeriodLabel]: totalExpenses.toFixed(2),
+                  [prevLabel]: prevTotalExpenses.toFixed(2),
+                  Change: (totalExpenses - prevTotalExpenses).toFixed(2),
+                },
+                {
+                  Metric: "Net Revenue",
+                  [currentPeriodLabel]: netRevenue.toFixed(2),
+                  [prevLabel]: prevNetRevenue.toFixed(2),
+                  Change: (netRevenue - prevNetRevenue).toFixed(2),
+                },
+              ]
+            : []),
         ];
         csvSections.push(`=== ${prevLabel.toUpperCase()} COMPARISON ===`);
         csvSections.push(convertToCSV(comparisonData));
@@ -658,7 +819,9 @@ export default function ReportsPage() {
       const ordersByStatus =
         viewType === "daily"
           ? ordersByStatusQuery.data?.orders ?? []
-          : monthlyOrdersByStatusQuery.data?.orders ?? [];
+          : viewType === "monthly"
+            ? monthlyOrdersByStatusQuery.data?.orders ?? []
+            : rangeOrdersByStatusQuery.data?.orders ?? [];
       const STATUS_LABELS: Record<string, string> = {
         OPEN: "Open (Not Paid / Pending)",
         VOIDED: "Voided (Cancelled)",
@@ -695,7 +858,7 @@ export default function ReportsPage() {
       }
 
       // === EXPENSES & WITHDRAWALS ===
-      if (expensesList.length > 0) {
+      if (showExpenses && expensesList.length > 0) {
         const groupedExpenses = expensesList.reduce(
           (acc: Record<string, any[]>, ex: any) => {
             const key = ex.reason || "other";
@@ -847,7 +1010,7 @@ export default function ReportsPage() {
       link.setAttribute("href", url);
       link.setAttribute(
         "download",
-        `Report_${viewType}_${formatDateForReport(selectedDate, "yyyy-MM-dd")}.csv`,
+        `Report_${viewType}_${detailRange.startDate}${viewType === "range" ? `_to_${detailRange.endDate}` : ""}.csv`,
       );
       document.body.appendChild(link);
       link.click();
@@ -876,11 +1039,7 @@ export default function ReportsPage() {
     const printHTML = generatePrintHTML();
 
     // Generate filename with restaurant name and date
-    const reportDate = formatDateWithSystem(
-      calSystem,
-      selectedDate,
-      viewType === "daily" ? undefined : { monthYear: true },
-    );
+    const reportDate = formatReportPeriodLabel();
     const filename = reportExportFilename(reportDate);
 
     // Open new window with the HTML content
@@ -912,11 +1071,7 @@ export default function ReportsPage() {
     const currentDate = formatDateWithSystem(calSystem, new Date(), {
       dateTime: true,
     });
-    const reportDate = formatDateWithSystem(
-      calSystem,
-      selectedDate,
-      viewType === "daily" ? undefined : { monthYear: true },
-    );
+    const reportDate = formatReportPeriodLabel();
     const pdfFormatCurrency = (n: number) =>
       new Intl.NumberFormat("en-ET", {
         style: "currency",
@@ -925,22 +1080,33 @@ export default function ReportsPage() {
       }).format(n);
 
     const prevReport =
-      viewType === "daily" ? yesterdayReportQuery.data : lastMonthReportQuery.data;
+      viewType === "daily"
+        ? yesterdayReportQuery.data
+        : viewType === "monthly"
+          ? lastMonthReportQuery.data
+          : prevRangeReportQuery.data;
     const prevExpenses =
       viewType === "daily"
         ? yesterdayExpensesQuery.data
-        : lastMonthExpensesQuery.data;
-    const prevLabel = viewType === "daily" ? t("reports_yesterday") : t("reports_last_month");
+        : viewType === "monthly"
+          ? lastMonthExpensesQuery.data
+          : undefined;
+    const prevLabel = prevPeriodLabel;
     const prevTotalSales =
       prevReport?.orders?.reduce((s: number, o: any) => s + (o.total || 0), 0) ?? 0;
-    const prevTotalExpenses =
-      prevExpenses?.reduce((s: number, e: any) => s + (e.amount || 0), 0) ?? 0;
-    const prevNetRevenue = prevTotalSales - prevTotalExpenses;
+    const prevTotalExpenses = showExpenses
+      ? (prevExpenses?.reduce((s: number, e: any) => s + (e.amount || 0), 0) ?? 0)
+      : 0;
+    const prevNetRevenue = showExpenses
+      ? prevTotalSales - prevTotalExpenses
+      : prevTotalSales;
 
     const ordersByStatus =
       viewType === "daily"
         ? ordersByStatusQuery.data?.orders ?? []
-        : monthlyOrdersByStatusQuery.data?.orders ?? [];
+        : viewType === "monthly"
+          ? monthlyOrdersByStatusQuery.data?.orders ?? []
+          : rangeOrdersByStatusQuery.data?.orders ?? [];
     const STATUS_LABELS: Record<string, string> = {
       OPEN: "Open (Not Paid / Pending)",
       VOIDED: "Voided (Cancelled)",
@@ -990,7 +1156,7 @@ export default function ReportsPage() {
 
     // Generate expenses HTML - categorized by reason with Payment Method column and subtotals
     const expensesHTML =
-      pdfModal.sections.expenses && expensesList.length > 0
+      showExpenses && pdfModal.sections.expenses && expensesList.length > 0
         ? EXPENSE_CATEGORY_ORDER.filter((key) => groupedExpenses[key]?.length)
             .map((key) => {
               const items = groupedExpenses[key];
@@ -1410,7 +1576,7 @@ export default function ReportsPage() {
       <body>
         <div class="header">
           <h1>${branding.name}</h1>
-          <h2>${viewType === "daily" ? "DAILY PERFORMANCE REPORT" : "MONTHLY PERFORMANCE REPORT"}</h2>
+          <h2>${reportTitle}</h2>
           <div class="header-meta-grid">
             <div class="header-meta-item">
               <div class="header-meta-label">Report Date</div>
@@ -1423,6 +1589,10 @@ export default function ReportsPage() {
             <div class="header-meta-item">
               <div class="header-meta-label">Payment Filter</div>
               <div>${paymentFilter === "ALL" ? "All Methods" : toTitleCase(paymentFilter.replace(/_/g, " "))}</div>
+            </div>
+            <div class="header-meta-item">
+              <div class="header-meta-label">Item Type</div>
+              <div>${itemTypeFilter === "ALL" ? "All" : toTitleCase(itemTypeFilter)}</div>
             </div>
             <div class="header-meta-item">
               <div class="header-meta-label">Generated</div>
@@ -1438,6 +1608,9 @@ export default function ReportsPage() {
               <div class="financial-label">Total Sales</div>
               <div class="financial-value">${pdfFormatCurrency(totalSales)}</div>
             </div>
+            ${
+              showExpenses
+                ? `
             <div class="financial-item">
               <div class="financial-label">Total Expenses</div>
               <div class="financial-value">${pdfFormatCurrency(totalExpenses)}</div>
@@ -1446,6 +1619,9 @@ export default function ReportsPage() {
               <div class="financial-label">Net Revenue</div>
               <div class="financial-value">${pdfFormatCurrency(netRevenue)}</div>
             </div>
+            `
+                : ""
+            }
           </div>
         </div>
 
@@ -1458,7 +1634,7 @@ export default function ReportsPage() {
             <thead>
               <tr>
                 <th>Metric</th>
-                <th class="text-right">${viewType === "daily" ? "Today" : "This Month"}</th>
+                <th class="text-right">${currentPeriodLabel}</th>
                 <th class="text-right">${prevLabel}</th>
                 <th class="text-right">Change</th>
               </tr>
@@ -1470,6 +1646,9 @@ export default function ReportsPage() {
                 <td class="text-right amount-cell">${pdfFormatCurrency(prevTotalSales)}</td>
                 <td class="text-right amount-cell">${pdfFormatCurrency(totalSales - prevTotalSales)}</td>
               </tr>
+              ${
+                showExpenses
+                  ? `
               <tr>
                 <td>Expenses</td>
                 <td class="text-right amount-cell">${pdfFormatCurrency(totalExpenses)}</td>
@@ -1482,6 +1661,9 @@ export default function ReportsPage() {
                 <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(prevNetRevenue)}</td>
                 <td class="text-right amount-cell subtotal-value">${pdfFormatCurrency(netRevenue - prevNetRevenue)}</td>
               </tr>
+              `
+                  : ""
+              }
             </tbody>
           </table>
         </div>
@@ -1647,7 +1829,7 @@ export default function ReportsPage() {
           menuPerformanceHTML || inventoryPerformanceHTML
             ? `
         <div class="section">
-          <h3>Menu & Inventory Performance</h3>
+          <h3>${performanceTitle}</h3>
           ${menuPerformanceHTML}
           ${inventoryPerformanceHTML}
         </div>
@@ -1666,19 +1848,16 @@ export default function ReportsPage() {
   const handleThermalPrint = async () => {
     try {
       const receiptText = formatReportForThermal({
-        title:
-          viewType === "daily"
-            ? "DAILY PERFORMANCE REPORT"
-            : "MONTHLY PERFORMANCE REPORT",
-        dateRange: formatDateWithSystem(
-          calSystem,
-          selectedDate,
-          viewType === "daily" ? undefined : { monthYear: true },
-        ),
+        title: reportTitle,
+        dateRange: formatReportPeriodLabel(),
         totalSales,
-        totalExpenses,
-        netRevenue,
-        sections: printModal.sections,
+        totalExpenses: showExpenses ? totalExpenses : 0,
+        netRevenue: showExpenses ? netRevenue : totalSales,
+        sections: {
+          ...printModal.sections,
+          expenses: showExpenses && printModal.sections.expenses,
+          netRevenue: showExpenses && printModal.sections.netRevenue,
+        },
         details: {
           salesByPayment: reportData.salesByPaymentMethod,
           expenses: expensesList,
@@ -1797,15 +1976,17 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-end gap-4">
+          <div className="flex flex-col sm:flex-row items-end gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <WithdrawalModal
-              selectedDate={selectedDate}
-              onSuccess={() => {
-                refetch();
-                expensesQuery.refetch();
-              }}
-            />
+            {showExpenses ? (
+              <WithdrawalModal
+                selectedDate={selectedDate}
+                onSuccess={() => {
+                  refetch();
+                  expensesQuery.refetch();
+                }}
+              />
+            ) : null}
 
             <Select
               onValueChange={(val) => {
@@ -1844,35 +2025,61 @@ export default function ReportsPage() {
             </Select>
           </div>
 
-          <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-1 rounded-lg border shadow-sm">
-            <Button variant="ghost" size="icon" onClick={handlePrevDate}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-2 px-4 font-semibold text-sm">
-              <CalendarIcon className="h-4 w-4 text-primary" />
-              {formatDateWithSystem(
-                calSystem,
-                selectedDate,
-                viewType === "daily" ? undefined : { monthYear: true },
-              )}
+          {viewType === "range" ? (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <CalendarPicker
+                label={t("reports_start_date")}
+                value={rangeStart}
+                calSystem={calSystem}
+                onChange={(date) => {
+                  setRangeStart(date);
+                  if (startOfDay(date) > startOfDay(rangeEnd)) {
+                    setRangeEnd(date);
+                  }
+                }}
+              />
+              <CalendarPicker
+                label={t("reports_end_date")}
+                value={rangeEnd}
+                calSystem={calSystem}
+                onChange={(date) => {
+                  setRangeEnd(date);
+                  if (startOfDay(date) < startOfDay(rangeStart)) {
+                    setRangeStart(date);
+                  }
+                }}
+              />
             </div>
-            <Button variant="ghost" size="icon" onClick={handleNextDate}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-1 rounded-lg border shadow-sm">
+              <Button variant="ghost" size="icon" onClick={handlePrevDate}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-2 px-4 font-semibold text-sm">
+                <CalendarIcon className="h-4 w-4 text-primary" />
+                {formatDateWithSystem(
+                  calSystem,
+                  selectedDate,
+                  viewType === "daily" ? undefined : { monthYear: true },
+                )}
+              </div>
+              <Button variant="ghost" size="icon" onClick={handleNextDate}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
       <Tabs
         value={viewType}
-        onValueChange={(value: string) =>
-          setViewType(value as "daily" | "monthly")
-        }
+        onValueChange={handleViewTypeChange}
         className="w-full"
       >
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+        <TabsList className="grid w-full max-w-[480px] grid-cols-3">
           <TabsTrigger value="daily">{t("reports_daily")}</TabsTrigger>
           <TabsTrigger value="monthly">{t("reports_monthly")}</TabsTrigger>
+          <TabsTrigger value="range">{t("reports_range")}</TabsTrigger>
         </TabsList>
 
         <div className="mt-6 space-y-6">
@@ -1909,6 +2116,24 @@ export default function ReportsPage() {
                 </SelectContent>
               </Select>
 
+              <Select
+                value={itemTypeFilter}
+                onValueChange={(value) =>
+                  setItemTypeFilter(value as ReportItemTypeFilter)
+                }
+              >
+                <SelectTrigger className="w-[180px] bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-50">
+                  <SelectValue placeholder="Item Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">{t("reports_all_items")}</SelectItem>
+                  <SelectItem value="menu">{t("create_order_menu_items")}</SelectItem>
+                  <SelectItem value="inventory">
+                    {t("create_order_inventory_items")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
             </CardContent>
           </Card>
 
@@ -1935,49 +2160,53 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden border-l-4 border-l-rose-500">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-                      {t("reports_total_expenses")}
-                    </p>
-                    {isExpensesFetching ? (
-                      <Skeleton className="h-8 w-32 mt-1" />
-                    ) : (
-                      <h3 className="text-2xl font-bold mt-1 text-rose-600">
-                        {formatCurrency(totalExpenses)}
-                      </h3>
-                    )}
-                  </div>
-                  <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-lg">
-                    <ArrowDownCircle className="h-5 w-5 text-rose-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {showExpenses ? (
+              <>
+                <Card className="overflow-hidden border-l-4 border-l-rose-500">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+                          {t("reports_total_expenses")}
+                        </p>
+                        {isExpensesFetching ? (
+                          <Skeleton className="h-8 w-32 mt-1" />
+                        ) : (
+                          <h3 className="text-2xl font-bold mt-1 text-rose-600">
+                            {formatCurrency(totalExpenses)}
+                          </h3>
+                        )}
+                      </div>
+                      <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-lg">
+                        <ArrowDownCircle className="h-5 w-5 text-rose-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Card className="overflow-hidden border-l-4 border-l-blue-500 bg-blue-50/10">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-                      {t("reports_net_revenue")}
-                    </p>
-                    {isFetching || isExpensesFetching ? (
-                      <Skeleton className="h-8 w-32 mt-1" />
-                    ) : (
-                      <h3 className="text-2xl font-bold mt-1 text-blue-600">
-                        {formatCurrency(netRevenue)}
-                      </h3>
-                    )}
-                  </div>
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <DollarSign className="h-5 w-5 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                <Card className="overflow-hidden border-l-4 border-l-blue-500 bg-blue-50/10">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+                          {t("reports_net_revenue")}
+                        </p>
+                        {isFetching || isExpensesFetching ? (
+                          <Skeleton className="h-8 w-32 mt-1" />
+                        ) : (
+                          <h3 className="text-2xl font-bold mt-1 text-blue-600">
+                            {formatCurrency(netRevenue)}
+                          </h3>
+                        )}
+                      </div>
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                        <DollarSign className="h-5 w-5 text-blue-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2034,6 +2263,7 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
+            {showExpenses ? (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -2141,6 +2371,7 @@ export default function ReportsPage() {
                 )}
               </CardContent>
             </Card>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2258,27 +2489,10 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader className="border-b pb-4">
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <Package className="h-5 w-5 text-indigo-500" />
-                    {t("reports_menu_inventory_performance")}
-                  </CardTitle>
-                  <Select
-                    value={itemTypeFilter}
-                    onValueChange={(value) =>
-                      setItemTypeFilter(value as "ALL" | "menu" | "inventory")
-                    }
-                  >
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Item Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">{t("reports_all_items")}</SelectItem>
-                      <SelectItem value="menu">{t("create_order_menu_items")}</SelectItem>
-                      <SelectItem value="inventory">{t("create_order_inventory_items")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Package className="h-5 w-5 text-indigo-500" />
+                  {performanceTitle}
+                </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 {soldItemsQuery.isFetching ? (
@@ -2380,13 +2594,14 @@ export default function ReportsPage() {
 
           <div className="py-4">
             <StaffOrderDetails
-              key={`${staffDetailModal.staffId}-${staffDetailModal.type}`}
+              key={`${staffDetailModal.staffId}-${staffDetailModal.type}-${itemTypeFilter}`}
               staffId={staffDetailModal.staffId}
               staffType={staffDetailModal.type}
               startDate={detailRange.startDate}
               endDate={detailRange.endDate}
               statusFilter={statusFilter}
               paymentFilter={paymentFilter}
+              itemTypeFilter={itemTypeFilter}
             />
           </div>
 
@@ -2433,7 +2648,9 @@ export default function ReportsPage() {
             <div className="space-y-2">
               {[
                 { id: "paymentBreakdown", label: "Payment Breakdown" },
-                { id: "expenses", label: "Expenses Detail" },
+                ...(showExpenses
+                  ? [{ id: "expenses", label: "Expenses Detail" }]
+                  : []),
                 { id: "cashierPerformance", label: "Cashier Performance" },
                 { id: "menuPerformance", label: "Menu Performance" },
                 { id: "inventoryPerformance", label: "Inventory Performance" },
@@ -2509,16 +2726,20 @@ export default function ReportsPage() {
 
             <div className="space-y-2">
               {[
-                { id: "yesterdayComparison", label: `${viewType === "daily" ? "Yesterday" : "Last Month"} Comparison` },
+                { id: "yesterdayComparison", label: `${prevPeriodLabel} Comparison` },
                 { id: "orderStatusSummary", label: "Order Status Summary (Open & Voided)" },
-                { id: "categoryMenuSummary", label: "Category Menu Summary" },
-                { id: "expenses", label: "Expenses & Withdrawals" },
+                ...(itemTypeFilter !== "inventory"
+                  ? [{ id: "categoryMenuSummary", label: "Category Menu Summary" }]
+                  : []),
+                ...(showExpenses
+                  ? [{ id: "expenses", label: "Expenses & Withdrawals" }]
+                  : []),
                 { id: "paymentBreakdown", label: "Payment Breakdown" },
                 { id: "cashierPerformance", label: "Cashier Performance" },
                 { id: "waiterPerformance", label: "Waiter Performance" },
                 {
                   id: "itemPerformance",
-                  label: "Menu & Inventory Performance",
+                  label: performanceTitle,
                 },
               ].map((section) => (
                 <label
@@ -2567,5 +2788,13 @@ export default function ReportsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <RoleGuard allowedRoles={["owner"]}>
+      <ReportsPageContent />
+    </RoleGuard>
   );
 }

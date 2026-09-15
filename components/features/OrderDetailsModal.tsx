@@ -45,6 +45,7 @@ interface OrderDetailsModalProps {
   orderId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  readOnly?: boolean;
 }
 
 const getStatusBadge = (
@@ -109,6 +110,7 @@ export function OrderDetailsModal({
   orderId,
   open,
   onOpenChange,
+  readOnly = false,
 }: OrderDetailsModalProps) {
   const { formatDate: formatCalendarDate } = useCalendarSystem();
   const formatDate = (dateString?: string): string =>
@@ -157,7 +159,7 @@ export function OrderDetailsModal({
           <DialogTitle className="flex items-center justify-between gap-4">
             <span>Order Details</span>
             <div className="flex items-center gap-2">
-              {order && (
+              {order && !readOnly && (
                 <Button
                   variant="outline"
                   size="sm"

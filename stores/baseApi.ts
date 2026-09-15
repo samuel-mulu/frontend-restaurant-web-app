@@ -253,6 +253,7 @@ export const apiSlice = createApi({
     "Withdrawal",
     "Payment",
     "Shift",
+    "SecurityPins",
   ],
   keepUnusedDataFor: 60,
   // refetchOnFocus: true,

@@ -4,8 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSelector } from "react-redux";
 import { selectUser } from "@/stores/features/auth/authSlice";
-import { OrderHistory } from "@/components/features/OrderHistory";
-import { OwnerHistory } from "@/components/features/OwnerHistory";
 import { Loading } from "@/components/ui/loading";
 
 export default function DashboardLandingPage() {
@@ -17,6 +15,12 @@ export default function DashboardLandingPage() {
     if (userRole === "cashier") {
       router.replace("/create-order");
     }
+    if (userRole === "waiter") {
+      router.replace("/my-report");
+    }
+    if (userRole === "owner") {
+      router.replace("/reports");
+    }
   }, [router, userRole]);
 
   if (userRole === "cashier") {
@@ -25,9 +29,15 @@ export default function DashboardLandingPage() {
     );
   }
 
-  if (userRole === "owner") {
-    return <OwnerHistory />;
+  if (userRole === "waiter") {
+    return (
+      <Loading text="Opening your report..." size="lg" className="py-24" />
+    );
   }
 
-  return <OrderHistory />;
+  if (userRole === "owner") {
+    return <Loading text="Opening reports..." size="lg" className="py-24" />;
+  }
+
+  return <Loading text="Loading..." size="lg" className="py-24" />;
 }

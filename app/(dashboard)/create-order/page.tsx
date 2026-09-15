@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { clearCart, loadCart, saveCart } from "@/lib/cart-storage";
+import { useCashierStatusVisibility } from "@/hooks/useCashierStatusVisibility";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { Menu } from "@/lib/menu-store";
@@ -86,13 +87,19 @@ const WAITER_COLOR_ITEM_CLASS: Record<string, string> = {
 };
 
 export default function OrderPage() {
-  // Route protection - Only cashiers and waiters can access this page
+  // Route protection - cashiers only
   const auth = useRequireAuth({
-    allowedRoles: ["cashier", "waiter"],
+    allowedRoles: ["cashier"],
     redirectTo: "/",
   });
 
   const { t } = useLanguage();
+  const {
+    visibility,
+    createDefaults,
+    isLoading: isStatusSettingsLoading,
+  } = useCashierStatusVisibility();
+  const defaultsAppliedRef = React.useRef(false);
   const restoredFromStorageRef = React.useRef(false);
   const [cart, setCart] = React.useState<CartItem[]>(() => {
     const stored = loadCart() as CartItem[] | null;
@@ -126,6 +133,66 @@ export default function OrderPage() {
     useCreateOrderMutation();
   const [updateCategory] = useUpdateCategoryMutation();
   const [updateItem] = useUpdateItemMutation();
+
+  React.useEffect(() => {
+    if (isStatusSettingsLoading || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+    setMarkAsPaidToCashier(createDefaults.markAsPaidToCashier);
+    setMarkAsTransferredToOwner(createDefaults.markAsTransferredToOwner);
+    if (
+      !createDefaults.markAsPaidToCashier &&
+      !createDefaults.markAsTransferredToOwner
+    ) {
+      setWithoutPrint(false);
+    }
+  }, [isStatusSettingsLoading, createDefaults]);
+
+  // Keep selection valid when visibility changes (e.g. owner flips toggles live)
+  React.useEffect(() => {
+    if (isStatusSettingsLoading) return;
+
+    if (!visibility.cashierShowPaidToWaiter && markAsPaidToCashier) {
+      setMarkAsPaidToCashier(false);
+      if (visibility.cashierShowPaidToCashier) {
+        setMarkAsTransferredToOwner(true);
+      } else if (visibility.cashierShowOpen) {
+        setMarkAsTransferredToOwner(false);
+      }
+    }
+
+    if (!visibility.cashierShowPaidToCashier && markAsTransferredToOwner) {
+      setMarkAsTransferredToOwner(false);
+      if (visibility.cashierShowPaidToWaiter) {
+        setMarkAsPaidToCashier(true);
+      } else if (visibility.cashierShowOpen) {
+        setMarkAsPaidToCashier(false);
+      } else {
+        setMarkAsTransferredToOwner(true);
+      }
+    }
+
+    if (
+      !visibility.cashierShowOpen &&
+      !markAsPaidToCashier &&
+      !markAsTransferredToOwner
+    ) {
+      if (visibility.cashierShowPaidToWaiter) {
+        setMarkAsPaidToCashier(true);
+      } else if (visibility.cashierShowPaidToCashier) {
+        setMarkAsTransferredToOwner(true);
+      }
+    }
+
+    if (!visibility.cashierShowWithoutPrint && withoutPrint) {
+      setWithoutPrint(false);
+    }
+  }, [
+    isStatusSettingsLoading,
+    visibility,
+    markAsPaidToCashier,
+    markAsTransferredToOwner,
+    withoutPrint,
+  ]);
 
   // Fetch data using Redux Toolkit Query
   const { data: waitersData, isLoading: waitersLoading } = useListStaffQuery({
@@ -257,6 +324,15 @@ export default function OrderPage() {
   };
 
   // Show loading while checking authorization
+  const paidToWaiterLocked =
+    !visibility.cashierShowOpen &&
+    visibility.cashierShowPaidToWaiter &&
+    !visibility.cashierShowPaidToCashier;
+  const paidToCashierLocked =
+    !visibility.cashierShowOpen &&
+    !visibility.cashierShowPaidToWaiter &&
+    visibility.cashierShowPaidToCashier;
+
   if (auth.isChecking || !auth.hydrated) {
     return <Loading fullScreen text="Checking authorization..." size="lg" />;
   }
@@ -1183,14 +1259,37 @@ export default function OrderPage() {
           </div>
 
           <div className="mt-3 shrink-0 flex items-start gap-6 flex-wrap">
+            {visibility.cashierShowPaidToWaiter && (
             <div>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label
+                className={`flex items-center gap-2 ${
+                  paidToWaiterLocked
+                    ? "cursor-not-allowed opacity-80"
+                    : "cursor-pointer"
+                }`}
+              >
                 <Checkbox
                   checked={markAsPaidToCashier}
+                  disabled={paidToWaiterLocked}
                   onCheckedChange={(checked) => {
+                    if (paidToWaiterLocked) return;
                     const v = checked === true;
                     setMarkAsPaidToCashier(v);
                     if (v) setMarkAsTransferredToOwner(false);
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      visibility.cashierShowPaidToCashier
+                    ) {
+                      setMarkAsTransferredToOwner(true);
+                    }
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      !visibility.cashierShowPaidToCashier
+                    ) {
+                      setMarkAsPaidToCashier(true);
+                    }
                   }}
                 />
                 <span className="text-sm font-medium text-foreground">
@@ -1203,14 +1302,38 @@ export default function OrderPage() {
                 </p>
               )}
             </div>
+            )}
+            {visibility.cashierShowPaidToCashier && (
             <div>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label
+                className={`flex items-center gap-2 ${
+                  paidToCashierLocked
+                    ? "cursor-not-allowed opacity-80"
+                    : "cursor-pointer"
+                }`}
+              >
                 <Checkbox
                   checked={markAsTransferredToOwner}
+                  disabled={paidToCashierLocked}
                   onCheckedChange={(checked) => {
+                    if (paidToCashierLocked) return;
                     const v = checked === true;
                     setMarkAsTransferredToOwner(v);
                     if (v) setMarkAsPaidToCashier(false);
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      visibility.cashierShowPaidToWaiter
+                    ) {
+                      setMarkAsPaidToCashier(true);
+                    }
+                    if (
+                      !v &&
+                      !visibility.cashierShowOpen &&
+                      !visibility.cashierShowPaidToWaiter
+                    ) {
+                      setMarkAsTransferredToOwner(true);
+                    }
                   }}
                 />
                 <span className="text-sm font-medium text-foreground">
@@ -1234,6 +1357,9 @@ export default function OrderPage() {
                 </div>
               )}
             </div>
+            )}
+            {visibility.cashierShowWithoutPrint &&
+              (markAsPaidToCashier || markAsTransferredToOwner) && (
             <div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
@@ -1252,6 +1378,7 @@ export default function OrderPage() {
                 </p>
               )}
             </div>
+            )}
           </div>
 
           <Button

@@ -42,9 +42,11 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { RoleGuard } from "@/components/shared/RoleGuard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
+import { useCanManageResource } from "@/hooks/useCanManageResource";
 import { useListCategoriesQuery } from "@/stores/features/categories/categoriesApi";
 import {
   useCreateItemMutation,
@@ -65,7 +67,16 @@ interface MenuFormData {
   special: boolean;
 }
 
-export default function MenuManagement() {
+export default function MenusPage() {
+  return (
+    <RoleGuard allowedRoles={["owner", "cashier"]}>
+      <MenuManagement />
+    </RoleGuard>
+  );
+}
+
+function MenuManagement() {
+  const { canManage } = useCanManageResource("menus");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
@@ -564,6 +575,8 @@ export default function MenuManagement() {
                     )}
                   </div>
                   <div className="flex gap-2">
+                    {canManage && (
+                      <>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -576,7 +589,7 @@ export default function MenuManagement() {
                       title="Are you sure?"
                       description="This action cannot be undone. This will permanently delete the menu"
                       itemName={menu.name}
-                      expectedPin="1219"
+                      requireSecurityPin
                       onConfirm={() => handleDelete(menu.id)}
                       trigger={
                         <Button
@@ -588,6 +601,8 @@ export default function MenuManagement() {
                         </Button>
                       }
                     />
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -678,9 +693,11 @@ export default function MenuManagement() {
                   <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
                     Approval
                   </TableHead>
+                  {canManage && (
                   <TableHead className="w-auto min-w-[100px] pl-1 py-2">
                     Actions
                   </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -825,6 +842,7 @@ export default function MenuManagement() {
                                 : "—"}
                         </Badge>
                       </TableCell>
+                      {canManage && (
                       <TableCell className="py-1.5 pl-1">
                         <div className="flex gap-2">
                           <Button
@@ -839,7 +857,7 @@ export default function MenuManagement() {
                             title="Delete Menu?"
                             description="This action cannot be undone. This will permanently delete the menu"
                             itemName={menu.name}
-                            expectedPin="1219"
+                            requireSecurityPin
                             onConfirm={() => handleDelete(menu.id)}
                             trigger={
                               <Button
@@ -853,6 +871,7 @@ export default function MenuManagement() {
                           />
                         </div>
                       </TableCell>
+                      )}
                     </TableRow>
                   )
                 )}

@@ -331,12 +331,15 @@ export const statisticsApi = createApiEndpoints({
 
     getDailyReport: build.query<
       ReportData,
-      { date: string; status?: string }
+      { date: string; status?: string; itemType?: "ALL" | "menu" | "inventory" }
     >({
-      query: ({ date, status }) => {
+      query: ({ date, status, itemType }) => {
         const queryParams = new URLSearchParams();
         queryParams.append("date", date);
         if (status) queryParams.append("status", status);
+        if (itemType && itemType !== "ALL") {
+          queryParams.append("itemType", itemType);
+        }
         return {
           url: `/reports/daily?${queryParams.toString()}`,
           method: "GET",
@@ -347,15 +350,48 @@ export const statisticsApi = createApiEndpoints({
 
     getMonthlyReport: build.query<
       ReportData,
-      { year: number; month: number; status?: string }
+      {
+        year: number;
+        month: number;
+        status?: string;
+        itemType?: "ALL" | "menu" | "inventory";
+      }
     >({
-      query: ({ year, month, status }) => {
+      query: ({ year, month, status, itemType }) => {
         const queryParams = new URLSearchParams();
         queryParams.append("year", String(year));
         queryParams.append("month", String(month));
         if (status) queryParams.append("status", status);
+        if (itemType && itemType !== "ALL") {
+          queryParams.append("itemType", itemType);
+        }
         return {
           url: `/reports/monthly?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (response: ApiResponse<ReportData>) => response.data,
+    }),
+
+    getRangeReport: build.query<
+      ReportData,
+      {
+        startDate: string;
+        endDate: string;
+        status?: string;
+        itemType?: "ALL" | "menu" | "inventory";
+      }
+    >({
+      query: ({ startDate, endDate, status, itemType }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("startDate", startDate);
+        queryParams.append("endDate", endDate);
+        if (status) queryParams.append("status", status);
+        if (itemType && itemType !== "ALL") {
+          queryParams.append("itemType", itemType);
+        }
+        return {
+          url: `/reports/range?${queryParams.toString()}`,
           method: "GET",
         };
       },
@@ -371,6 +407,7 @@ export const statisticsApi = createApiEndpoints({
         endDate: string;
         status?: string;
         paymentMethod?: string;
+        itemType?: "ALL" | "menu" | "inventory";
       }
     >({
       query: ({
@@ -380,6 +417,7 @@ export const statisticsApi = createApiEndpoints({
         endDate,
         status,
         paymentMethod,
+        itemType,
       }) => {
         const queryParams = new URLSearchParams();
         queryParams.append("staffType", staffType);
@@ -389,6 +427,9 @@ export const statisticsApi = createApiEndpoints({
         if (status) queryParams.append("status", status);
         if (paymentMethod && paymentMethod !== "ALL") {
           queryParams.append("paymentMethod", paymentMethod);
+        }
+        if (itemType && itemType !== "ALL") {
+          queryParams.append("itemType", itemType);
         }
         return {
           url: `/reports/staff-orders?${queryParams.toString()}`,
@@ -494,6 +535,7 @@ export const {
   useGetMenuAnalyticsQuery,
   useGetDailyReportQuery,
   useGetMonthlyReportQuery,
+  useGetRangeReportQuery,
   useGetReportStaffOrdersQuery,
   useGetSoldItemsPerformanceQuery,
   useGetExpensesQuery,

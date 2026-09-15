@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useVerifySecurityPinMutation } from "@/stores/features/settings/settingsApi";
 import { ReactNode, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface DeleteConfirmDialogProps {
   title: string;
@@ -24,6 +26,9 @@ interface DeleteConfirmDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   isLoading?: boolean;
+  /** When true, requires void security PIN verified against the server */
+  requireSecurityPin?: boolean;
+  /** @deprecated Use requireSecurityPin instead */
   expectedPin?: string;
 }
 
@@ -36,9 +41,12 @@ export function DeleteConfirmDialog({
   open,
   onOpenChange,
   isLoading = false,
+  requireSecurityPin,
   expectedPin,
 }: DeleteConfirmDialogProps) {
+  const needsPin = requireSecurityPin ?? Boolean(expectedPin);
   const [pin, setPin] = useState("");
+  const [verifyPin, { isLoading: isVerifying }] = useVerifySecurityPinMutation();
 
   useEffect(() => {
     if (open !== undefined && !open) {
@@ -51,9 +59,19 @@ export function DeleteConfirmDialog({
     if (onOpenChange) onOpenChange(newOpen);
   };
 
-  const handleConfirm = async () => {
-    if (expectedPin && pin !== expectedPin) {
-      return;
+  const handleConfirm = async (e?: React.MouseEvent) => {
+    if (needsPin) {
+      e?.preventDefault();
+      if (pin.length !== 4) {
+        toast.error("Enter a 4-digit security PIN");
+        return;
+      }
+      try {
+        await verifyPin({ type: "void", pin }).unwrap();
+      } catch {
+        toast.error("Invalid security PIN");
+        return;
+      }
     }
     await onConfirm();
     internalOnOpenChange(false);
@@ -73,7 +91,7 @@ export function DeleteConfirmDialog({
               </>
             )}
           </AlertDialogDescription>
-          {expectedPin && (
+          {needsPin && (
             <div className="mt-4 flex flex-col gap-2">
               <Label htmlFor="pin-input" className="text-sm font-medium">
                 Enter Security PIN to Confirm
@@ -81,9 +99,12 @@ export function DeleteConfirmDialog({
               <Input
                 id="pin-input"
                 type="password"
+                inputMode="numeric"
                 maxLength={4}
                 value={pin}
-                onChange={(e) => setPin(e.target.value)}
+                onChange={(e) =>
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
                 placeholder="****"
                 className="w-full max-w-[120px]"
               />
@@ -91,20 +112,21 @@ export function DeleteConfirmDialog({
           )}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading || isVerifying}>
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={(e) => {
-              if (expectedPin && pin !== expectedPin) {
-                e.preventDefault();
-                // Optionally could show a toast here "Incorrect PIN"
-                return;
-              }
-              handleConfirm();
+              handleConfirm(e);
             }}
-            disabled={isLoading || (!!expectedPin && pin !== expectedPin)}
+            disabled={
+              isLoading ||
+              isVerifying ||
+              (needsPin && pin.length !== 4)
+            }
             className="bg-red-600 hover:bg-red-700"
           >
-            {isLoading ? "Deleting..." : "Delete"}
+            {isLoading || isVerifying ? "Deleting..." : "Delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -35,6 +35,7 @@ import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { LoadingState } from "@/components/shared/LoadingState";
+import { useCanManageResource } from "@/hooks/useCanManageResource";
 import { Inventory } from "@/lib/types";
 import {
   useCreateInventoryMutation,
@@ -52,6 +53,7 @@ interface InventoryFormData {
 }
 
 export function InventoryManagement() {
+  const { canManage } = useCanManageResource("inventory");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingInventoryId, setEditingInventoryId] = useState<string | null>(
@@ -390,6 +392,8 @@ export function InventoryManagement() {
                   )}
                 </div>
                 <div className="flex gap-2">
+                  {canManage && (
+                    <>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -402,7 +406,7 @@ export function InventoryManagement() {
                     title="Delete Inventory Item?"
                     description="This action cannot be undone. This will permanently delete the inventory item"
                     itemName={item.name}
-                    expectedPin="1219"
+                    requireSecurityPin
                     onConfirm={() => handleDelete(item.id)}
                     trigger={
                       <Button
@@ -414,6 +418,8 @@ export function InventoryManagement() {
                       </Button>
                     }
                   />
+                    </>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
@@ -504,9 +510,11 @@ export function InventoryManagement() {
                   <TableHead className="w-auto min-w-[120px] pl-1 pr-1 py-2">
                     Approval
                   </TableHead>
+                  {canManage && (
                   <TableHead className="w-auto min-w-[100px] pl-1 py-2">
                     Actions
                   </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -562,6 +570,7 @@ export function InventoryManagement() {
                               : "—"}
                       </Badge>
                     </TableCell>
+                    {canManage && (
                     <TableCell className="py-1.5 pl-1">
                       <div className="flex gap-1">
                         <Button
@@ -576,7 +585,7 @@ export function InventoryManagement() {
                           title="Delete Inventory Item?"
                           description="This action cannot be undone. This will permanently delete the inventory item"
                           itemName={item.name}
-                          expectedPin="1219"
+                          requireSecurityPin
                           onConfirm={() => handleDelete(item.id)}
                           trigger={
                             <Button
@@ -590,6 +599,7 @@ export function InventoryManagement() {
                         />
                       </div>
                     </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

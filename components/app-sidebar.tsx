@@ -5,6 +5,7 @@ import {
   BarChart3,
   ClipboardCheck,
   History,
+  KeyRound,
   List,
   LogOut,
   Package,
@@ -13,6 +14,7 @@ import {
   User,
   Users,
   Utensils,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -63,19 +65,27 @@ const getNavigationItems = (role?: string) => {
 
   if (role === "owner") {
     return [
+      { nameKey: "nav_reports" as const, href: "/reports", icon: ClipboardCheck },
       { nameKey: "nav_staff_management" as const, href: "/staff-management", icon: Users },
       { nameKey: "nav_analytics" as const, href: "/analytics", icon: BarChart3 },
-      { nameKey: "nav_reports" as const, href: "/reports", icon: ClipboardCheck },
       { nameKey: "nav_approvals" as const, href: "/approvals", icon: ClipboardCheck },
+      { nameKey: "nav_password_config" as const, href: "/config", icon: KeyRound },
       ...baseItems,
     ];
   }
 
-  if (role === "cashier" || role === "waiter") {
+  if (role === "cashier") {
     return [
       { nameKey: "nav_create_order" as const, href: "/create-order", icon: ShoppingCart },
       { nameKey: "nav_printer" as const, href: "/printer", icon: Printer },
       ...baseItems,
+    ];
+  }
+
+  if (role === "waiter") {
+    return [
+      { nameKey: "nav_my_report" as const, href: "/my-report", icon: ClipboardCheck },
+      { nameKey: "nav_my_salary" as const, href: "/my-salary", icon: Wallet },
     ];
   }
 

@@ -40,7 +40,7 @@ const POS_PRINT_KEY =
 
 export default function PrinterManagementPage() {
   const auth = useRequireAuth({
-    allowedRoles: ["cashier", "waiter"],
+    allowedRoles: ["cashier"],
     redirectTo: "/",
   });
 

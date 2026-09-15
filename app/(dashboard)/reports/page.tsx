@@ -1854,9 +1854,11 @@ function ReportsPageContent() {
         totalExpenses: showExpenses ? totalExpenses : 0,
         netRevenue: showExpenses ? netRevenue : totalSales,
         sections: {
-          ...printModal.sections,
+          paymentBreakdown: printModal.sections.paymentBreakdown,
           expenses: showExpenses && printModal.sections.expenses,
-          netRevenue: showExpenses && printModal.sections.netRevenue,
+          cashierPerformance: printModal.sections.cashierPerformance,
+          menuPerformance: printModal.sections.menuPerformance,
+          inventoryPerformance: printModal.sections.inventoryPerformance,
         },
         details: {
           salesByPayment: reportData.salesByPaymentMethod,

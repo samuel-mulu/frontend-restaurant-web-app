@@ -4,17 +4,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loading } from "@/components/ui/loading";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { cn } from "@/lib/utils";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import {
+  BarmanDailySummaryRow,
   InventoryAssignment,
   useApproveInventoryAssignmentMutation,
+  useGetBarmanDailySummaryQuery,
   useListInventoryAssignmentsQuery,
   useRejectInventoryAssignmentMutation,
 } from "@/stores/features/inventory/inventoryAssignmentsApi";
+import { Staff, useListStaffQuery } from "@/stores/features/staff/staffApi";
 import { Loader2, Package } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
@@ -66,6 +76,12 @@ export default function BarmanAssignmentsPage() {
   const { t } = useLanguage();
   const user = useSelector(selectUser);
   const isBarman = user?.role === "barman";
+  const canFilterBarman = user?.role === "owner" || user?.role === "cashier";
+
+  const [selectedDate, setSelectedDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [selectedBarmanId, setSelectedBarmanId] = useState<string>("all");
 
   const {
     data: assignments = [],
@@ -74,6 +90,24 @@ export default function BarmanAssignmentsPage() {
   } = useListInventoryAssignmentsQuery(undefined, {
     skip: !auth.isAuthenticated,
   });
+
+  const { data: barmenData } = useListStaffQuery(
+    { role: "barman" },
+    { skip: !auth.isAuthenticated || !canFilterBarman }
+  );
+
+  const {
+    data: dailySummary,
+    isLoading: isDailyLoading,
+    refetch: refetchDaily,
+  } = useGetBarmanDailySummaryQuery(
+    {
+      date: selectedDate,
+      ...(canFilterBarman &&
+        selectedBarmanId !== "all" && { barmanId: selectedBarmanId }),
+    },
+    { skip: !auth.isAuthenticated }
+  );
 
   const [approveAssignment, { isLoading: isApproving }] =
     useApproveInventoryAssignmentMutation();
@@ -170,7 +204,13 @@ export default function BarmanAssignmentsPage() {
             {isBarman ? t("barman_subtitle_self") : t("barman_subtitle_other")}
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetch()}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            refetch();
+            refetchDaily();
+          }}
+        >
           {t("barman_refresh")}
         </Button>
       </div>
@@ -215,6 +255,7 @@ export default function BarmanAssignmentsPage() {
             <TabsTrigger value="pending">
               {t("barman_tab_pending")} ({pending.length})
             </TabsTrigger>
+            <TabsTrigger value="daily">{t("barman_tab_daily")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="approved" className="space-y-3 mt-4">
@@ -423,6 +464,121 @@ export default function BarmanAssignmentsPage() {
                   </div>
                 );
               })
+            )}
+          </TabsContent>
+
+          <TabsContent value="daily" className="space-y-4 mt-4">
+            <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">
+                  {t("barman_daily_date")}
+                </label>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full sm:w-[180px]"
+                />
+              </div>
+              {canFilterBarman && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">
+                    {t("barman_daily_filter_barman")}
+                  </label>
+                  <Select
+                    value={selectedBarmanId}
+                    onValueChange={setSelectedBarmanId}
+                  >
+                    <SelectTrigger className="w-full sm:w-[220px]">
+                      <SelectValue placeholder={t("barman_daily_all_barmen")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        {t("barman_daily_all_barmen")}
+                      </SelectItem>
+                      {(barmenData?.staff || []).map((barman: Staff) => {
+                        const barmanId = barman.id || barman._id;
+                        return (
+                          <SelectItem key={barmanId} value={barmanId}>
+                            {barman.name}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {isDailyLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("barman_daily_loading")}
+              </div>
+            ) : (dailySummary?.items || []).length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {t("barman_daily_empty")}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        {canFilterBarman && (
+                          <th className="px-4 py-3 text-left font-medium">
+                            {t("barman_label_barman")}
+                          </th>
+                        )}
+                        <th className="px-4 py-3 text-left font-medium">
+                          {t("barman_daily_item")}
+                        </th>
+                        <th className="px-4 py-3 text-right font-medium">
+                          {t("barman_daily_approved")}
+                        </th>
+                        <th className="px-4 py-3 text-right font-medium">
+                          {t("barman_daily_sold")}
+                        </th>
+                        <th className="px-4 py-3 text-right font-medium">
+                          {t("barman_daily_remaining")}
+                        </th>
+                        <th className="px-4 py-3 text-left font-medium">
+                          {t("barman_daily_unit")}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(dailySummary?.items || []).map((row: BarmanDailySummaryRow) => (
+                        <tr
+                          key={`${row.barmanId}-${row.inventoryId}`}
+                          className="border-b border-border last:border-0"
+                        >
+                          {canFilterBarman && (
+                            <td className="px-4 py-3">{row.barmanName}</td>
+                          )}
+                          <td className="px-4 py-3 font-medium">
+                            {row.inventoryName}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {row.approved}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {row.sold}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums">
+                            {row.remaining}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {row.unit || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </TabsContent>
         </Tabs>

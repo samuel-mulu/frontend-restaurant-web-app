@@ -64,6 +64,27 @@ export interface ApproveAssignmentInput {
   approvedQuantity: number;
 }
 
+export interface BarmanDailySummaryRow {
+  barmanId: string;
+  barmanName: string;
+  inventoryId: string;
+  inventoryName: string;
+  unit: string;
+  approved: number;
+  sold: number;
+  remaining: number;
+}
+
+export interface BarmanDailySummaryResponse {
+  date: string;
+  items: BarmanDailySummaryRow[];
+}
+
+export interface DailySummaryQuery {
+  date: string;
+  barmanId?: string;
+}
+
 function transformAssignment(item: any): InventoryAssignment {
   return {
     ...item,
@@ -131,6 +152,30 @@ export const inventoryAssignmentsApi = createApiEndpoints({
       ],
     }),
 
+    getBarmanDailySummary: build.query<
+      BarmanDailySummaryResponse,
+      DailySummaryQuery
+    >({
+      query: ({ date, barmanId }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("date", date);
+        if (barmanId) queryParams.append("barmanId", barmanId);
+        return {
+          url: `/inventory-assignments/daily-summary?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      transformResponse: (
+        response:
+          | ApiResponse<BarmanDailySummaryResponse>
+          | BarmanDailySummaryResponse
+      ) => {
+        if ("data" in response && response.data) return response.data;
+        return response as BarmanDailySummaryResponse;
+      },
+      providesTags: [{ type: "InventoryAssignment" as const, id: "DAILY" }],
+    }),
+
     rejectInventoryAssignment: build.mutation<InventoryAssignment, string>({
       query: (id) => ({
         url: `/inventory-assignments/${id}/reject`,
@@ -148,6 +193,7 @@ export const inventoryAssignmentsApi = createApiEndpoints({
 
 export const {
   useListInventoryAssignmentsQuery,
+  useGetBarmanDailySummaryQuery,
   useAssignInventoryMutation,
   useApproveInventoryAssignmentMutation,
   useRejectInventoryAssignmentMutation,

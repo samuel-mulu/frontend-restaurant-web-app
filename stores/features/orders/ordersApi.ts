@@ -445,6 +445,9 @@ export const ordersApi = createApiEndpoints({
       invalidatesTags: [
         { type: "Order", id: "LIST" },
         { type: "Order", id: "CASHIER_LIST" },
+        { type: "InventoryAssignment", id: "LIST" },
+        { type: "InventoryAssignment", id: "DAILY" },
+        { type: "Inventory", id: "LIST" },
       ],
     }),
 
@@ -474,6 +477,9 @@ export const ordersApi = createApiEndpoints({
         { type: "Order", id },
         { type: "Order", id: "LIST" },
         { type: "Order", id: "CASHIER_LIST" },
+        { type: "InventoryAssignment", id: "LIST" },
+        { type: "InventoryAssignment", id: "DAILY" },
+        { type: "Inventory", id: "LIST" },
       ],
     }),
 
@@ -537,6 +543,9 @@ export const ordersApi = createApiEndpoints({
         { type: "Order", id },
         { type: "Order", id: "LIST" },
         { type: "Order", id: "CASHIER_LIST" },
+        { type: "InventoryAssignment", id: "LIST" },
+        { type: "InventoryAssignment", id: "DAILY" },
+        { type: "Inventory", id: "LIST" },
       ],
     }),
 
@@ -573,6 +582,9 @@ export const ordersApi = createApiEndpoints({
         ...orderIds.map((id) => ({ type: "Order" as const, id })),
         { type: "Order", id: "LIST" },
         { type: "Order", id: "CASHIER_LIST" },
+        { type: "InventoryAssignment", id: "LIST" },
+        { type: "InventoryAssignment", id: "DAILY" },
+        { type: "Inventory", id: "LIST" },
       ],
     }),
 

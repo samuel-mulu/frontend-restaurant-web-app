@@ -70,14 +70,39 @@ export interface BarmanDailySummaryRow {
   inventoryId: string;
   inventoryName: string;
   unit: string;
+  /** Approved on selected date */
   approved: number;
+  /** Sold on selected date */
   sold: number;
+  /** Current left from approved (not warehouse) */
   remaining: number;
+  /** Reserved in open unpaid orders (today only) */
+  reserved?: number;
+}
+
+export interface BarmanApprovalByDate {
+  date: string;
+  approved: number;
+}
+
+export interface BarmanApprovalHistoryRow {
+  id: string;
+  date: string;
+  barmanId: string;
+  barmanName: string;
+  inventoryId: string;
+  inventoryName: string;
+  unit: string;
+  approved: number;
+  assignedById: string;
+  assignedByName: string;
 }
 
 export interface BarmanDailySummaryResponse {
   date: string;
   items: BarmanDailySummaryRow[];
+  approvalsByDate?: BarmanApprovalByDate[];
+  approvalHistory?: BarmanApprovalHistoryRow[];
 }
 
 export interface DailySummaryQuery {
@@ -131,6 +156,7 @@ export const inventoryAssignmentsApi = createApiEndpoints({
         transformAssignment(response.data),
       invalidatesTags: [
         { type: "InventoryAssignment" as const, id: "LIST" },
+        { type: "InventoryAssignment" as const, id: "DAILY" },
         { type: "Inventory" as const, id: "LIST" },
       ],
     }),
@@ -148,6 +174,7 @@ export const inventoryAssignmentsApi = createApiEndpoints({
         transformAssignment(response.data),
       invalidatesTags: [
         { type: "InventoryAssignment" as const, id: "LIST" },
+        { type: "InventoryAssignment" as const, id: "DAILY" },
         { type: "Inventory" as const, id: "LIST" },
       ],
     }),
@@ -185,6 +212,7 @@ export const inventoryAssignmentsApi = createApiEndpoints({
         transformAssignment(response.data),
       invalidatesTags: [
         { type: "InventoryAssignment" as const, id: "LIST" },
+        { type: "InventoryAssignment" as const, id: "DAILY" },
         { type: "Inventory" as const, id: "LIST" },
       ],
     }),

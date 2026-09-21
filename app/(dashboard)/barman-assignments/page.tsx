@@ -11,12 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCalendarSystem } from "@/hooks/useCalendarSystem";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { addisNoon, formatCivilYmd } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 import { selectUser } from "@/stores/features/auth/authSlice";
 import {
+  BarmanApprovalHistoryRow,
   BarmanDailySummaryRow,
   InventoryAssignment,
   useApproveInventoryAssignmentMutation,
@@ -25,7 +27,15 @@ import {
   useRejectInventoryAssignmentMutation,
 } from "@/stores/features/inventory/inventoryAssignmentsApi";
 import { Staff, useListStaffQuery } from "@/stores/features/staff/staffApi";
-import { Loader2, Package } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Loader2,
+  Package,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
@@ -68,28 +78,41 @@ function getPersonName(
   return fallback;
 }
 
+function getAddisToday(): string {
+  return formatCivilYmd(new Date());
+}
+
+/** Shift a civil YYYY-MM-DD by N days in Africa/Addis_Ababa. */
+function shiftCivilDate(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const date = addisNoon(year, month, day);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatCivilYmd(date);
+}
+
 export default function BarmanAssignmentsPage() {
   const auth = useRequireAuth({
     allowedRoles: ["barman", "owner", "cashier"],
     redirectTo: "/login",
   });
   const { t } = useLanguage();
+  const { formatDate } = useCalendarSystem();
   const user = useSelector(selectUser);
   const isBarman = user?.role === "barman";
   const canFilterBarman = user?.role === "owner" || user?.role === "cashier";
 
-  const [selectedDate, setSelectedDate] = useState(() =>
-    new Date().toISOString().slice(0, 10)
-  );
+  const [selectedDate, setSelectedDate] = useState(() => getAddisToday());
   const [selectedBarmanId, setSelectedBarmanId] = useState<string>("all");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const {
     data: assignments = [],
-    isLoading,
-    refetch,
-  } = useListInventoryAssignmentsQuery(undefined, {
-    skip: !auth.isAuthenticated,
-  });
+    isLoading: isAssignmentsLoading,
+    refetch: refetchAssignments,
+  } = useListInventoryAssignmentsQuery(
+    { status: "pending" },
+    { skip: !auth.isAuthenticated }
+  );
 
   const { data: barmenData } = useListStaffQuery(
     { role: "barman" },
@@ -122,20 +145,18 @@ export default function BarmanAssignmentsPage() {
     () => assignments.filter((a: InventoryAssignment) => a.status === "pending"),
     [assignments]
   );
-  const approved = useMemo(
-    () =>
-      assignments.filter((a: InventoryAssignment) => a.status === "approved"),
-    [assignments]
-  );
 
-  const totalRemaining = useMemo(
+  const summaryRows = dailySummary?.items || [];
+  const approvalHistory = dailySummary?.approvalHistory || [];
+
+  const totalCurrent = useMemo(
     () =>
-      approved.reduce(
-        (sum: number, a: InventoryAssignment) =>
-          sum + (a.remainingQuantity || 0),
+      summaryRows.reduce(
+        (sum: number, row: BarmanDailySummaryRow) =>
+          sum + (row.remaining || 0),
         0
       ),
-    [approved]
+    [summaryRows]
   );
 
   const handleApprove = async (assignment: InventoryAssignment) => {
@@ -161,6 +182,7 @@ export default function BarmanAssignmentsPage() {
         approvedQuantity,
       }).unwrap();
       toast.success(t("barman_toast_approved"));
+      refetchDaily();
     } catch (err: unknown) {
       const error = err as { data?: { message?: string }; message?: string };
       toast.error(
@@ -175,6 +197,7 @@ export default function BarmanAssignmentsPage() {
     try {
       await rejectAssignment(id).unwrap();
       toast.success(t("barman_toast_rejected"));
+      refetchDaily();
     } catch (err: unknown) {
       const error = err as { data?: { message?: string }; message?: string };
       toast.error(
@@ -183,6 +206,18 @@ export default function BarmanAssignmentsPage() {
           t("barman_toast_reject_failed")
       );
     }
+  };
+
+  const handlePrevDate = () => {
+    setSelectedDate((prev) => shiftCivilDate(prev, -1));
+  };
+
+  const handleNextDate = () => {
+    setSelectedDate((prev) => {
+      const next = shiftCivilDate(prev, 1);
+      const today = getAddisToday();
+      return next > today ? today : next;
+    });
   };
 
   if (auth.isChecking || !auth.hydrated) {
@@ -195,19 +230,15 @@ export default function BarmanAssignmentsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t("barman_title")}
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {isBarman ? t("barman_subtitle_self") : t("barman_subtitle_other")}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {t("barman_title")}
+        </h1>
         <Button
           variant="outline"
+          size="sm"
           onClick={() => {
-            refetch();
+            refetchAssignments();
             refetchDaily();
           }}
         >
@@ -215,108 +246,332 @@ export default function BarmanAssignmentsPage() {
         </Button>
       </div>
 
-      {!isLoading && approved.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-              <Package className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("barman_total_remaining")}
-              </p>
-              <p className="text-2xl font-semibold tabular-nums leading-none mt-1">
-                {totalRemaining}
-              </p>
-            </div>
+      {/* Approved history — tap to expand full table */}
+      <section className="rounded-2xl border border-border bg-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setHistoryOpen((open) => !open)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-semibold">{t("barman_approvals_by_date")}</span>
+            <Badge variant="secondary" className="tabular-nums">
+              {approvalHistory.length}
+            </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {fill(
-              approved.length === 1
-                ? t("barman_across_item")
-                : t("barman_across_items"),
-              { count: approved.length }
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground shrink-0">
+            {historyOpen ? t("barman_approvals_hide") : t("barman_approvals_show")}
+            {historyOpen ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
             )}
-          </p>
-        </div>
-      )}
+          </span>
+        </button>
 
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("barman_loading")}
-        </div>
-      ) : (
-        <Tabs defaultValue="approved">
-          <TabsList>
-            <TabsTrigger value="approved">
-              {t("barman_tab_remaining")} ({approved.length})
-            </TabsTrigger>
-            <TabsTrigger value="pending">
-              {t("barman_tab_pending")} ({pending.length})
-            </TabsTrigger>
-            <TabsTrigger value="daily">{t("barman_tab_daily")}</TabsTrigger>
-          </TabsList>
+        {historyOpen && (
+          <div className="border-t border-border">
+            {isDailyLoading ? (
+              <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("barman_loading")}
+              </div>
+            ) : approvalHistory.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-muted-foreground">
+                {t("barman_approvals_empty")}
+              </p>
+            ) : (
+              <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted/70 backdrop-blur-sm">
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-2.5 text-left font-medium">
+                        {t("barman_approvals_date")}
+                      </th>
+                      <th className="px-4 py-2.5 text-left font-medium">
+                        {t("barman_approvals_from")}
+                      </th>
+                      {canFilterBarman && (
+                        <th className="px-4 py-2.5 text-left font-medium">
+                          {t("barman_label_barman")}
+                        </th>
+                      )}
+                      <th className="px-4 py-2.5 text-left font-medium">
+                        {t("barman_daily_item")}
+                      </th>
+                      <th className="px-4 py-2.5 text-right font-medium">
+                        {t("barman_approvals_qty")}
+                      </th>
+                      <th className="px-4 py-2.5 text-left font-medium">
+                        {t("barman_daily_unit")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {approvalHistory.map((row: BarmanApprovalHistoryRow) => {
+                      const active = row.date === selectedDate;
+                      return (
+                        <tr
+                          key={row.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedDate(row.date)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSelectedDate(row.date);
+                            }
+                          }}
+                          className={cn(
+                            "border-b border-border last:border-0 cursor-pointer transition-colors",
+                            active ? "bg-primary/10" : "hover:bg-muted/40"
+                          )}
+                        >
+                          <td className="px-4 py-2.5 whitespace-nowrap">
+                            {formatDate(row.date, { short: true })}
+                          </td>
+                          <td className="px-4 py-2.5 font-medium">
+                            {row.assignedByName}
+                          </td>
+                          {canFilterBarman && (
+                            <td className="px-4 py-2.5">{row.barmanName}</td>
+                          )}
+                          <td className="px-4 py-2.5 font-medium">
+                            {row.inventoryName}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
+                            {row.approved}
+                          </td>
+                          <td className="px-4 py-2.5 text-muted-foreground">
+                            {row.unit || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
-          <TabsContent value="approved" className="space-y-3 mt-4">
-            {approved.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-                <p className="text-sm text-muted-foreground">
-                  {t("barman_no_approved")}
-                </p>
-                {isBarman && pending.length > 0 && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {fill(
-                      pending.length === 1
-                        ? t("barman_pending_review_one")
-                        : t("barman_pending_review"),
-                      { count: pending.length }
-                    )}
-                  </p>
+      {/* Summary + filters */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+            <Package className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">
+              {t("barman_total_remaining")}
+            </p>
+            <p className="text-2xl font-semibold tabular-nums leading-none mt-1">
+              {isDailyLoading ? "—" : totalCurrent}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 flex-wrap">
+          <div className="flex items-center gap-1 bg-card p-1 rounded-lg border border-border">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handlePrevDate}
+              aria-label={t("reports_prev")}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-2 px-3 min-w-[140px] justify-center font-semibold text-sm">
+              <CalendarIcon className="h-4 w-4 text-primary shrink-0" />
+              <span className="whitespace-nowrap">
+                {formatDate(selectedDate, { short: true })}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleNextDate}
+              disabled={selectedDate >= getAddisToday()}
+              aria-label={t("reports_next")}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {canFilterBarman && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">
+                {t("barman_daily_filter_barman")}
+              </label>
+              <Select
+                value={selectedBarmanId}
+                onValueChange={setSelectedBarmanId}
+              >
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder={t("barman_daily_all_barmen")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {t("barman_daily_all_barmen")}
+                  </SelectItem>
+                  {(barmenData?.staff || []).map((barman: Staff) => {
+                    const barmanId = barman.id || barman._id;
+                    return (
+                      <SelectItem key={barmanId} value={barmanId}>
+                        {barman.name}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Pending */}
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">{t("barman_section_pending")}</h2>
+          {pending.length > 0 && (
+            <Badge variant="outline">{pending.length}</Badge>
+          )}
+        </div>
+
+        {isAssignmentsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t("barman_loading")}
+          </div>
+        ) : pending.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("barman_no_pending")}</p>
+        ) : (
+          pending.map((assignment: InventoryAssignment) => {
+            const itemName = getInventoryName(
+              assignment,
+              t("barman_unknown_item")
+            );
+            const barmanName = getPersonName(
+              assignment.barmanId,
+              t("barman_unknown_person")
+            );
+            const cashierName = getPersonName(
+              assignment.assignedBy,
+              t("barman_unknown_person")
+            );
+
+            return (
+              <div
+                key={assignment.id}
+                className="rounded-2xl border border-border bg-card p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-lg">{itemName}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {t("barman_label_barman")}:{" "}
+                      <span className="font-medium text-foreground">
+                        {isBarman ? user?.name || barmanName : barmanName}
+                      </span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {assignment.assignedQuantity}{" "}
+                      {getInventoryUnit(assignment)} · {cashierName}
+                    </p>
+                  </div>
+                  <Badge variant="outline">{t("barman_needs_approval")}</Badge>
+                </div>
+
+                {isBarman && (
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                    <div className="flex-1">
+                      <label className="text-xs text-muted-foreground">
+                        {t("barman_confirm_qty")}
+                      </label>
+                      <Input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        className="mt-1"
+                        value={
+                          approveQtyById[assignment.id] ??
+                          String(assignment.assignedQuantity)
+                        }
+                        onChange={(e) =>
+                          setApproveQtyById((prev) => ({
+                            ...prev,
+                            [assignment.id]: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <Button
+                      onClick={() => handleApprove(assignment)}
+                      disabled={isApproving}
+                    >
+                      {t("barman_approve")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleReject(assignment.id)}
+                      disabled={isRejecting}
+                    >
+                      {t("barman_reject")}
+                    </Button>
+                  </div>
                 )}
               </div>
-            ) : (
-              approved.map((assignment: InventoryAssignment) => {
-                const unit = getInventoryUnit(assignment);
-                const remaining = assignment.remainingQuantity || 0;
-                const approvedQty = assignment.approvedQuantity ?? 0;
-                const used = Math.max(0, approvedQty - remaining);
-                const low = remaining <= 0;
-                const itemName = getInventoryName(
-                  assignment,
-                  t("barman_unknown_item")
-                );
-                const barmanName = getPersonName(
-                  assignment.barmanId,
-                  t("barman_unknown_person")
-                );
+            );
+          })
+        )}
+      </section>
 
+      {/* Stock: Sold + Current */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h2 className="text-lg font-semibold">{t("barman_section_stock")}</h2>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {formatDate(selectedDate, { short: true })}
+          </span>
+        </div>
+
+        {isDailyLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t("barman_daily_loading")}
+          </div>
+        ) : summaryRows.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              {t("barman_daily_empty")}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="sm:hidden space-y-3">
+              {summaryRows.map((row: BarmanDailySummaryRow) => {
+                const low = (row.remaining || 0) <= 0;
                 return (
                   <div
-                    key={assignment.id}
+                    key={`${row.barmanId}-${row.inventoryId}`}
                     className={cn(
-                      "rounded-2xl border bg-card p-4 sm:p-5",
+                      "rounded-2xl border bg-card p-4 space-y-3",
                       low
                         ? "border-red-200 dark:border-red-900/50"
                         : "border-border"
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          {t("barman_label_inventory")}
-                        </p>
-                        <h3 className="text-xl font-semibold truncate">
-                          {itemName}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-semibold text-lg">
+                          {row.inventoryName}
                         </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {t("barman_label_barman")}:{" "}
-                          <span className="font-medium text-foreground">
-                            {isBarman
-                              ? user?.name || barmanName
-                              : barmanName}
-                          </span>
-                        </p>
+                        {canFilterBarman && (
+                          <p className="text-sm text-muted-foreground">
+                            {row.barmanName}
+                          </p>
+                        )}
                       </div>
                       <Badge
                         className={cn(
@@ -330,227 +585,62 @@ export default function BarmanAssignmentsPage() {
                           : t("barman_status_in_stock")}
                       </Badge>
                     </div>
-
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="rounded-xl bg-primary/10 px-4 py-4">
-                        <p className="text-xs text-muted-foreground">
-                          {t("barman_label_left")}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-muted/40 px-3 py-3">
+                        <p className="text-[11px] text-muted-foreground">
+                          {t("barman_daily_sold")}
+                        </p>
+                        <p className="mt-1 text-xl font-semibold tabular-nums">
+                          {row.sold}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-primary/10 px-3 py-3">
+                        <p className="text-[11px] text-muted-foreground">
+                          {t("barman_daily_remaining")}
                         </p>
                         <p
                           className={cn(
-                            "mt-1 text-3xl font-semibold tabular-nums",
+                            "mt-1 text-xl font-semibold tabular-nums",
                             low && "text-red-600 dark:text-red-400"
                           )}
                         >
-                          {remaining}
-                          {unit ? (
-                            <span className="ml-2 text-base font-normal text-muted-foreground">
-                              {unit}
-                            </span>
-                          ) : null}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-muted/40 px-4 py-4">
-                        <p className="text-xs text-muted-foreground">
-                          {t("barman_label_used")}
-                        </p>
-                        <p className="mt-1 text-2xl font-semibold tabular-nums">
-                          {used}
-                          {unit ? (
-                            <span className="ml-2 text-base font-normal text-muted-foreground">
-                              {unit}
-                            </span>
-                          ) : null}
+                          {row.remaining}
                         </p>
                       </div>
                     </div>
                   </div>
                 );
-              })
-            )}
-          </TabsContent>
-
-          <TabsContent value="pending" className="space-y-3 mt-4">
-            {pending.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("barman_no_pending")}
-              </p>
-            ) : (
-              pending.map((assignment: InventoryAssignment) => {
-                const itemName = getInventoryName(
-                  assignment,
-                  t("barman_unknown_item")
-                );
-                const barmanName = getPersonName(
-                  assignment.barmanId,
-                  t("barman_unknown_person")
-                );
-                const cashierName = getPersonName(
-                  assignment.assignedBy,
-                  t("barman_unknown_person")
-                );
-
-                return (
-                  <div
-                    key={assignment.id}
-                    className="rounded-2xl border border-border bg-card p-4 space-y-3"
-                  >
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          {t("barman_label_inventory")}
-                        </p>
-                        <h3 className="font-semibold text-xl">{itemName}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {t("barman_label_barman")}:{" "}
-                          <span className="font-medium text-foreground">
-                            {isBarman
-                              ? user?.name || barmanName
-                              : barmanName}
-                          </span>
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {t("barman_cashier_sent")}{" "}
-                          <span className="font-medium text-foreground">
-                            {assignment.assignedQuantity}{" "}
-                            {getInventoryUnit(assignment)}
-                          </span>{" "}
-                          {t("barman_from")} {cashierName}
-                        </p>
-                      </div>
-                      <Badge variant="outline">
-                        {t("barman_needs_approval")}
-                      </Badge>
-                    </div>
-
-                    {isBarman && (
-                      <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
-                        <div className="flex-1">
-                          <label className="text-xs text-muted-foreground">
-                            {t("barman_confirm_qty")}
-                          </label>
-                          <Input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            className="mt-1"
-                            value={
-                              approveQtyById[assignment.id] ??
-                              String(assignment.assignedQuantity)
-                            }
-                            onChange={(e) =>
-                              setApproveQtyById((prev) => ({
-                                ...prev,
-                                [assignment.id]: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                        <Button
-                          onClick={() => handleApprove(assignment)}
-                          disabled={isApproving}
-                        >
-                          {t("barman_approve")}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleReject(assignment.id)}
-                          disabled={isRejecting}
-                        >
-                          {t("barman_reject")}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </TabsContent>
-
-          <TabsContent value="daily" className="space-y-4 mt-4">
-            <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">
-                  {t("barman_daily_date")}
-                </label>
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full sm:w-[180px]"
-                />
-              </div>
-              {canFilterBarman && (
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">
-                    {t("barman_daily_filter_barman")}
-                  </label>
-                  <Select
-                    value={selectedBarmanId}
-                    onValueChange={setSelectedBarmanId}
-                  >
-                    <SelectTrigger className="w-full sm:w-[220px]">
-                      <SelectValue placeholder={t("barman_daily_all_barmen")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">
-                        {t("barman_daily_all_barmen")}
-                      </SelectItem>
-                      {(barmenData?.staff || []).map((barman: Staff) => {
-                        const barmanId = barman.id || barman._id;
-                        return (
-                          <SelectItem key={barmanId} value={barmanId}>
-                            {barman.name}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              })}
             </div>
 
-            {isDailyLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t("barman_daily_loading")}
-              </div>
-            ) : (dailySummary?.items || []).length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-                <p className="text-sm text-muted-foreground">
-                  {t("barman_daily_empty")}
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-border overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40">
-                        {canFilterBarman && (
-                          <th className="px-4 py-3 text-left font-medium">
-                            {t("barman_label_barman")}
-                          </th>
-                        )}
+            <div className="hidden sm:block rounded-2xl border border-border overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40">
+                      {canFilterBarman && (
                         <th className="px-4 py-3 text-left font-medium">
-                          {t("barman_daily_item")}
+                          {t("barman_label_barman")}
                         </th>
-                        <th className="px-4 py-3 text-right font-medium">
-                          {t("barman_daily_approved")}
-                        </th>
-                        <th className="px-4 py-3 text-right font-medium">
-                          {t("barman_daily_sold")}
-                        </th>
-                        <th className="px-4 py-3 text-right font-medium">
-                          {t("barman_daily_remaining")}
-                        </th>
-                        <th className="px-4 py-3 text-left font-medium">
-                          {t("barman_daily_unit")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(dailySummary?.items || []).map((row: BarmanDailySummaryRow) => (
+                      )}
+                      <th className="px-4 py-3 text-left font-medium">
+                        {t("barman_daily_item")}
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium">
+                        {t("barman_daily_sold")}
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium">
+                        {t("barman_daily_remaining")}
+                      </th>
+                      <th className="px-4 py-3 text-left font-medium">
+                        {t("barman_daily_unit")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summaryRows.map((row: BarmanDailySummaryRow) => {
+                      const low = (row.remaining || 0) <= 0;
+                      return (
                         <tr
                           key={`${row.barmanId}-${row.inventoryId}`}
                           className="border-b border-border last:border-0"
@@ -562,27 +652,29 @@ export default function BarmanAssignmentsPage() {
                             {row.inventoryName}
                           </td>
                           <td className="px-4 py-3 text-right tabular-nums">
-                            {row.approved}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
                             {row.sold}
                           </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
+                          <td
+                            className={cn(
+                              "px-4 py-3 text-right tabular-nums font-semibold",
+                              low && "text-red-600 dark:text-red-400"
+                            )}
+                          >
                             {row.remaining}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">
                             {row.unit || "—"}
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }

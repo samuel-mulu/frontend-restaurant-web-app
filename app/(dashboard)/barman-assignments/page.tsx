@@ -104,6 +104,7 @@ export default function BarmanAssignmentsPage() {
   const [selectedDate, setSelectedDate] = useState(() => getAddisToday());
   const [selectedBarmanId, setSelectedBarmanId] = useState<string>("all");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState(true);
 
   const {
     data: assignments = [],
@@ -430,100 +431,122 @@ export default function BarmanAssignmentsPage() {
         </div>
       </div>
 
-      {/* Pending */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">{t("barman_section_pending")}</h2>
-          {pending.length > 0 && (
-            <Badge variant="outline">{pending.length}</Badge>
-          )}
-        </div>
-
-        {isAssignmentsLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("barman_loading")}
+      {/* Pending — show / hide */}
+      <section className="rounded-2xl border border-border bg-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setPendingOpen((open) => !open)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-semibold">{t("barman_section_pending")}</span>
+            <Badge variant="secondary" className="tabular-nums">
+              {pending.length}
+            </Badge>
           </div>
-        ) : pending.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("barman_no_pending")}</p>
-        ) : (
-          pending.map((assignment: InventoryAssignment) => {
-            const itemName = getInventoryName(
-              assignment,
-              t("barman_unknown_item")
-            );
-            const barmanName = getPersonName(
-              assignment.barmanId,
-              t("barman_unknown_person")
-            );
-            const cashierName = getPersonName(
-              assignment.assignedBy,
-              t("barman_unknown_person")
-            );
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground shrink-0">
+            {pendingOpen ? t("barman_approvals_hide") : t("barman_approvals_show")}
+            {pendingOpen ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </span>
+        </button>
 
-            return (
-              <div
-                key={assignment.id}
-                className="rounded-2xl border border-border bg-card p-4 space-y-3"
-              >
-                <div className="flex items-start justify-between gap-2 flex-wrap">
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-lg">{itemName}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {t("barman_label_barman")}:{" "}
-                      <span className="font-medium text-foreground">
-                        {isBarman ? user?.name || barmanName : barmanName}
-                      </span>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {assignment.assignedQuantity}{" "}
-                      {getInventoryUnit(assignment)} · {cashierName}
-                    </p>
-                  </div>
-                  <Badge variant="outline">{t("barman_needs_approval")}</Badge>
-                </div>
-
-                {isBarman && (
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
-                    <div className="flex-1">
-                      <label className="text-xs text-muted-foreground">
-                        {t("barman_confirm_qty")}
-                      </label>
-                      <Input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        className="mt-1"
-                        value={
-                          approveQtyById[assignment.id] ??
-                          String(assignment.assignedQuantity)
-                        }
-                        onChange={(e) =>
-                          setApproveQtyById((prev) => ({
-                            ...prev,
-                            [assignment.id]: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <Button
-                      onClick={() => handleApprove(assignment)}
-                      disabled={isApproving}
-                    >
-                      {t("barman_approve")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleReject(assignment.id)}
-                      disabled={isRejecting}
-                    >
-                      {t("barman_reject")}
-                    </Button>
-                  </div>
-                )}
+        {pendingOpen && (
+          <div className="border-t border-border p-4 space-y-3">
+            {isAssignmentsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("barman_loading")}
               </div>
-            );
-          })
+            ) : pending.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {t("barman_no_pending")}
+              </p>
+            ) : (
+              pending.map((assignment: InventoryAssignment) => {
+                const itemName = getInventoryName(
+                  assignment,
+                  t("barman_unknown_item")
+                );
+                const barmanName = getPersonName(
+                  assignment.barmanId,
+                  t("barman_unknown_person")
+                );
+                const cashierName = getPersonName(
+                  assignment.assignedBy,
+                  t("barman_unknown_person")
+                );
+
+                return (
+                  <div
+                    key={assignment.id}
+                    className="rounded-2xl border border-border bg-background p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="space-y-1">
+                        <h3 className="font-semibold text-lg">{itemName}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {t("barman_label_barman")}:{" "}
+                          <span className="font-medium text-foreground">
+                            {isBarman ? user?.name || barmanName : barmanName}
+                          </span>
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {assignment.assignedQuantity}{" "}
+                          {getInventoryUnit(assignment)} · {cashierName}
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {t("barman_needs_approval")}
+                      </Badge>
+                    </div>
+
+                    {isBarman && (
+                      <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                        <div className="flex-1">
+                          <label className="text-xs text-muted-foreground">
+                            {t("barman_confirm_qty")}
+                          </label>
+                          <Input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            className="mt-1"
+                            value={
+                              approveQtyById[assignment.id] ??
+                              String(assignment.assignedQuantity)
+                            }
+                            onChange={(e) =>
+                              setApproveQtyById((prev) => ({
+                                ...prev,
+                                [assignment.id]: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <Button
+                          onClick={() => handleApprove(assignment)}
+                          disabled={isApproving}
+                        >
+                          {t("barman_approve")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleReject(assignment.id)}
+                          disabled={isRejecting}
+                        >
+                          {t("barman_reject")}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         )}
       </section>
 
